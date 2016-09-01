@@ -253,10 +253,8 @@ class GeologicalModel(object):
         Queries the height at a point in the plane.
         Returns the closest point if outside the bounds.
         """
-        topography = self.topography['transform']
-        
-        abspos = [(point[0]-topography['point'][0])/topography['sample'][0], 
-                  (point[1]-topography['point'][1])/topography['sample'][1]]
+        abspos = [(point[0]-self.topography['point'][0])/self.topography['sample'][0], 
+                  (point[1]-self.topography['point'][1])/self.topography['sample'][1]]
         
         x = int(abspos[0])
         y = int(abspos[1])
@@ -267,10 +265,10 @@ class GeologicalModel(object):
         if y < 0:
             y = 0
         
-        if x >= topography['dims'][0]:
-            x = topography['dims'][0]-1
+        if x >= self.topography['dims'][0]:
+            x = self.topography['dims'][0]-1
         
-        if y >= topography['dims'][1]:
-            y = topography['dims'][1]-1
+        if y >= self.topography['dims'][1]:
+            y = self.topography['dims'][1]-1
         
-        return topography['heights'][x][y]
+        return self.topography['heights'][x][y]
