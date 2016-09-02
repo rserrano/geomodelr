@@ -12,22 +12,33 @@ class ParametersException(Exception):
 def prep_model(geojson):
     model = GeologicalModel(json.loads(geojson.read()))
     model.calc_cache()
+    save = False
     if not model.has_interpolation():
         print >> sys.stderr, ">> no match in file, calculating match"
         model.calc_interpolation()
+        print >> sys.stderr, ">> matching created"
+        save = True
+    if not model.has_faults():
+        print >> sys.stderr, ">> no faults in file, calculating faults"
+        model.calc_faults()
+        print >> sys.stderr, ">> faults created"
+        save = True
+    
+    if save:
         geojson.close()
         fp = open(geojson.name, "w")
         fp.write(json.dumps(model.geojson))
-        print >> sys.stderr, ">> matching created"
     
     return model
 
 def query_coordinates(geojson, grid=False):
     model = prep_model(geojson)
-
-    line = sys.stdin.readline()
+    line  = sys.stdin.readline()
     while line:
-        point = map(float, line.split())
+        try:
+            point = map(float, line.split())
+        except ValueError:
+            raise ParametersException("three numerical values are required per line")
         model.query_point(point)
         line = sys.stdin.readline()
 
@@ -40,9 +51,11 @@ def query_grid(geojson, grid=False):
         try:
             if len(args) < 9:
                 raise ParametersException("wrong number of parameters for grid")
-            
-            mnx, mny, mnz, mxx, mxy, mxz = map(float, args[:6])
-            nx, ny, nz = map(int, args[6:])
+            try:
+                mnx, mny, mnz, mxx, mxy, mxz = map(float, args[:6])
+                nx, ny, nz = map(int, args[6:])
+            except ValueError:
+                raise ParametersException("nine numerical values are required per line")
             
             if nx < 1:
                 raise ParametersException("nx is not positive")

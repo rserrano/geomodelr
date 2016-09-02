@@ -1,6 +1,22 @@
 from shapely.geometry import Polygon, Point, LineString
 import numpy as np
 from numpy import linalg as la
+from scipy.spatial import Delaunay
+import itertools
+
+class GeometryException(Exception):
+    pass
+
+def triangulate(points, fltr=lambda x: True):
+    tetras = Delaunay(points)
+    tris = set()
+    for tet in tetras.simplices.copy():
+        for tri in itertools.combinations(tet,3):
+            srt = tuple(sorted(tri))
+            if not tri in tris and fltr(srt):
+                tris.add(srt)
+    return list(tris)
+
 
 def line_side(surface_line, cs_line):
     """

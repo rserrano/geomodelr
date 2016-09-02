@@ -8,5 +8,6 @@ setup(name='geomodelr',
       author_email='rserrano@mapalomalia.com',
       license='AGPL',
       packages=['geomodelr'],
+      install_requires=['sortedcontainers'],
       zip_safe=False)
 

@@ -1,10 +1,13 @@
 import matching
 import shared
+import faults
+import query
 import json
 import datetime
-import query
 import numpy as np
 import sys
+
+
 from numpy import linalg as la
 
 class GeologicalModel(object):
@@ -160,13 +163,24 @@ class GeologicalModel(object):
             name2 = self.geojson['features'][self.section_idxs[idx+1]]['name']
             mtch[-1]['name'] = [name1, name2]
         self.matching = self.geojson['interpolation']['matching']
+    
+    def has_faults( self ):
+        for feature in self.geojson['features']:
+            if feature['geology_type'] == 'faults':
+                return True
+        return False
 
-    def calc_fplanes( self ):
-        """ Adds a FeatureCollection to the GeoJSON with 
-            surfaces containing triangles that
-            represent a fault between two cross sections.
+    def calc_faults( self ):
+        """ 
+        Adds a FeatureCollection to the GeoJSON with 
+        surfaces containing triangles that
+        represent a fault between two cross sections.
         """
-        pass
+        planes = []
+        for idx in xrange(len(self.sections)-1):
+            planes.append(faults.create_fault_planes(self.sections[idx], self.sections[idx+1]))
+        print >> sys.stderr, planes
+            
 
     def model_point(self, point):
         """
