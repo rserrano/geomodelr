@@ -7,6 +7,22 @@ import itertools
 class GeometryException(Exception):
     pass
 
+def shape_list(shape, sh_type):
+   """
+   Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of polygons.
+   And a polygon into a list of one polygon.
+   """
+   try:
+       shapes = []
+       for sh in shape.geoms:
+           if sh_type is None or sh.geometryType() == sh_type:
+               shapes.append(sh)
+       return shapes
+   except:
+       if sh_type is None or shape.geometryType() == sh_type:
+           return [shape]
+       return []
+
 def triangulate(points, fltr=lambda x: True):
     tetras = Delaunay(points)
     tris = set()

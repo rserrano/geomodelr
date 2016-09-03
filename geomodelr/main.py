@@ -9,22 +9,22 @@ from model import GeologicalModel
 class ParametersException(Exception):
     pass
 
-def prep_model(geojson):
+def prep_model(geojson, save=False):
     model = GeologicalModel(json.loads(geojson.read()))
     model.calc_cache()
-    save = False
+    changed = False
     if not model.has_interpolation():
         print >> sys.stderr, ">> no match in file, calculating match"
         model.calc_interpolation()
         print >> sys.stderr, ">> matching created"
-        save = True
+        changed = True
     if not model.has_faults():
         print >> sys.stderr, ">> no faults in file, calculating faults"
         model.calc_faults()
         print >> sys.stderr, ">> faults created"
-        save = True
+        changed = True
     
-    if save:
+    if changed and save:
         geojson.close()
         fp = open(geojson.name, "w")
         fp.write(json.dumps(model.geojson))

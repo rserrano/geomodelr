@@ -177,11 +177,23 @@ class GeologicalModel(object):
         represent a fault between two cross sections.
         """
         planes = []
-        for idx in xrange(len(self.sections)-1):
-            planes.append(faults.create_fault_planes(self.sections[idx], self.sections[idx+1]))
-        print >> sys.stderr, planes
-            
-
+        for idx in xrange(len(self.section_idxs)-1):
+            mdx = self.section_idxs[idx]
+            ndx = self.section_idxs[idx+1]
+            planes.append(faults.faultplanes_between_sections(self.geojson['features'][mdx], self.geojson['features'][ndx]))
+        
+        nam_planes = {}
+        for plane in planes:
+            for nam, fplane in plane.iteritems():
+                if not nam in nam_planes:
+                    nam_planes[nam] = fplane
+                else:
+                    nam_planes[nam] += fplane
+        
+        self.faults = faults.faultplanes_to_featurecollection(nam_planes)
+        print self.faults
+        self.geojson['features'].append(self.faults)
+    
     def model_point(self, point):
         """
         Returns the point in geological model representation.
