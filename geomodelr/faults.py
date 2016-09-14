@@ -5,6 +5,8 @@ import numpy as np
 from numpy import linalg as la
 from scipy.spatial import Delaunay
 import sortedcontainers
+from shapely.geometry import Polygon, Point, LineString
+from copy import deepcopy
 
 def angles(t):
     """
@@ -14,26 +16,6 @@ def angles(t):
     cos = [(st[1] + st[2] - st[0])/(2*t[1]*t[2]), (st[0] + st[1] - st[2])/(2*t[0]*t[1])]
     ang = map(math.acos, cos)
     ang.append(math.pi - (ang[0] + ang[1]))
-    return ang
-
-def angle_between(p1, p2, p3, p4):
-    """
-    Finds the angle between two triangles with 
-    shared edge (p1, p2) in 3D.
-    """
-    v1 = np.array(p2)-np.array(p1)
-    v2 = np.array(p3)-np.array(p1)
-    v3 = np.array(p4)-np.array(p1)
-    c1 = np.cross(v2,v1)
-    nc1 = c1/la.norm(c1)
-    c2 = np.cross(v3,v1)
-    nc2 = c2/la.norm(c2)
-    dt = np.dot(nc1, nc2)
-    if dt > 1.0:
-        dt = 1.0
-    if dt < -1.0:
-        dt = -1.0
-    ang = math.acos(dt)
     return ang
 
 def next_and_check(tri,edg,na):
@@ -104,6 +86,16 @@ def faultplane_for_lines(l_a, l_b):
     if not len(pos_start):
         raise shared.GeometryException("Could not find a configuration to start the triangulation.")
     
+    # # Obtain the minimum count for the edges, (hopefully is one, but, well, weird cases).
+    # mincnt = min( map(pos_start.count, pos_start) )
+    # 
+    # # Get the starting edge 
+    # for edg in pos_start:
+    #     if pos_start.count(edg) == mincnt:
+    #         start = edg
+    #         break       
+    start = pos_start[0]
+
     # Create a set of triangles and order by weight.
     def weight( tri ):
         """
@@ -117,14 +109,6 @@ def faultplane_for_lines(l_a, l_b):
     
     sorted_triangles = sortedcontainers.SortedListWithKey( tris, weight )
     
-    # Obtain the minimum count for the edges, (hopefully is one, but, well, weird cases).
-    mincnt = min( map(pos_start.count, pos_start) )
-    
-    # Get the starting edge 
-    for edg in pos_start:
-        if pos_start.count(edg) == mincnt:
-            start = edg
-            break       
     nxtedg = start
     
     output_triangles = []
@@ -196,28 +180,36 @@ def faultplanes_between_sections(cross_a, cross_b):
         
         l_a = map( transform_a, cross_a['features'][idx[0]]['geometry']['coordinates'])
         l_b = map( transform_b, cross_b['features'][idx[1]]['geometry']['coordinates'])
-        
-        fplane = faultplane_for_lines(l_a, l_b)
-        na = len(l_a)
-        point_fplane = []
-        for tri in fplane:
-            point_tri = []
-            for n in tri:
-                if n < na:
-                    point_tri.append(l_a[n])
-                else:
-                    point_tri.append(l_b[n-na])
-            point_fplane.append(point_tri)
-        faultplanes[nam] = point_fplane
+        try:
+            fplane = faultplane_for_lines(l_a, l_b)
+            na = len(l_a)
+            point_fplane = []
+            for tri in fplane:
+                point_tri = []
+                for n in tri:
+                    if n < na:
+                        point_tri.append(l_a[n])
+                    else:
+                        point_tri.append(l_b[n-na])
+                point_fplane.append(point_tri)
+            faultplanes[nam] = point_fplane
+        except shared.GeometryException as e:
+            print "could not interpolate fault %s between %s and %s: " % (nam, cross_a['name'], cross_b['name']), e
     return faultplanes
 
 def faultplane_to_feature(fplane, name):
+    """
+    Converts a fault plane to a Feature.
+    """
     return { 'type': 'Feature',
              'geometry': { 'type': 'Surface', 
                            'coordinates': fplane },
              'properties': { 'name': name } }
 
 def faultplanes_to_featurecollection(fplanes):
+    """
+    Converts a set of faultplanes to a FeatureCollection
+    """
     features = [ faultplane_to_feature(fplane, name) for name, fplane in fplanes.iteritems() ]
     return  { 
         'type': 'FeatureCollection',
@@ -228,21 +220,38 @@ def faultplanes_to_featurecollection(fplanes):
                 }
             }
 
-def space_location( plane ):
-    # Find the vectors in the plane that generate the space.
-    pn = map(np.array, plane)
-    # First is the vector with two corners in the top.
-    v1 = pn[1] - pn[0]
-    # Second is last point and first point.
-    v2 = pn[-1] - pn[0]
-    v1 = v1/la.norm(v1)
+class AlignedTriangle(object):
+    def __init__(self, triangle):
+        # First convert the triangle to model coordinate system.
+        tr = map(np.array, triangle)
+        # Then calculate the normal, but looking in the direction of the model.
+        vct = np.cross(tr[1]-tr[0], tr[2]-tr[0])
+        
+        if vct[2] < 0:
+            vct = -vct
+        vct /= la.norm(vct)
+        
+        # Set it in the AlignedTriangle
+        self.normal = vct
+        self.point  = tr[0]
+        
+        # Add a polygon.
+        self.triangle = Polygon( map( lambda pt: pt[:2], triangle ) )
     
-    # Gram-Schmidt is used to make them perpendicular.
-    v2 = v2 - np.dot(v1, v2)*v1
-    v2 = v2/la.norm(v2)
-    def locate_line( line ):
-        return map( lambda p: list(x0+v1*p[0]+v2*p[1]), line )
-    return locate_line
+    def __repr__(self):
+        return ",".join((str(self.triangle), str(self.point), str(self.normal)))
+
+def align_fault_with(faults, model_point):
+    """
+    It returns a structure that can be used to know if the triangle is before of after the point.
+    """
+    ret = {}
+    for feature in faults['features']:
+        triangles = []
+        for triangle in feature['geometry']['coordinates']:
+            triangles.append(AlignedTriangle(map(model_point, triangle)))
+        ret[feature['properties']['name']] = triangles 
+    return ret
 
 def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
     """
@@ -257,9 +266,10 @@ def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
             p0 = np.array(tp[i])
             p1 = np.array(tp[ni])
             nt = p1-p0
-            d = la.norm(nt)
+            d  = la.norm(nt)
             nt = nt/d
-            # Find if the ray and the plane are parallel.
+            
+            # Find if the ray and the plane are parallel. (plane normal perpendicular).
             div = np.dot(nv, nt)
             if math.fabs(div) < 1e-9:
                 continue
@@ -268,7 +278,7 @@ def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
             a = np.dot(x0 - p0, nv)/div
             
             # Find if it lies within the line.
-            if a > (d + 1e-9) or a < -1e-9:
+            if a > (d + 1e-9) or (a < -1e-9):
                 continue
             
             # Find if the point is already in the list.
@@ -282,12 +292,12 @@ def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
         # Size of ints must be 2 to append it as lines.
         if len(ints) == 2:
             lines.append(ints)
+    
     filt_lines = []
     # Cut the lines to the plane.
     for line in lines:
         res = intersect_line(line)
-        if res is not None:
-            filt_lines.append(res)
+        filt_lines += res
     
     # Join the lines.
     j_lines = []
@@ -321,7 +331,6 @@ def find_faults_plane_intersection(fplanes, plane):
     fplanes:    the set of fault planes to intersect with the plane.
     plane:      plane to intersect. It's the four corners of the plane.
     """
-    
     # Find the vectors in the plane that generate the space.
     pn = map(np.array, plane)
     # First is the vector with two corners in the top.
@@ -363,5 +372,29 @@ def find_faults_plane_intersection(fplanes, plane):
     joined_lines = {}
     for nam, fplane in fplanes.iteritems():
         joined_lines[nam] = find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line)
+    
     return joined_lines
 
+def find_faults_multiple_planes_intersection(fplanes, planes):
+    # All joined lines.
+    joined_lines = {}
+    
+    # Coordinate in x to add to the plane lines.
+    startx = 0.0
+    for plane in planes:
+        lines = find_faults_plane_intersection(fplanes, plane)
+        for nam, lines in lines.iteritems():
+            for line in lines:
+                for point in line:
+                    point[0] += startx
+            if nam in joined_lines:
+                joined_lines[nam] += lines
+            else:
+                joined_lines[nam] = lines
+        # Find the vectors in the plane that generate the space.
+        pn = map(np.array, plane)
+        # First is the vector with two corners in the top.
+        v1 = pn[1] - pn[0]
+        # Update the coordinate in x to start.
+        startx += la.norm(v1)
+    

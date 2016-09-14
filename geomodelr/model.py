@@ -16,6 +16,7 @@ class GeologicalModel(object):
         Initializes the geological model from a geojson file.
         """
         self.geojson = geojson
+    
     def validate( self ):
         """
         Validates that the geojson is correct. 
@@ -43,7 +44,7 @@ class GeologicalModel(object):
             crs = self.geojson['crs']
             print "Coordinate System:\n\t%s" % crs['properties']['name']
         
-
+        
         # Bounding box.
         if 'bbox' in self.geojson:
             bbox = self.geojson['bbox']
@@ -61,13 +62,13 @@ class GeologicalModel(object):
                     units.add(p['properties']['unit'])
                 pprops.update(set(p['properties'].keys()))
             
-            faults = filter(lambda f: f['geometry']['type'] == 'LineString', collection['features'])
-            for f in faults:
+            flts = filter(lambda f: f['geometry']['type'] == 'LineString', collection['features'])
+            for f in flts:
                 if 'name' in f['properties']:
                     lnames.add(f['properties']['name'])
                 lprops.update(set(f['properties'].keys()))
             
-            return { 'polygons': len(polys), 'faults': len(faults) }
+            return { 'polygons': len(polys), 'faults': len(flts) }
         
         maps = filter(lambda f: f['geology_type'] == 'map', self.geojson['features'])
         
@@ -101,18 +102,13 @@ class GeologicalModel(object):
             # Fault names.
             print "\tFault names present: %s" % ", ".join(lnames)
             print "\tFault properties present: %s" % ", ".join(lprops)
-
-
+    
     def calc_cache( self ):
         """
         Calculates objects which are easier to work with and faster
         but can't be serialized, like shapely polygons.
         """
         
-        if 'interpolation' in self.geojson:
-            self.matching = self.geojson['interpolation']['matching']
-
-
         self.sections = []
         self.section_idxs = []
         
@@ -123,7 +119,7 @@ class GeologicalModel(object):
                 break
         else:
             self.geomap = None
-
+        
         # First get the base section, which will locate all other sections.
         base_section = None
         for feature in self.geojson['features']:
@@ -137,14 +133,39 @@ class GeologicalModel(object):
         self.direction = np.array(base_line[1][:2])-self.base_point
         self.direction = self.direction/la.norm(self.direction)
         
+        # Then add non serializable cross sections, (TODO: Kill this some day.)
         for idx, feature in enumerate(self.geojson['features']):
             if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
                 self.sections.append(shared.cross_from_geojson(feature, base_line))
                 self.section_idxs.append(idx)
-        reorder = sorted(range(len(self.sections)), key=lambda o: self.sections[o].cut)
         
+        # Then reorder all the sections.
+        reorder = sorted(range(len(self.sections)), key=lambda o: self.sections[o].cut)
         self.sections = [self.sections[i] for i in reorder]
         self.section_idxs = [self.section_idxs[i] for i in reorder]
+        
+        # Check that interpolation exists, if so, add a shortcut to the matching.
+        if 'interpolation' in self.geojson:
+            # TODO: Check that it's in the correct order or has not changed.
+            self.matching = self.geojson['interpolation']['matching']
+        
+        # Check that faults exist. If so, make a side to side representation.
+        fexist = False
+        for idx, feature in enumerate(self.geojson['features']):
+            # TODO: Check that it's in the correct order or has not changed.
+            if feature['geology_type'] == 'faults':
+                if not fexist:
+                    fexist = True
+                    self.faults = []
+                    self.joined_faults = []
+                self.faults.append(faults.align_fault_with(feature, self.model_point))
+                for surface in feature['features']:
+                    name = surface['properties']['name']
+                    fplane = surface['geometry']['coordinates']
+                    if name in self.joined_faults:
+                        self.joined_faults[name] += fplane
+                    else:
+                        self.joined_faults[name] = fplane
     
     def has_interpolation( self ):
         return 'interpolation' in self.geojson
@@ -169,31 +190,34 @@ class GeologicalModel(object):
             if feature['geology_type'] == 'faults':
                 return True
         return False
-
+    
     def calc_faults( self ):
         """ 
         Adds a FeatureCollection to the GeoJSON with 
         surfaces containing triangles that
         represent a fault between two cross sections.
         """
-        planes = []
+        self.faults = []
+        self.joined_faults = { }
         for idx in xrange(len(self.section_idxs)-1):
             mdx = self.section_idxs[idx]
             ndx = self.section_idxs[idx+1]
-            planes.append(faults.faultplanes_between_sections(self.geojson['features'][mdx], self.geojson['features'][ndx]))
-        
-        nam_planes = {}
-        for plane in planes:
-            for nam, fplane in plane.iteritems():
-                if not nam in nam_planes:
-                    nam_planes[nam] = fplane
+            fplanes = faults.faultplanes_between_sections(self.geojson['features'][mdx], self.geojson['features'][ndx])
+            
+            for name, fplane in fplanes.iteritems():
+                if name in self.joined_faults:
+                    self.joined_faults[name] += fplane
                 else:
-                    nam_planes[nam] += fplane
+                    self.joined_faults[name] = fplane
+            
+            fplanes = faults.faultplanes_to_featurecollection(fplanes)
+            name1 = self.geojson['features'][mdx]['name']
+            name2 = self.geojson['features'][ndx]['name']
+            fplanes['name'] = [name1, name2]
+            self.geojson['features'].append(fplanes)
+            self.faults.append(faults.align_fault_with(fplanes, self.model_point))
+
         
-        self.faults = faults.faultplanes_to_featurecollection(nam_planes)
-        print self.faults
-        self.geojson['features'].append(self.faults)
-    
     def model_point(self, point):
         """
         Returns the point in geological model representation.
@@ -269,10 +293,7 @@ class GeologicalModel(object):
             else:
                 rng = [mid, mid+1]
         
-        return query.query_single_point(self.sections[rng[0]], 
-                                        self.sections[rng[1]], 
-                                        self.matching[rng[0]], 
-                                        point, cut)
+        return query.query_single_point(self.sections[rng[0]], self.sections[rng[1]], self.matching[rng[0]], self.faults[rng[0]], point, cut)
     
     def query_height(self, point):
         """
@@ -298,3 +319,10 @@ class GeologicalModel(object):
             y = self.topography['dims'][1]-1
         
         return self.topography['heights'][x][y]
+    
+    def intersect_plane( self, plane ):
+        return faults.find_faults_plane_intersection( self.joined_faults, plane )
+
+    def intersect_planes( self, planes ):
+        return faults.find_faults_multiple_planes_intersection( self.joined_faults, planes )
+

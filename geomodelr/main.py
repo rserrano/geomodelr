@@ -31,7 +31,7 @@ def prep_model(geojson, save=False):
     
     return model
 
-def query_coordinates(geojson, grid=False):
+def query_coordinates(geojson, verbose=False):
     model = prep_model(geojson)
     line  = sys.stdin.readline()
     while line:
@@ -42,9 +42,8 @@ def query_coordinates(geojson, grid=False):
         model.query_point(point)
         line = sys.stdin.readline()
 
-def query_grid(geojson, grid=False):
+def query_grid(geojson, verbose=False):
     model = prep_model(geojson)
-
     line = sys.stdin.readline()
     while line:
         args = line.split()
@@ -79,7 +78,30 @@ def query_grid(geojson, grid=False):
         except Exception as e:
             raise
         line = sys.stdin.readline()
-    
+
+def intersect_plane( geojson, verbose=False ):
+    model = prep_model(geojson)
+    line = sys.stdin.readline()
+    while line:
+        args = line.split()
+        try:
+            if len(args) < 12:
+                raise ParametersException("wrong number of parameters for grid")
+            try:
+                plane = []
+                for i in range(4):
+                    point = []
+                    for j in range(3):
+                        point.append(float(args[i*3+j]))
+                    plane.append(point)
+            except ValueError:
+                raise ParametersException("nine numerical values are required per line")
+            print model.intersect_plane(plane)
+        except ParametersException as e:
+            print >> sys.stderr, ">>", e
+        except Exception as e:
+            raise
+        line = sys.stdin.readline()
 
 def get_information(geojson, verbose):
     # Show map, cross sections, polygons, etc.
@@ -112,6 +134,10 @@ if __name__ == "__main__":
                        help = """ gets information from the geological 
                                   model and presents it to the user. """)
     
+    group.add_argument("-ip", "--intersect_plane", const=intersect_plane, action="store_const",
+                       help = """ intersects a plane with the faults of the model and 
+                                  returns the lines using the coordinate system dictated by the plane. """)
+    
     parser.add_argument("-v", "--verbose", action="store_true",
                         help = """shows more information to the user.""")
     
@@ -134,6 +160,8 @@ if __name__ == "__main__":
         args.grid(args.model, args.verbose)
     elif args.info:
         args.info(args.model, args.verbose)
+    elif args.intersect_plane:
+        args.intersect_plane(args.model, args.verbose)
     else:
         parser.print_help()
     

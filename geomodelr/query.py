@@ -8,9 +8,23 @@ import itertools
 import math
 
 # Functions to query points.
-
+def crosses_triangles( faults, point, cut ):
+    pt2 = Point(point)
+    pt3 = np.array((point[0], point[1], cut))
+    for name, triangles in faults.iteritems():
+        for tr in triangles:
+            if tr.triangle.contains( pt2 ):
+                d = np.dot( pt3-tr.point, tr.normal )
+                if d < 0:
+                    return -1
+                else:
+                    return 1
+    return 0
+        
 def query_cross_point(cross, point):
-    """ Queries a point in a single cross. Useful for querying outside of the range of the crosss. """
+    """ 
+    Queries a point in a single cross. Useful for querying outside of the range of the crosss. 
+    """
     min_dist = float('inf')
     min_match = None
     sh_point = Point(point[0], point[1])
@@ -27,8 +41,19 @@ def query_cross_point(cross, point):
     # Returns NONE if none was found, or the closest match.
     return 'NONE' if min_match is None else cross.units[min_match]
 
-def query_single_point(cross_a, cross_b, match, point, cut):
-    """ Queries a point between two crosss. """
+def query_single_point(cross_a, cross_b, match, faults, point, cut):
+    """ 
+    Queries a point between two crosss. 
+    """
+    # Check if it crosses a fault plane. If so, just query the cross section at the side of the cross.
+    crosses = crosses_triangles( faults, point, cut )
+    
+    if crosses != 0:
+        if crosses < 0:
+            return query_cross_point(cross_a, point)
+        else:
+            return query_cross_point(cross_b, point)
+
     dist = (cross_b.cut-cross_a.cut)
     mult_a = (cut-cross_a.cut)/dist
     mult_b = (cross_b.cut-cut)/dist
@@ -59,5 +84,4 @@ def query_single_point(cross_a, cross_b, match, point, cut):
     
     # Return the given match.
     return cross_a.units[match["match"][min_match][0]]
-
 
