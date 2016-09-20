@@ -7,6 +7,8 @@ import itertools
 class GeometryException(Exception):
     pass
 
+class ModelException(Exception):
+    pass
 def shape_list(shape, sh_type):
    """
    Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of polygons.

@@ -10,6 +10,42 @@ import sys
 
 from numpy import linalg as la
 
+def validate_feature(f):
+    """
+    Validates that the feature is valid and can be used.
+    """
+    # TODO
+    pass
+
+def validate_transform(transform, geology_type):
+    """
+    Validate the transforms.
+    """
+    # TODO
+    if not 'type' in transform:
+        raise shared.ModelException("transform needs a type")
+    if transform['type'] not in ['topography', 'plane', 'identity']:
+        raise shared.ModelException("transform types supported: topography, plane and identity")
+    
+    pass
+
+def validate_feature_collection(fc):
+    if not 'type' in fc:
+        raise shared.ModelException("type is necessary for feature collection")
+    if fc['type'] != 'FeatureCollection':
+        raise shared.ModelException("type needs to be FeatureCollection")
+    if not 'geology_type' in fc:
+        raise shared.ModelException("geology type is necessary for feature collection")
+    if not fc['geology_type'] in ['map', 'section', 'boreholes', 'dips', 'faults']:
+        raise shared.ModelException("not recognized geology type of feature collection")
+    if not 'transform' in fc:
+        raise shared.ModelException("transform is necessary for feature collection")
+    validate_transform(fc['transform'], fc['geology_type'])
+    if not 'features' in fc:
+        raise shared.ModelException("features are necessary in feature collection")
+    for f in fc:
+        validate_feature(f)
+
 class GeologicalModel(object):
     def __init__( self, geojson ):
         """ 
@@ -21,7 +57,37 @@ class GeologicalModel(object):
         """
         Validates that the geojson is correct. 
         """
-        pass
+        # Validate basic GeoJSON contents.
+        if type(self.geojson) != dict:
+            raise shared.ModelException("You did not load a dictionary in geojson format")
+        if not 'type' in self.geojson:
+            raise shared.ModelException("No type in json")
+        if self.geojson['type'] != 'GeologyCollection':
+            raise shared.ModelException("type is not GeologyCollection")
+        if not 'bbox' in self.geojson:
+            raise shared.ModelException("bounding box (bbox) is required in model")
+        if not 'crs' in self.geojson:
+            raise shared.ModelException("coordinate system (crs) is required in model")
+        if not 'type' in self.geojson['crs']:
+            raise shared.ModelException("coordinate system (crs) type is required in model")
+        if self.geojson['crs']['type'] != 'name':
+            raise shared.ModelException("only name is supported for coordinate system (crs) type")
+        if not 'properties' in self.geojson['crs']:
+            raise shared.ModelException("properties in coordinate system (crs) is required in model")
+        if not 'name' in self.geojson['crs']['properties']:
+            raise shared.ModelException("name property in coordinate system (crs) is required in model")
+        if self.geojson['crs']['properties']['name'].split(":")[0] != "EPSG":
+            raise shared.ModelException("only EPSG codes are supported as coordinate systems")
+        try:
+            int(self.geojson['crs']['properties']['name'].split(":")[1])
+        except ValueError:
+            raise shared.ModelException("EPSG should be integer code")
+        
+        # Validate the feature collections of the GeoJSON.
+        if not 'features' in self.geojson:
+            raise shared.ModelException("features is necessary in model")
+        for fc in self.geojson['features']:
+            validate_feature_collection(fc)
     
     def print_information( self, verbose=False ):
         """
