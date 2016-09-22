@@ -397,3 +397,4 @@ def find_faults_multiple_planes_intersection(fplanes, planes):
         v1 = pn[1] - pn[0]
         # Update the coordinate in x to start.
         startx += la.norm(v1)
+    return joined_lines
