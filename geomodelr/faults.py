@@ -65,10 +65,20 @@ def faultplane_for_lines(l_a, l_b):
     # Obtain the triangles that fulfil oposite
     tris = shared.triangulate(l_a+l_b, is_between_faults)
     
-    
     # pt is the point depending on the index.
     pt = lambda i: l_b[i-na] if i >= na else l_a[i]
     pt_dist=lambda e: dist(pt(e[0]), pt(e[1]))
+    # Create order the set of triangles by weight.
+    def weight( tri ):
+        """
+        Minimum angle in triangle denotes the weight.
+        """
+        dt = [dist(pt(tri[0]), pt(tri[1])), 
+              dist(pt(tri[1]), pt(tri[2])), 
+              dist(pt(tri[2]), pt(tri[0]))]
+        ang = angles(dt)
+        return min(ang)
+   
     pos_start = sortedcontainers.SortedListWithKey(key=pt_dist)
     
     # Obtain the edges count in point distance order.
@@ -87,25 +97,15 @@ def faultplane_for_lines(l_a, l_b):
         raise shared.GeometryException("Could not find a configuration to start the triangulation.")
     
     # # Obtain the minimum count for the edges, (hopefully is one, but, well, weird cases).
-    # mincnt = min( map(pos_start.count, pos_start) )
-    # 
-    # # Get the starting edge 
-    # for edg in pos_start:
-    #     if pos_start.count(edg) == mincnt:
-    #         start = edg
-    #         break       
-    start = pos_start[0]
+    # start = pos_start[0]
+    for start in pos_start:
+        try:
+            return test_start(na, tris, weight, start)
+        except shared.GeometryException:
+            pass
+    raise shared.GeometryException("The faults were not completely triangulated")
 
-    # Create a set of triangles and order by weight.
-    def weight( tri ):
-        """
-        Minimum angle in triangle denotes the weight.
-        """
-        dt = [dist(pt(tri[0]), pt(tri[1])), 
-              dist(pt(tri[1]), pt(tri[2])), 
-              dist(pt(tri[2]), pt(tri[0]))]
-        ang = angles(dt)
-        return min(ang)
+def test_start(na, tris, weight, start):
     
     sorted_triangles = sortedcontainers.SortedListWithKey( tris, weight )
     
