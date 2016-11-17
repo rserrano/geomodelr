@@ -3,7 +3,6 @@ from scipy.spatial.distance import euclidean as dist
 import math
 import numpy as np
 from numpy import linalg as la
-from scipy.spatial import Delaunay
 import sortedcontainers
 from shapely.geometry import Polygon, Point, LineString
 from copy import deepcopy

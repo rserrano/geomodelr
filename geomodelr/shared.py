@@ -9,6 +9,7 @@ class GeometryException(Exception):
 
 class ModelException(Exception):
     pass
+
 def shape_list(shape, sh_type):
    """
    Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of polygons.
@@ -34,7 +35,6 @@ def triangulate(points, fltr=lambda x: True):
             if not tri in tris and fltr(srt):
                 tris.add(srt)
     return list(tris)
-
 
 def line_side(surface_line, cs_line):
     """
@@ -102,7 +102,6 @@ class Cross:
         self.polygons = [self.polygons[i] for i in reorder]
         self.shapely_polygons = [self.shapely_polygons[i] for i in reorder]
         self.units = [self.units[i] for i in reorder]
-        
         
         self.lines = []
         self.shapely_lines = []

@@ -21,7 +21,7 @@ def crosses_triangles( faults, point, cut ):
                     return 1
     return 0
         
-def query_cross_point(cross, point):
+def query_cross_point( cross, point ):
     """ 
     Queries a point in a single cross. Useful for querying outside of the range of the crosss. 
     """

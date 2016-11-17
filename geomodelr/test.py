@@ -1,6 +1,11 @@
 import unittest
+import os
+import model
+import json
 import faults
 import shared
+import cpp
+
 class TestGeoModelR(unittest.TestCase):
     def test_create_model(self):
         pass
@@ -68,6 +73,71 @@ class TestGeoModelR(unittest.TestCase):
         self.assertEqual( faults.next_and_check( (1,2,6), (1,6), 4), ( (2,6), (1,2) ) )
         self.assertEqual( faults.next_and_check( (1,5,6), (1,6), 4), ( (1,5), (5,6) ) )
         self.assertEqual( faults.next_and_check( (1,5,6), (1,5), 4), ( (1,6), (5,6) ) )
+
+    def test_aburra_valley(self):
+        """
+        Test that you can load and test aburra Valley.
+        """
+        this_dir, this_filename = os.path.split(__file__)
+        f = open(os.path.join(this_dir, 'test_files', 'aburra_version1.json'))
+        m = model.GeologicalModel(json.loads(f.read()))
+        m.calc_cache()
+    
+    def test_sections(self):
+        """
+        Test that you can create cross sections and that bugs are catched.
+        """
+        points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1]]
+        polygons = [[[0, 1, 2, 3, 4]]]
+        units = ["unit1"]
+        lines = []
+        lnames = []
+        
+        # Try the simplest one.
+        section = cpp.Section(0, points, polygons, units, lines, lnames)
+        
+        # Try a bad index.
+        polygons = [[[0, 1, 2, 3, 6]]]
+        with self.assertRaises(IndexError):
+            section = cpp.Section(1, points, polygons, units, lines, lnames)
+        
+        # Try a bad number.
+        points = [0, [1, 0], [2, 1], [1, 1], [0, 1]]
+        polygons = [[[0, 1, 2, 3, 4]]]
+        with self.assertRaises(TypeError):
+            section = cpp.Section(2, points, polygons, units, lines, lnames)
+        
+        # Try a bad number of polygons.
+        points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1]]
+        polygons = [[[0, 1, 2, 3, 4]], []]
+        with self.assertRaises(IndexError):
+            section = cpp.Section(3, points, polygons, units, lines, lnames)
+        
+        # Try a bad polygon. The crossing lines goes from [1,1] to [0,0].
+        points = [[0, 0], [1, 0], [0, 1], [1, 1]]
+        polygons = [[[0, 1, 2, 3]]]
+        section = cpp.Section(4, points, polygons, units, lines, lnames)
+        self.assertEqual(section.info()['polygons'], 0)
+        
+        # Test polygons with holes.
+        points = [[0, 0], [1, 0], [0, 1], [1, 1]]
+        polygons = [[[0, 1, 2, 3]]]
+        section = cpp.Section(5, points, polygons, units, lines, lnames)
+        self.assertEqual(section.info()['polygons'], 0)
+        
+        # Test lines get created.
+        points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1], [0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
+        lines = [[0, 2, 4], [1, 3]]
+        lnames = ['fault1', 'fault2']
+        section = cpp.Section(6, points, polygons, units, lines, lnames)
+        self.assertEqual(section.info()['lines'], 2)
+        
+        # Test polygons with holes.
+        polygons = [[[0, 1, 2, 3, 4], [5, 8, 7, 6]], [[5, 6, 7, 8]]]
+        units = ['unit1', 'unit2']
+        section = cpp.Section(7, points, polygons, units, lines, lnames)
+        self.assertEqual(section.info()['polygons'], 2)
+        
 
 if __name__ == '__main__':
     unittest.main()
