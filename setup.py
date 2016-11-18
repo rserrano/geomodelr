@@ -3,7 +3,8 @@ from setuptools import setup, Extension
 cppextension = Extension("cpp", ['geomodelr/cpp/model.cpp'], 
                          include_dirs=['/usr/local/include'], 
                          library_dirs=[ '/usr/local/lib', '/usr/lib/x86_64-linux-gnu/' ], 
-                         libraries=['boost_python'])
+                         libraries=['boost_python'], 
+                         extra_compile_args=['-std=c++11'])
 
 setup(name='geomodelr',
       version='0.1',

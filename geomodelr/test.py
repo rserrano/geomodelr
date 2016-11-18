@@ -138,6 +138,42 @@ class TestGeoModelR(unittest.TestCase):
         section = cpp.Section(7, points, polygons, units, lines, lnames)
         self.assertEqual(section.info()['polygons'], 2)
         
+    def test_section_closest(self):
+        points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1], [0.25, 0.25], 
+                  [0.75, 0.25], [0.75, 0.75], [0.25, 0.75], [2, 0], [2, 2], [0, 2]]
 
+        polygons = [[[0, 1, 2, 3, 4], [5, 8, 7, 6]], [[5, 6, 7, 8]], [[2, 1, 9]], [[4, 3, 2, 10, 11]]]
+        units = ['unit1', 'unit2', 'unit3', 'unit4']
+        section = cpp.Section(0, points, polygons, units, [], [])
+        self.assertEqual(section.info()['polygons'], 4)
+        self.assertEqual(section.closest([0.5, 0.5]), (1, 'unit2'))
+        self.assertEqual(section.closest([-0.5, -0.5]), (0, 'unit1'))
+        self.assertEqual(section.closest([1.5, -0.5]), (2, 'unit3'))
+        self.assertEqual(section.closest([1.5, 0.75]), (0, 'unit1'))
+        self.assertEqual(section.closest([1.5, 0.25]), (2, 'unit3'))
+        self.assertEqual(section.closest([-0.001, 1.001]), (3, 'unit4'))
+         
+        points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1], [0.25, 0.25], 
+                  [0.75, 0.25], [0.75, 0.75], [0.25, 0.75], [2, 0], [2, 2], [0, 2]]
+
+        polygons = [[[0, 1, 2, 3, 4], [5, 8, 7, 6]], [[5, 6, 7, 8]], [[2, 1, 9]], [[4, 3, 2, 10, 11]]]
+        units = ['NONE', 'unit2', 'unit3', 'unit4']
+        section = cpp.Section(1, points, polygons, units, [], [])
+        self.assertEqual(section.info()['polygons'], 4)
+        self.assertEqual(section.closest([0.5, 0.5]), (1, 'unit2'))
+        self.assertEqual(section.closest([-0.5, -0.5]), (1, 'unit2'))
+        self.assertEqual(section.closest([1.5, -0.5]), (2, 'unit3'))
+        self.assertEqual(section.closest([1.5, 0.75]), (2, 'unit3'))
+        self.assertEqual(section.closest([1.5, 0.25]), (2, 'unit3'))
+        self.assertEqual(section.closest([-0.001, 1.001]), (3, 'unit4'))
+        
+        points = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0.9], [0.9, 0.9], [0.9, 0.1], [0, 0.1],
+                  [0.25, 0.25], [0.9, 0.25], [0.9, 0.75], [0.25, 0.75] ]
+        polygons = [[[0, 1, 2, 3, 4, 5, 6, 7]], [[8, 9, 10, 11]]]
+        units = ["unit1", "unit2"]
+        section = cpp.Section(1, points, polygons, units, [], [])
+        self.assertEqual(section.closest([0, 0.5]), (1, 'unit2'))
+        self.assertEqual(section.closest([0, 0.3]), (0, 'unit1'))
+        
 if __name__ == '__main__':
     unittest.main()
