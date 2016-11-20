@@ -216,7 +216,6 @@ class GeologicalModel(object):
         self.direction = np.array(base_line[1][:2])-self.base_point
         self.direction = self.direction/la.norm(self.direction)
         
-        # Then add non serializable cross sections, (TODO: Kill this some day.)
         for idx, feature in enumerate(self.geojson['features']):
             if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
                 self.sections.append(shared.cross_from_geojson(feature, base_line))

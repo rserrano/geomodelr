@@ -193,6 +193,13 @@ class TestGeoModelR(unittest.TestCase):
         section = cpp.Section(1, points, polygons, units, [], [])
         self.assertEqual(section.closest([0, 0.5]), (1, 'unit2'))
         self.assertEqual(section.closest([0, 0.3]), (0, 'unit1'))
+
+    def test_model_matching(self):
+        points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1], [0.25, 0.25], 
+                  [0.75, 0.25], [0.75, 0.75], [0.25, 0.75], [2, 0], [2, 2], [0, 2]]
+
+        polygons = [[[0, 1, 2, 3, 4], [5, 8, 7, 6]], [[5, 6, 7, 8]], [[2, 1, 9]], [[4, 3, 2, 10, 11]]]
+        
         
 if __name__ == '__main__':
     unittest.main()

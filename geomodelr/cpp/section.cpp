@@ -15,8 +15,8 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#include "section.hpp"
 
+#include "geomodel.hpp"
 
 Section::Section(double cut, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
@@ -146,3 +146,4 @@ bool ValidUnit::operator()(const value& b) const {
 	const string& unit = this->section->units[b.second];
 	return unit != "NONE" and unit != ""; 
 }
+

@@ -45,7 +45,9 @@ typedef python::dict pydict;
 typedef python::object pyobject;
 typedef python::tuple pytuple;
 
-struct Section;
+class Section;
+class Model;
+
 /* Checks if a unit is not empty or "NONE" */
 struct ValidUnit {
 
@@ -57,8 +59,29 @@ struct ValidUnit {
 	bool operator() (const value& b) const;
 };
 
-typedef std::tuple<vector<std::pair<int, int>>, vector<int>, vector<int>> polymatch;
-polymatch make_match( const Section& a, const Section& b );
+class Match {
+	map<int, vector<int>> a_to_b;
+	map<int, vector<int>> b_to_a;
+	vector<bool> a_free;
+	vector<bool> b_free;
+public:
+	Match(const vector<std::pair<int, int>>& match, size_t sa, size_t sb);
+};
+
+class Model {
+	double base_point[2];
+	double base_line[2];
+	vector<Section> sections;
+	vector<Match> match;
+	Match make_match( const Section& a, const Section& b );
+	Match load_match( const pylist& match, size_t sa, size_t sb );
+public:
+	Model(const pylist& basepoint, const pylist& direction, 
+	      const pylist& sections);
+	void make_matches();
+	void load_matches(const pylist& matching);
+};
+
 /* C++ section that queries points to polygons so much faster. */
 class Section {
 	double cut;
@@ -70,7 +93,7 @@ class Section {
 	
 	ValidUnit valid;
 	friend class ValidUnit;
-	friend polymatch make_match( const Section& a, const Section& b );
+	friend Model;
 public:
 	Section(double cut, const pylist& points, 
 		const pylist& polygons, const pylist& units, 
@@ -78,3 +101,4 @@ public:
 	pydict info() const;
 	pytuple closest( const pyobject& pypt ) const;
 };
+

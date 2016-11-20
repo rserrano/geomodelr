@@ -103,6 +103,7 @@ class Cross:
         self.polygons = []
         self.shapely_polygons = []
         self.units = []
+        
         for idx, poly in enumerate(polygons):
             ppoly = []
             for ring in poly:
@@ -115,6 +116,7 @@ class Cross:
             except:
                 # Ignore errors.
                 pass
+        
         reorder = sorted(range(len(self.polygons)), key=lambda o: abs(self.shapely_polygons[o].area))
         self.polygons = [self.polygons[i] for i in reorder]
         self.shapely_polygons = [self.shapely_polygons[i] for i in reorder]
@@ -138,7 +140,9 @@ class Cross:
                 pass
 
 def points_index_repr(geojson):
-    """ Returns the geojson data a set of points with indexed lines and polygons.  """
+    """ 
+    Returns the geojson data a set of points with indexed lines and polygons.  
+    """
     lines = []
     lnames = []
     polygons = []
@@ -180,6 +184,7 @@ def points_index_repr(geojson):
                 lnames.append(feature['properties']['name'])
             else:
                 lnames.append("")
+    
     points = [ None for i in xrange(len(pointsd)) ]
     for p in pointsd:
         points[pointsd[p]] = list(p)
