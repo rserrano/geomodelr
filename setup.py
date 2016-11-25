@@ -17,7 +17,8 @@
 """
 from setuptools import setup, Extension
 
-cppextension = Extension("cpp", ['geomodelr/cpp/model.cpp', 'geomodelr/cpp/section.cpp'], 
+cppextension = Extension("cpp", ['geomodelr/cpp/geomodel.cpp', 'geomodelr/cpp/model.cpp', 'geomodelr/cpp/section.cpp'], 
+                         depends=['geomodelr/cpp/geomodel.hpp'],
                          include_dirs=['/usr/local/include'], 
                          library_dirs=[ '/usr/local/lib', '/usr/lib/x86_64-linux-gnu/' ], 
                          libraries=['boost_python'], 

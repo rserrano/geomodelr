@@ -17,10 +17,16 @@
 */
 
 #include "geomodel.hpp"
-
+Section::~Section()
+{
+	if ( this->polidx != nullptr ) {
+		delete this->polidx;
+	}
+}
 Section::Section(double cut, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
-	const pylist& lines, const pylist& lnames ): valid(this) {
+	const pylist& lines, const pylist& lnames ): cut(cut), polidx(nullptr), valid(this)
+{
 	size_t npols = python::len(polygons);
 	vector<value> envelopes;
 	for ( size_t i = 0; i < npols; i++ ) {
@@ -61,10 +67,7 @@ Section::Section(double cut, const pylist& points,
 	// Build the rtree.
 	if ( envelopes.size() > 0 ) {
 		this->polidx = new rtree( envelopes );
-	} else {
-		this->polidx = nullptr;
 	}
-
 	size_t nlines = python::len(lines);
 	for ( size_t i = 0; i < nlines; i++ ) {
 		line lin;
@@ -81,69 +84,36 @@ Section::Section(double cut, const pylist& points,
 	}
 }
 
-pydict Section::info() const {
+pydict Section::info() 
+const {
 	pydict res;
 	res["polygons"] = this->polygons.size();
 	res["lines"] = this->lines.size();
 	return res;
 }
 
-pytuple Section::closest( const pyobject& pypt ) const {
+
+pytuple Section::closest( const pyobject& pypt ) 
+const {
 	double x = python::extract<double>(pypt[0]);
 	double y = python::extract<double>(pypt[1]);
 	point2 p(x, y);
-	
-	if ( this->polidx == nullptr )
-		return python::make_tuple(-1, "NONE");
-	
-	double maxboxdist = 0.0;
-	double mindist = std::numeric_limits<double>::infinity();
-	
-	int minidx = -1;
-	int knear = 1; 
-	
-	bool new_to_check;
-	do {
-		int n = 0; 
-		new_to_check = false;
-		for ( 	auto it = this->polidx->qbegin( geometry::index::nearest(p, knear) and geometry::index::satisfies(this->valid) );
-			it != this->polidx->qend(); it++ ) {
-			// Skip already checked.
-			if ( n < knear/2 ) 
-			{
-				n++;
-				continue;
-			}
-			// Check if new polygons where checked.
-
-			new_to_check = true;
-			
-			// Check the maximum distance from the box to the point.
-			// That distance is always lower than the distance to the polygon.
-			double boxdist = geometry::distance(p, it->first);
-			maxboxdist = std::max(boxdist, maxboxdist);
-			
-			// Then check the minimum actual distance to a polygon.
-			int idx = it->second;
-			double dist = geometry::distance(p, this->polygons[idx]);
-			
-			if ( dist < mindist ) {
-				mindist = dist;
-				minidx = idx;
-			}
-		}
-		// Increase the number of knear.
-		knear *= 2;
-		// Do it until none was checked or we have checked boxes beyond the closest polygon.
-	} while ( new_to_check && maxboxdist < mindist );
-	if ( minidx == -1 ) {
+	std::pair<int, int> cls = this->closest_to(p, geometry::index::satisfies(this->valid));
+	if ( cls.first == -1 ) {
 		return python::make_tuple(-1, "NONE");
 	}
-	return python::make_tuple(minidx, this->units[minidx]);
+	return python::make_tuple(cls.first, this->units[cls.first]);
 }
 
-bool ValidUnit::operator()(const value& b) const {
+bool ValidUnit::operator()(const value& b) 
+const {
 	const string& unit = this->section->units[b.second];
 	return unit != "NONE" and unit != ""; 
 }
+
+ValidUnit::ValidUnit(const Section * section):section(section) 
+{
+
+}
+
 
