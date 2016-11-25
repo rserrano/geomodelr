@@ -116,8 +116,9 @@ class Model {
 		double distance( double c ) const;
 	};
 	// Returns all the possible matches of this 2d point, given the distance is unknown.
-	vector<Possible> all_closest(size_t a_idx, const point2& pt) const;
 	std::pair<point2, double> model_point(const point3& pt) const;
+	vector<Possible> get_candidates(size_t a_idx, const point2& pt) const;
+	vector<Possible> all_closest(size_t a_idx, const point2& pt) const;
 	std::tuple<int, int, double> closest_to( size_t a_idx, const point2& pt, double cut ) const;
 public:
 	Model(const pyobject& basepoint, const pyobject& direction, 

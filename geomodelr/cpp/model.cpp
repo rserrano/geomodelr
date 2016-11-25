@@ -193,7 +193,7 @@ double Model::Possible::distance(double c) const {
 	return this->a_dist*c + this->b_dist*(1.0-c);
 }
 
-vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) const {
+vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt ) const {
 	using geometry::index::satisfies;
 	const Section& s_a = *(this->sections[a_idx]);
 	const Section& s_b = *(this->sections[a_idx+1]);
@@ -258,31 +258,26 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 			possible.insert(a_possible(c));
 		}
 	}
-	
-	if ( possible.size() <= 1 ) {
-		return vector<Model::Possible>(possible.begin(), possible.end());
-	}
+	return vector<Model::Possible>(possible.begin(), possible.end());
+}
+
+vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) const {
+	vector<Model::Possible> possible = this->get_candidates(a_idx, pt);
 	// First drop the non possible.
 	std::set<double> intersections;
-	
 	vector<bool> drop(possible.size(), false);
-	
-	size_t idx = 0;
-	for ( auto it = possible.begin(); it != possible.end(); it++ ) {
+	for ( size_t idx = 0; idx < possible.size(); idx++ ) {
 		if ( drop[idx] ) {
-			idx++;
 			continue;
 		}
-		size_t jdx = idx+1;
-		for ( auto jt = std::next(it); jt != possible.end(); jt++ ) {
+		for ( size_t jdx = idx+1; jdx < possible.size(); jdx++ ) {
 			if ( drop[jdx] ) {
-				jdx++;
 				continue;
 			}
-			double da1 = it->a_dist;
-			double db1 = it->b_dist;
-			double da2 = jt->a_dist;
-			double db2 = jt->b_dist; 
+			double da1 = possible[idx].a_dist;
+			double db1 = possible[idx].b_dist;
+			double da2 = possible[jdx].a_dist;
+			double db2 = possible[jdx].b_dist; 
 			
 			if ( da1 < da2 and db1 < db2 ) {
 				drop[jdx] = true;
@@ -291,43 +286,31 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 				drop[idx] = true;
 				break;
 			}
-			jdx++;
 		}
-		idx++;
 	}
-	
-	idx = 0;
-	for ( auto it = possible.begin(); it != possible.end(); it++ ) {
+	// Then get the intersections for the possible.
+	for ( size_t idx = 0; idx < possible.size(); idx++ ) {
 		if ( drop[idx] ) {
-			idx++;
 			continue;
 		}
-		size_t jdx = idx+1;
-		for ( auto jt = std::next(it); jt != possible.end(); jt++ ) {
+		for ( size_t jdx = idx+1; jdx < possible.size(); jdx++ ) {
 			if ( drop[jdx] ) {
-				jdx++;
 				continue;
 			}
-			double da1 = it->a_dist;
-			double db1 = it->b_dist;
-			double da2 = jt->a_dist;
-			double db2 = jt->b_dist; 
+			double da1 = possible[idx].a_dist;
+			double db1 = possible[idx].b_dist;
+			double da2 = possible[jdx].a_dist;
+			double db2 = possible[jdx].b_dist; 
 			double da = da1-da2;
 			double db = db1-db2;
-			
 			intersections.insert(da/(da-db));
-			jdx++;
 		}
-		idx++;
 	}
-	
-	idx = 0;
 	vector<Model::Possible> reduced;
-	for ( auto it = possible.begin(); it != possible.end(); it++ ) {
+	for ( size_t idx = 0; idx < possible.size(); idx++ ) {
 		if ( not drop[idx] ) {
-			reduced.push_back(*it);
+			reduced.push_back(possible[idx]);
 		}
-		idx++;
 	}
 	intersections.insert(0.0);
 	intersections.insert(1.0);
@@ -347,7 +330,6 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 			jdx++;
 		}
 	}
-
 	vector<bool> final_possible(reduced.size(), false);
 	for ( size_t i = 0; i < minimum.size(); i++ ) {
 		final_possible[minimum[i].first] = true;
@@ -362,102 +344,12 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 }
 
 std::tuple<int, int, double> Model::closest_to( size_t a_idx, const point2& pt, double cut ) const {
-	using geometry::index::satisfies;
-	const Section& s_a = *(this->sections[a_idx]);
-	const Section& s_b = *(this->sections[a_idx+1]);
-	const Match& m = this->match[a_idx];
-	
-	double cut_rem = cut - this->cuts[a_idx];
 	double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
+	double cut_rem = cut - this->cuts[a_idx];
 	double mult_b = cut_rem/s_dist;
 	double mult_a = 1.0-mult_b;
 	
-	// Lambda says if it matches.
-	auto has_match_a = [&m](const value& v){ return not (m.a_free[v.second]); };
-	// Reverse of it matches.
-	auto has_no_match_a = [&m](const value& v){ return m.a_free[v.second]; };
-	auto has_no_match_b = [&m](const value& v){ return m.a_free[v.second]; };
-	
-	// Simple lambda for obtaining the match as a Possible.
-	double inf = std::numeric_limits<double>::infinity();
-	auto a_possible = [&](const std::pair<int, double>& cls) { 
-		if ( cls.first == -1 ) {
-			return Model::Possible(-1, -1, inf, inf);
-		}
-		std::pair<int, double> match = this->closest_match( true,  a_idx, cls.first, pt );
-		if ( match.first != -1 ) {
-			return Model::Possible(cls.first, match.first, cls.second, match.second);
-		} else {
-			return Model::Possible(cls.first, -1, cls.second, cls.second+s_dist);
-		}
-	};
-	
-	auto b_possible = [&](const std::pair<int, double>& cls) { 
-		if ( cls.first == -1 ) {
-			return Model::Possible(-1, -1, inf, inf);
-		}
-		std::pair<int, double> match = this->closest_match( false,  a_idx, cls.first, pt );
-		if ( match.first != -1 ) {
-			return Model::Possible(match.first, cls.first, match.second, cls.second);
-		} else {
-			return Model::Possible(-1, cls.first, cls.second+s_dist, cls.second);
-		}
-	};
-
-	vector<Model::Possible> possible;
-	// Find the closest polygon in s_a => clst_a.
-	std::pair<int, double> clst_a = s_a.closest_to(pt, satisfies(has_match_a));
-	if ( clst_a.first == -1 ) {
-
-		Model::Possible clsn_a = a_possible(s_a.closest_to(pt, satisfies(has_no_match_a)));
-		Model::Possible clsn_b = b_possible(s_b.closest_to(pt, satisfies(has_no_match_a)));
-		
-		if ( clsn_a.a_match == -1 and clsn_b.b_match == -1 ) {
-			return std::make_tuple(-1, -1, std::numeric_limits<double>::infinity());
-		}
-		if ( clsn_a.a_match == -1 ) {
-			return std::make_tuple(-1, clsn_b.b_match, clsn_b.distance(mult_a));
-		}
-		if ( clsn_b.b_match == -1 ) {
-			return std::make_tuple(clsn_a.a_match, -1, clsn_a.distance(mult_a));
-		}
-		double da = clsn_a.distance(mult_a);
-		double db = clsn_b.distance(mult_a);
-		if ( da < db ) {
-			return std::make_tuple(clsn_a.a_match, -1, da);
-		} else {
-			return std::make_tuple(-1,clsn_b.b_match, db);
-		}
-	}
-	possible.push_back( a_possible(clst_a) );
-	double da = possible.back().a_dist;
-	double db = possible.back().b_dist;
-	
-	auto not_first = [&](const value& v) { return v.second != possible.back().b_match and has_match_a(v); };
-	
-	// Find the pols in s_b that are closer mindist => all_cls_a. It should have an opposite.
-	vector<std::pair<int, double>> clsr_b = s_b.closer_than( pt, db, satisfies(not_first) );
-	for ( const auto& s : clsr_b ) {
-		possible.push_back( b_possible(s) );
-	}
-	
-	// Calculate possible distances for single polygons.
-	double ms_a = ( da - s_dist ) * mult_a + db * mult_b;
-	if ( ms_a > 0.0 ) {
-		vector<std::pair<int, double>> single_a = s_a.closer_than( pt, ms_a, satisfies(has_no_match_a) );
-		for ( const auto& s : single_a ) {
-			possible.push_back( a_possible(s) );
-		}
-	}
-	
-	double ms_b =  da * mult_a + ( db  - s_dist ) * mult_b;
-	if ( ms_b > 0.0 ) {
-		vector<std::pair<int, double>> single_b = s_a.closer_than( pt, ms_b, satisfies(has_no_match_b) );
-		for ( const auto& s : single_b ) {
-			possible.push_back( b_possible(s) );
-		}
-	}
-	
+	vector<Model::Possible> possible = this->get_candidates(a_idx, pt);
 	double mindist = std::numeric_limits<double>::infinity();
 	double minidx = -1;
 	
