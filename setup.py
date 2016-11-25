@@ -16,12 +16,27 @@
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 from setuptools import setup, Extension
+import os
+
+def if_env(**kwargs):
+    varname, default = kwargs.popitem()
+    try:
+        values = os.environ[varname].split(os.pathsep)
+        if len(value) < 1:
+           return  default
+        return values
+    except KeyError:
+        return default
+
+def_libraries    = ['boost_python']
+def_library_dirs = ['/usr/local/lib', '/usr/lib/x86_64-linux-gnu/']
+def_include_dirs = ['/usr/local/include']
 
 cppextension = Extension("cpp", ['geomodelr/cpp/geomodel.cpp', 'geomodelr/cpp/model.cpp', 'geomodelr/cpp/section.cpp'], 
                          depends=['geomodelr/cpp/geomodel.hpp'],
-                         include_dirs=['/usr/local/include'], 
-                         library_dirs=[ '/usr/local/lib', '/usr/lib/x86_64-linux-gnu/' ], 
-                         libraries=['boost_python'], 
+                         include_dirs=if_env(INCLUDE_DIRS=def_include_dirs),
+                         library_dirs=if_env(LIBRARY_DIRS=def_library_dirs), 
+                         libraries=if_env(LIBRARIES=def_libraries),
                          extra_compile_args=['-std=c++11'])
 
 setup(name='geomodelr',
