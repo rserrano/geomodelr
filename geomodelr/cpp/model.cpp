@@ -118,20 +118,6 @@ Model::~Model(){
 	}
 }
 
-HasMatch::HasMatch(const Match * match, bool a):match(match), a(a)
-{
-
-}
-
-bool HasMatch::operator()(const value& b)
-const {
-	if ( this->a ) {
-		return not this->match->a_free[b.second];
-	} else {
-		return not this->match->b_free[b.second];
-	}
-}
-
 void Model::make_matches() {
 	this->match.clear();
 	for ( size_t i = 1; i < this->sections.size(); i++ ) {
@@ -274,6 +260,7 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 			if ( drop[jdx] ) {
 				continue;
 			}
+			
 			double da1 = possible[idx].a_dist;
 			double db1 = possible[idx].b_dist;
 			double da2 = possible[jdx].a_dist;
@@ -297,12 +284,15 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 			if ( drop[jdx] ) {
 				continue;
 			}
+			
 			double da1 = possible[idx].a_dist;
 			double db1 = possible[idx].b_dist;
 			double da2 = possible[jdx].a_dist;
 			double db2 = possible[jdx].b_dist; 
+			
 			double da = da1-da2;
 			double db = db1-db2;
+			
 			intersections.insert(da/(da-db));
 		}
 	}
@@ -332,7 +322,9 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 	}
 	vector<bool> final_possible(reduced.size(), false);
 	for ( size_t i = 0; i < minimum.size(); i++ ) {
-		final_possible[minimum[i].first] = true;
+		if ( minimum[i].first != -1 ) {
+			final_possible[minimum[i].first] = true;
+		}
 	}
 	vector<Model::Possible> ret;
 	for ( size_t i = 0; i < reduced.size(); i++ ){
@@ -360,11 +352,14 @@ std::tuple<int, int, double> Model::closest_to( size_t a_idx, const point2& pt, 
 			minidx = i;
 		}
 	}
+	if ( minidx == -1 ) {
+		return std::make_tuple(-1, -1, std::numeric_limits<double>::infinity());
+	}
 	return std::make_tuple(possible[minidx].a_match, possible[minidx].b_match, mindist);
 }
 
 
-std::pair<point2, double> Model::model_point( const point3& pt ) const {
+std::pair<point2, double> Model::to_model_point( const point3& pt ) const {
 
 	point2 ppoint(gx(pt), gy(pt));
 	const double& z = gz(pt);
@@ -386,23 +381,53 @@ std::pair<point2, double> Model::model_point( const point3& pt ) const {
 	return std::make_pair(point2(d*norm, z), c*norm);
 }
 
-pytuple Model::to_model_point( const pyobject& pypt ) const {
+point3 Model::to_inverse_point( const point2& pt, double cut ) const {
+	const double& d0 = gx(this->direction);
+	const double& d1 = gy(this->direction);
+	
+	double dsq = d0*d0 + d1*d1;
+	
+	const double& p0 = gx(pt);
+	const double& p1 = gy(pt);
+	
+        double v1 = (cut*d0 + p0*d1)/dsq;
+        double v0 = ( std::fabs(d1) < 1e-9 ) ? p0/d0 : (d0*v1-cut)/d1;
+        
+	return point3(gx(this->base_point) + v0, gy(this->base_point) + v1, p1);
+}
+
+pytuple Model::model_point( const pyobject& pypt ) const {
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
-	std::pair<point2, double> mp = this->model_point( pt );
+	std::pair<point2, double> mp = this->to_model_point( pt );
 	const double& m0 = gx(mp.first);
 	const double& m1 = gy(mp.first);
 	return python::make_tuple(m0, m1, mp.second);
 }
 
+pytuple Model::inverse_point( const pyobject& pypt ) const {
+	const double& p0 = python::extract<double>(pypt[0]);
+	const double& p1 = python::extract<double>(pypt[1]);
+	const double& cut = python::extract<double>(pypt[2]);
+	point2 pt(p0, p1);
+	point3 mp = this->to_inverse_point( pt, cut );
+	const double& m0 = gx(mp);
+	const double& m1 = gy(mp);
+	const double& m2 = gz(mp);
+	return python::make_tuple(m0, m1, m2);
+}
+
 pylist Model::possible_closest(const pyobject& pypt) const {
+	if ( not this->sections.size() ) {
+		return pylist();
+	}
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
-	std::pair<point2, double> mp = this->model_point(pt);
+	std::pair<point2, double> mp = this->to_model_point(pt);
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 	size_t a_idx = it - this->cuts.begin();
 	// If it's behind the last or above the first, return the closest in the section.
@@ -427,11 +452,14 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 }
 
 pytuple Model::closest(const pyobject& pypt) const {
+	if ( not this->sections.size() ) {
+		return python::make_tuple("NONE", std::numeric_limits<double>::infinity());
+	}
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
-	std::pair<point2, double> mp = this->model_point(pt);
+	std::pair<point2, double> mp = this->to_model_point(pt);
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 	size_t a_idx = it - this->cuts.begin();
 	// If it's behind the last or above the first, return the closest in the section.
@@ -445,6 +473,13 @@ pytuple Model::closest(const pyobject& pypt) const {
 	std::tuple<int, int, double> clst = this->closest_to(a_idx, mp.first, mp.second);
 	int a_match = std::get<0>(clst);
 	int b_match = std::get<1>(clst);
-	string unit = ( a_match != -1 ) ? this->sections[a_idx]->units[a_match] : this->sections[a_idx+1]->units[b_match];
+	string unit;
+	if ( a_match == -1 and b_match == -1 ) {
+		unit = "NONE";
+	} else if ( a_match == -1 ) {
+		unit = this->sections[a_idx+1]->units[b_match];
+	} else {
+		unit = this->sections[a_idx]->units[a_match];
+	}
 	return python::make_tuple(unit, std::get<2>(clst));
 }

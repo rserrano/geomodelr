@@ -217,6 +217,7 @@ class TestGeoModelR(unittest.TestCase):
     
     def test_possible_closest(self):
         # Evaluate simple models.
+        # Evaluate a model where a middle square changes between unit2 and unit3
         points_1   = [[0, 0], [3, 0], [0, 1], [2, 1], [3, 1], [0, 2], [2, 2], [3, 2]]
         points_2   = [[0, 0], [3, 0], [0, 1], [1, 1], [3, 1], [0, 2], [1, 2], [3, 2]]
         polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
@@ -262,7 +263,7 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(cls_2[1], 0.2)
         self.assertAlmostEqual(cls_3[1], 0.05)
         
-        # Evaluate all single.
+        # Evaluate all single units in both sides.
         points_1   = [[0, 0], [3, 0], [0, 1], [2, 1], [3, 1], [0, 2], [2, 2], [3, 2]]
         points_2   = [[0, 0], [3, 0], [0, 1], [1, 1], [3, 1], [0, 2], [1, 2], [3, 2]]
         polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
@@ -297,6 +298,7 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(pos_cls[0][2], 0.0)
         self.assertAlmostEqual(pos_cls[1][2], 1.0)
         
+        # Evaluate a shared unit, and the rest single units.
         units_1 = ["unit1", "unit2", "unit3"]
         units_2 = ["unit1", "unit5", "unit6"]
         
@@ -314,6 +316,40 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(pos_cls[0][2], 0.0)
         self.assertAlmostEqual(pos_cls[1][2], 0.25)
         self.assertAlmostEqual(pos_cls[2][2], 1.0)
+        
+    def test_point_inverse(self):
+        model = cpp.Model([0, 0], [1, 0], [(1, [], [], [], [], []), (2, [], [], [], [], [])])
+        
+        self.assertAlmostEqual(model.model_point([1,2,3]), (1,3,2))
+        self.assertAlmostEqual(model.model_point([3,2,1]), (3,1,2))
+        self.assertAlmostEqual(model.model_point([6,3,0]), (6,0,3))
+        self.assertAlmostEqual(model.inverse_point([1,3,2]), (1,2,3))
+        self.assertAlmostEqual(model.inverse_point([3,1,2]), (3,2,1))
+        self.assertAlmostEqual(model.inverse_point([6,0,3]), (6,3,0))
+        
+        self.assertEqual(model.closest([1.5,1.5,1.5]), ('NONE', float('inf')))
+        self.assertEqual(model.possible_closest([1.5, 1.5, 1.5]), [])
+        n = la.norm([-1,1])
+        model = cpp.Model([1, 1], list(np.array([-1, 1])/n), [])
+
+        self.assertEqual(model.closest([1,1,1]), ("NONE", float('inf')))
+        self.assertEqual(model.possible_closest([-1,0,-1]), [])
+        mp = model.model_point([1.5,0.5,0.5])
+        self.assertAlmostEqual(mp[0], -n/2)
+        self.assertAlmostEqual(mp[1], 0.5)
+        self.assertAlmostEqual(mp[2], 0)
+        mp = model.model_point([0.5,0.5,0.5])
+        self.assertAlmostEqual(mp[0], 0.0)
+        self.assertAlmostEqual(mp[1], 0.5)
+        self.assertAlmostEqual(mp[2], n/2)
+        ip = model.inverse_point([-n/2,0.5,0])
+        self.assertAlmostEqual(ip[0], 1.5)
+        self.assertAlmostEqual(ip[1], 0.5)
+        self.assertAlmostEqual(ip[2], 0.5)
+        ip = model.inverse_point([0.0,0.5,n/2])
+        self.assertAlmostEqual(ip[0], 0.5)
+        self.assertAlmostEqual(ip[1], 0.5)
+        self.assertAlmostEqual(ip[2], 0.5)
 
 if __name__ == '__main__':
     unittest.main()

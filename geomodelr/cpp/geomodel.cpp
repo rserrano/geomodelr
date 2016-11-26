@@ -29,7 +29,8 @@ BOOST_PYTHON_MODULE(cpp)
 						    const pylist&>())
 						    .def("make_matches", &Model::make_matches)
 						    .def("possible_closest", &Model::possible_closest)
-						    .def("model_point", &Model::to_model_point)
+						    .def("model_point", &Model::model_point)
+						    .def("inverse_point", &Model::inverse_point)
 						    .def("closest", &Model::closest)
 						    .add_property("matches", &Model::get_matches, &Model::set_matches);
 

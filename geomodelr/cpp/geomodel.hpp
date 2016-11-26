@@ -65,7 +65,6 @@ typedef python::tuple pytuple;
 
 class Section;
 class Model;
-class HasMatch;
 
 /* Checks if a unit is not empty or "NONE" */
 struct ValidUnit {
@@ -82,18 +81,9 @@ class Match {
 	vector<bool> a_free;
 	vector<bool> b_free;
 	friend class Model;
-	friend class HasMatch;
 public:
 	Match(const vector<std::pair<int, int>>& match, size_t sa, size_t sb);
 	pylist get() const;
-};
-
-class HasMatch {
-	const Match * match;
-	bool a;
-public:
-	HasMatch( const Match * match, bool a );
-	bool operator() (const value& b) const; 
 };
 
 class Model {
@@ -116,7 +106,8 @@ class Model {
 		double distance( double c ) const;
 	};
 	// Returns all the possible matches of this 2d point, given the distance is unknown.
-	std::pair<point2, double> model_point(const point3& pt) const;
+	std::pair<point2, double> to_model_point(const point3& pt) const;
+	point3 to_inverse_point(const point2& p, double cut) const;
 	vector<Possible> get_candidates(size_t a_idx, const point2& pt) const;
 	vector<Possible> all_closest(size_t a_idx, const point2& pt) const;
 	std::tuple<int, int, double> closest_to( size_t a_idx, const point2& pt, double cut ) const;
@@ -130,7 +121,8 @@ public:
 	pylist get_matches() const;
 	// Methods to query matches.
 	pylist possible_closest(const pyobject& pt) const;
-	pytuple to_model_point(const pyobject& pt) const;
+	pytuple model_point(const pyobject& pt) const;
+	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
 };
 
