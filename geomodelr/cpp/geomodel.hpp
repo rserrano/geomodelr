@@ -32,6 +32,7 @@
 using namespace boost;
 using std::vector;
 using std::string;
+using std::wstring;
 using std::map;
 
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;
@@ -65,6 +66,11 @@ typedef python::tuple pytuple;
 
 class Section;
 class Model;
+
+struct GeomodelrException : std::runtime_error
+{
+	GeomodelrException(const string&);
+};
 
 /* Checks if a unit is not empty or "NONE" */
 struct ValidUnit {
@@ -128,11 +134,12 @@ public:
 
 /* C++ section that queries points to polygons so much faster. */
 class Section {
+	wstring name;
 	double cut;
 	vector<polygon> polygons;
-	vector<string> units;
+	vector<wstring> units;
 	vector<line> lines;
-	vector<string> lnames;
+	vector<wstring> lnames;
 	rtree * polidx; // To be initialized after polygons and lines.
 	
 	ValidUnit valid;
@@ -206,7 +213,7 @@ class Section {
 		return std::make_pair(minidx, mindist); 
 	}
 public:
-	Section(double cut, const pylist& points, 
+	Section(const wstring& name, double cut, const pylist& points, 
 		const pylist& polygons, const pylist& units, 
 		const pylist& lines, const pylist& lnames );
 	virtual ~Section();

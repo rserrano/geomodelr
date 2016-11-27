@@ -23,9 +23,9 @@ Section::~Section()
 		delete this->polidx;
 	}
 }
-Section::Section(double cut, const pylist& points, 
+Section::Section(const wstring& name, double cut, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
-	const pylist& lines, const pylist& lnames ): cut(cut), polidx(nullptr), valid(this)
+	const pylist& lines, const pylist& lnames ): name(name), cut(cut), polidx(nullptr), valid(this)
 {
 	size_t npols = python::len(polygons);
 	vector<value> envelopes;
@@ -62,7 +62,7 @@ Section::Section(double cut, const pylist& points,
 		envelopes.push_back(std::make_pair(env, this->polygons.size()));
 		// Now add the actual polygon and its unit.
 		this->polygons.push_back(pol);
-		this->units.push_back(python::extract<string>( units[i] ));
+		this->units.push_back(python::extract<wstring>( units[i] ));
 	}
 	// Build the rtree.
 	if ( envelopes.size() > 0 ) {
@@ -80,7 +80,7 @@ Section::Section(double cut, const pylist& points,
 			continue;
 		}
 		this->lines.push_back(lin);
-		this->lnames.push_back(python::extract<string>( lnames[i] ));
+		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
 	}
 }
 
@@ -100,15 +100,15 @@ const {
 	point2 p(x, y);
 	std::pair<int, int> cls = this->closest_to(p, geometry::index::satisfies(this->valid));
 	if ( cls.first == -1 ) {
-		return python::make_tuple(-1, "NONE");
+		return python::make_tuple(-1, wstring(L"NONE"));
 	}
 	return python::make_tuple(cls.first, this->units[cls.first]);
 }
 
 bool ValidUnit::operator()(const value& b) 
 const {
-	const string& unit = this->section->units[b.second];
-	return unit != "NONE" and unit != ""; 
+	const wstring& unit = this->section->units[b.second];
+	return unit != L"NONE" and unit != L""; 
 }
 
 ValidUnit::ValidUnit(const Section * section):section(section) 

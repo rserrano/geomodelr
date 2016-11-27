@@ -55,8 +55,8 @@ pylist Match::get() const {
 }
 
 Match Model::make_match( const Section& a, const Section& b ) {
-	map<string, vector<int>> units_a;
-	map<string, vector<int>> units_b;
+	map<wstring, vector<int>> units_a;
+	map<wstring, vector<int>> units_b;
 	for ( size_t i = 0; i < a.polygons.size(); i++ ) {
 		units_a[a.units[i]].push_back(i);
 	}
@@ -98,13 +98,14 @@ direction(python::extract<double>(direction[0]), python::extract<double>(directi
 {
 	size_t nsects = python::len(sections);
 	for ( size_t i = 0; i < nsects; i++ ) {
-		double cut = python::extract<double>(sections[i][0]);
-		const pylist& points   = python::extract<pylist>(sections[i][1]);
-		const pylist& polygons = python::extract<pylist>(sections[i][2]);
-		const pylist& units    = python::extract<pylist>(sections[i][3]); 
-		const pylist& lines    = python::extract<pylist>(sections[i][4]);
-		const pylist& lnames   = python::extract<pylist>(sections[i][5]);
-		this->sections.push_back(new Section(cut, points, polygons, units, lines, lnames));
+		const wstring& name    = python::extract<wstring>(sections[i][0]);
+		double cut             = python::extract<double>(sections[i][1]);
+		const pylist& points   = python::extract<pylist>(sections[i][2]);
+		const pylist& polygons = python::extract<pylist>(sections[i][3]);
+		const pylist& units    = python::extract<pylist>(sections[i][4]); 
+		const pylist& lines    = python::extract<pylist>(sections[i][5]);
+		const pylist& lnames   = python::extract<pylist>(sections[i][6]);
+		this->sections.push_back(new Section(name, cut, points, polygons, units, lines, lnames));
 	}
 	std::sort(this->sections.begin(), this->sections.end(), [](const Section* a, const Section* b){ return a->cut < b->cut; });
 	for ( size_t i = 0; i < this->sections.size(); i++ ) {
@@ -128,16 +129,36 @@ void Model::make_matches() {
 void Model::set_matches( const pylist& matching ) {
 	this->match.clear();
 	size_t nmatch = python::len(matching);
+	map<std::pair<wstring, wstring>, int> match;
 	for ( size_t i = 0; i < nmatch; i++ ) {
-		const pylist& m = python::extract<pylist>(matching[i]);
-		this->match.push_back(this->load_match(m, this->sections[i]->polygons.size(), this->sections[i+1]->polygons.size()));
+		const wstring& name1 = python::extract<wstring>(matching[i][0][0]);
+		const wstring& name2 = python::extract<wstring>(matching[i][0][1]);
+		auto key = std::make_pair(name1,name2);
+		match[key] = i;
+	}
+	for ( size_t i = 1; i < this->sections.size(); i++ ) {
+		const wstring& name1 = this->sections[i-1]->name;
+		const wstring& name2 = this->sections[i]->name;
+		if ( match.find(std::make_pair(name1, name2)) == match.end() ) {
+			string sname1(name1.begin(), name1.end());
+			string sname2(name2.begin(), name2.end());
+			string error("match does not contain sections: ");
+			error += sname1;
+			error += ", ";
+			error += sname2;
+			throw GeomodelrException(error.c_str());
+		}
+		const pylist& m = python::extract<pylist>(matching[match[std::make_pair(name1, name2)]][1]);
+		this->match.push_back(this->load_match(m, this->sections[i-1]->polygons.size(), this->sections[i]->polygons.size()));
 	}
 }
 
 pylist Model::get_matches( ) const {
 	pylist ret;
 	for ( size_t i = 0; i < this->match.size(); i++ ) {
-		ret.append(this->match[i].get());
+		const wstring& name1 = this->sections[i]->name;
+		const wstring& name2 = this->sections[i+1]->name;
+		ret.append(python::make_tuple(python::make_tuple(name1, name2), this->match[i].get()));
 	}
 	return ret;
 }
@@ -434,7 +455,7 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
 		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(s.valid));
-		string unit = s.units[cls.first];
+		wstring unit = s.units[cls.first];
 		pylist ret;
 		ret.append(python::make_tuple(unit, cls.second, cls.second));
 		return ret;
@@ -445,7 +466,7 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	for ( size_t i = 0; i < ap.size(); i++ ) {
 		int a_match = ap[i].a_match;
 		int b_match = ap[i].b_match;
-		string unit = ( a_match != -1 ) ? this->sections[a_idx]->units[a_match] : this->sections[a_idx+1]->units[b_match];
+		wstring unit = ( a_match != -1 ) ? this->sections[a_idx]->units[a_match] : this->sections[a_idx+1]->units[b_match];
 		ret.append(python::make_tuple(unit, ap[i].a_dist, ap[i].b_dist));
 	}
 	return ret;
@@ -453,7 +474,7 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 
 pytuple Model::closest(const pyobject& pypt) const {
 	if ( not this->sections.size() ) {
-		return python::make_tuple("NONE", std::numeric_limits<double>::infinity());
+		return python::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
 	}
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
@@ -466,16 +487,16 @@ pytuple Model::closest(const pyobject& pypt) const {
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
 		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(s.valid));
-		string unit = s.units[cls.first];
+		wstring unit = s.units[cls.first];
 		return python::make_tuple(unit, cls.second);
 	}
 	a_idx--;
 	std::tuple<int, int, double> clst = this->closest_to(a_idx, mp.first, mp.second);
 	int a_match = std::get<0>(clst);
 	int b_match = std::get<1>(clst);
-	string unit;
+	wstring unit;
 	if ( a_match == -1 and b_match == -1 ) {
-		unit = "NONE";
+		unit = L"NONE";
 	} else if ( a_match == -1 ) {
 		unit = this->sections[a_idx+1]->units[b_match];
 	} else {

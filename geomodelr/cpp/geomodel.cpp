@@ -18,9 +18,46 @@
 
 #include "geomodel.hpp"
 
+GeomodelrException::GeomodelrException(const string& what) 
+:std::runtime_error(what)
+{
+}
+
+PyObject *GeomodelrExceptionType = NULL;
+
+PyObject* createExceptionClass(const char* name, PyObject* baseTypeObj = PyExc_Exception)
+{
+	using std::string;
+	namespace bp = boost::python;
+	
+	string scopeName = bp::extract<string>(bp::scope().attr("__name__"));
+	string qualifiedName0 = scopeName + "." + name;
+	char* qualifiedName1 = const_cast<char*>(qualifiedName0.c_str());
+	
+	PyObject* typeObj = PyErr_NewException(qualifiedName1, baseTypeObj, 0);
+	if(!typeObj) bp::throw_error_already_set();
+	bp::scope().attr(name) = bp::handle<>(bp::borrowed(typeObj));
+	return typeObj;
+}
+
+
+void translate(GeomodelrException const& e)
+{
+	// Use the Python 'C' API to set up an exception object
+	boost::python::object pythonExceptionInstance(e);
+	PyErr_SetObject(GeomodelrExceptionType, pythonExceptionInstance.ptr());
+
+	//PyErr_SetString(PyExc_RuntimeError, e.what());
+}
+
 BOOST_PYTHON_MODULE(cpp)
 {
-	python::class_<Section>("Section", python::init<double, const pylist&, 
+	// Register exception.
+	python::class_<GeomodelrException> GeomodelrExceptionClass("GeomodelrException", boost::python::init<std::string>());
+	GeomodelrExceptionType = createExceptionClass("GeomodelrException");
+	python::register_exception_translator<GeomodelrException>(&translate);
+	
+	python::class_<Section>("Section", python::init<const wstring&, double, const pylist&, 
 							const pylist&, const pylist&, 
 							const pylist&, const pylist&>())
 							.def("info", &Section::info)

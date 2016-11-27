@@ -29,8 +29,7 @@ class ModelException(Exception):
 
 def shape_list(shape, sh_type):
    """
-   Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of polygons.
-   And a polygon into a list of one polygon.
+   Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of simpler shapes.
    """
    try:
        shapes = []
@@ -191,15 +190,19 @@ def points_index_repr(geojson):
     
     return { 'points': points, 'lines': lines, 'polygons': polygons, 'units': units, 'lnames': lnames }
 
-def cross_from_geojson(geojson, base_line):
-    """
-    Converts a GeoJSON cross section into a 
-    """
+def cross_idx_repr(geojson, base_line):
     pi = points_index_repr(geojson)
     line = geojson['transform']['line']
     offset = line_offset(base_line, line)
     nodes_offset(pi['points'], offset)
     cut = line_side(base_line, line)
+    return ( cut, pi )
+
+def cross_from_geojson(geojson, base_line):
+    """
+    Converts a GeoJSON cross section into a 
+    """
+    cut, pi = cross_idx_repr(geojson, base_line)
     return Cross(cut, pi['points'], pi['polygons'], pi['units'], pi['lines'], pi['lnames'])
 
 

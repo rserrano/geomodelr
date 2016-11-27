@@ -70,42 +70,7 @@ class GeologicalModel(object):
         """
         self.geojson = geojson
     
-    def validate( self ):
-        """
-        Validates that the geojson is correct. 
-        """
-        # Validate basic GeoJSON contents.
-        if type(self.geojson) != dict:
-            raise shared.ModelException("You did not load a dictionary in geojson format")
-        if not 'type' in self.geojson:
-            raise shared.ModelException("No type in json")
-        if self.geojson['type'] != 'GeologyCollection':
-            raise shared.ModelException("type is not GeologyCollection")
-        if not 'bbox' in self.geojson:
-            raise shared.ModelException("bounding box (bbox) is required in model")
-        if not 'crs' in self.geojson:
-            raise shared.ModelException("coordinate system (crs) is required in model")
-        if not 'type' in self.geojson['crs']:
-            raise shared.ModelException("coordinate system (crs) type is required in model")
-        if self.geojson['crs']['type'] != 'name':
-            raise shared.ModelException("only name is supported for coordinate system (crs) type")
-        if not 'properties' in self.geojson['crs']:
-            raise shared.ModelException("properties in coordinate system (crs) is required in model")
-        if not 'name' in self.geojson['crs']['properties']:
-            raise shared.ModelException("name property in coordinate system (crs) is required in model")
-        if self.geojson['crs']['properties']['name'].split(":")[0] != "EPSG":
-            raise shared.ModelException("only EPSG codes are supported as coordinate systems")
-        try:
-            int(self.geojson['crs']['properties']['name'].split(":")[1])
-        except ValueError:
-            raise shared.ModelException("EPSG should be integer code")
-        
-        # Validate the feature collections of the GeoJSON.
-        if not 'features' in self.geojson:
-            raise shared.ModelException("features is necessary in model")
-        for fc in self.geojson['features']:
-            validate_feature_collection(fc)
-    
+   
     def print_information( self, verbose=False ):
         """
         Validates the information of the geological model.
@@ -192,8 +157,7 @@ class GeologicalModel(object):
         but can't be serialized, like shapely polygons.
         """
         
-        self.sections = []
-        self.section_idxs = []
+        sections = []
         
         # Search map.
         for feature in self.geojson['features']:
@@ -212,24 +176,13 @@ class GeologicalModel(object):
         
         # Calculate direction and base point.
         base_line = base_section['transform']['line']
-        self.base_point = np.array(base_line[0][:2])
-        self.direction = np.array(base_line[1][:2])-self.base_point
-        self.direction = self.direction/la.norm(self.direction)
+        base_point = np.array(base_line[0][:2])
+        direction = np.array(base_line[1][:2])-base_point
+        direction = self.direction/la.norm(self.direction)
         
         for idx, feature in enumerate(self.geojson['features']):
             if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
-                self.sections.append(shared.cross_from_geojson(feature, base_line))
-                self.section_idxs.append(idx)
-        
-        # Then reorder all the sections.
-        reorder = sorted(range(len(self.sections)), key=lambda o: self.sections[o].cut)
-        self.sections = [self.sections[i] for i in reorder]
-        self.section_idxs = [self.section_idxs[i] for i in reorder]
-        
-        # Check that interpolation exists, if so, add a shortcut to the matching.
-        if 'interpolation' in self.geojson:
-            # TODO: Check that it's in the correct order or has not changed.
-            self.matching = self.geojson['interpolation']['matching']
+                sections.append(shared.cross_idx_ptr(feature, base_line))
         
         # Check that faults exist. If so, make a side to side representation.
         fexist = False
@@ -248,7 +201,7 @@ class GeologicalModel(object):
                         self.joined_faults[name] += fplane
                     else:
                         self.joined_faults[name] = fplane
-    
+        
     def has_interpolation( self ):
         return 'interpolation' in self.geojson
 
@@ -298,8 +251,7 @@ class GeologicalModel(object):
             fplanes['name'] = [name1, name2]
             self.geojson['features'].append(fplanes)
             self.faults.append(faults.align_fault_with(fplanes, self.model_point))
-
-        
+    
     def model_point(self, point):
         """
         Returns the point in geological model representation.
@@ -408,3 +360,39 @@ class GeologicalModel(object):
     def intersect_planes( self, planes ):
         return faults.find_faults_multiple_planes_intersection( self.joined_faults, planes )
 
+    def validate( self ):
+        """
+        Validates that the geojson is correct. 
+        """
+        # Validate basic GeoJSON contents.
+        if type(self.geojson) != dict:
+            raise shared.ModelException("You did not load a dictionary in geojson format")
+        if not 'type' in self.geojson:
+            raise shared.ModelException("No type in json")
+        if self.geojson['type'] != 'GeologyCollection':
+            raise shared.ModelException("type is not GeologyCollection")
+        if not 'bbox' in self.geojson:
+            raise shared.ModelException("bounding box (bbox) is required in model")
+        if not 'crs' in self.geojson:
+            raise shared.ModelException("coordinate system (crs) is required in model")
+        if not 'type' in self.geojson['crs']:
+            raise shared.ModelException("coordinate system (crs) type is required in model")
+        if self.geojson['crs']['type'] != 'name':
+            raise shared.ModelException("only name is supported for coordinate system (crs) type")
+        if not 'properties' in self.geojson['crs']:
+            raise shared.ModelException("properties in coordinate system (crs) is required in model")
+        if not 'name' in self.geojson['crs']['properties']:
+            raise shared.ModelException("name property in coordinate system (crs) is required in model")
+        if self.geojson['crs']['properties']['name'].split(":")[0] != "EPSG":
+            raise shared.ModelException("only EPSG codes are supported as coordinate systems")
+        try:
+            int(self.geojson['crs']['properties']['name'].split(":")[1])
+        except ValueError:
+            raise shared.ModelException("EPSG should be integer code")
+        
+        # Validate the feature collections of the GeoJSON.
+        if not 'features' in self.geojson:
+            raise shared.ModelException("features is necessary in model")
+        for fc in self.geojson['features']:
+            validate_feature_collection(fc)
+ 
