@@ -15,7 +15,6 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
-import matching
 import shared
 import faults
 import query
@@ -23,7 +22,7 @@ import json
 import datetime
 import numpy as np
 import sys
-
+import cpp
 
 from numpy import linalg as la
 
@@ -63,13 +62,47 @@ def validate_feature_collection(fc):
     for f in fc:
         validate_feature(f)
 
-class GeologicalModel(object):
+class GeologicalModel(cpp.Model):
     def __init__( self, geojson ):
         """ 
         Initializes the geological model from a geojson file.
         """
         self.geojson = geojson
-    
+        sections = []
+        
+        geomap = []
+        topography = {}
+        # Search map.
+        for feature in self.geojson['features']:
+            if feature['geology_type'] == 'map':
+                gm = shared.points_index_repr(feature)
+                geomap = [gm['points'], gm['polygons'], gm['units'], gm['lines'], gm['lnames']]
+                topography = feature['transform']
+                break
+        else:
+            self.geomap = None
+        
+        # First get the base section, which will locate all other sections.
+        base_section = None
+        for feature in self.geojson['features']:
+            if feature['geology_type'] == 'section' and 'base' in feature['properties'] and feature['properties']['base']:
+                base_section = feature
+                break
+        
+        # Calculate direction and base point.
+        base_line = base_section['transform']['line']
+        base_point = np.array(base_line[0][:2])
+        direction = np.array(base_line[1][:2])-base_point
+        direction = direction/la.norm(direction)
+        
+        for idx, feature in enumerate(self.geojson['features']):
+            if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
+                cs = shared.cross_idx_repr(feature, base_line)
+                sect = [feature['name'], cs[0], cs[1]['points'], cs[1]['polygons'], cs[1]['units'], cs[1]['lines'], cs[1]['lnames']]
+                sections.append(sect)
+        
+        super(GeologicalModel, self).__init__(list(base_point), list(direction), geomap, topography, sections)
+        self.make_matches()
    
     def print_information( self, verbose=False ):
         """
@@ -151,74 +184,32 @@ class GeologicalModel(object):
             print "\tFault names present: %s" % ", ".join(lnames)
             print "\tFault properties present: %s" % ", ".join(lprops)
     
-    def calc_cache( self ):
+    def load_faults( self ):
         """
         Calculates objects which are easier to work with and faster
         but can't be serialized, like shapely polygons.
         """
         
-        sections = []
-        
-        # Search map.
-        for feature in self.geojson['features']:
-            if feature['geology_type'] == 'map':
-                self.topography = feature['transform']
-                break
-        else:
-            self.geomap = None
-        
-        # First get the base section, which will locate all other sections.
-        base_section = None
-        for feature in self.geojson['features']:
-            if feature['geology_type'] == 'section' and 'base' in feature['properties'] and feature['properties']['base']:
-                base_section = feature
-                break
-        
-        # Calculate direction and base point.
-        base_line = base_section['transform']['line']
-        base_point = np.array(base_line[0][:2])
-        direction = np.array(base_line[1][:2])-base_point
-        direction = self.direction/la.norm(self.direction)
-        
-        for idx, feature in enumerate(self.geojson['features']):
-            if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
-                sections.append(shared.cross_idx_ptr(feature, base_line))
-        
         # Check that faults exist. If so, make a side to side representation.
-        fexist = False
-        for idx, feature in enumerate(self.geojson['features']):
-            # TODO: Check that it's in the correct order or has not changed.
-            if feature['geology_type'] == 'faults':
-                if not fexist:
-                    fexist = True
-                    self.faults = []
-                    self.joined_faults = []
-                self.faults.append(faults.align_fault_with(feature, self.model_point))
-                for surface in feature['features']:
-                    name = surface['properties']['name']
-                    fplane = surface['geometry']['coordinates']
-                    if name in self.joined_faults:
-                        self.joined_faults[name] += fplane
-                    else:
-                        self.joined_faults[name] = fplane
+        # fexist = False
+        # for idx, feature in enumerate(self.geojson['features']):
+        #     # TODO: Check that it's in the correct order or has not changed.
+        #     if feature['geology_type'] == 'faults':
+        #         if not fexist:
+        #             fexist = True
+        #             self.faults = []
+        #             self.joined_faults = []
+        #         self.faults.append(faults.align_fault_with(feature, self.model_point))
+        #         for surface in feature['features']:
+        #             name = surface['properties']['name']
+        #             fplane = surface['geometry']['coordinates']
+        #             if name in self.joined_faults:
+        #                 self.joined_faults[name] += fplane
+        #             else:
+        #                 self.joined_faults[name] = fplane
         
     def has_interpolation( self ):
         return 'interpolation' in self.geojson
-
-    def calc_interpolation( self ):
-        """
-        Adds a property to self.geojson called interpolation 
-        with a matching that defines which polygons match each
-        other.
-        """
-        self.geojson['interpolation'] = { 'type': 'parallel', 'matching': [] }
-        mtch = self.geojson['interpolation']['matching']
-        for idx in xrange(len(self.sections)-1):
-            mtch.append(matching.create_match(self.sections[idx], self.sections[idx+1]))
-            name1 = self.geojson['features'][self.section_idxs[idx]]['name']
-            name2 = self.geojson['features'][self.section_idxs[idx+1]]['name']
-            mtch[-1]['name'] = [name1, name2]
-        self.matching = self.geojson['interpolation']['matching']
     
     def has_faults( self ):
         for feature in self.geojson['features']:
@@ -251,108 +242,6 @@ class GeologicalModel(object):
             fplanes['name'] = [name1, name2]
             self.geojson['features'].append(fplanes)
             self.faults.append(faults.align_fault_with(fplanes, self.model_point))
-    
-    def model_point(self, point):
-        """
-        Returns the point in geological model representation.
-        parameters:
-            point: point to query in spatial coordinates
-        return:
-            point: point to query in model coordinates.
-        """
-        ppoint = np.array([point[0], point[1]])
-        v = ppoint-self.base_point
-        n = la.norm(v)
-        if n < 1e-10:
-            return (0, point[2], 0)
-        else:
-            nv = v/n
-            c = self.direction[0]*nv[1] - self.direction[1] * nv[0]
-            d = self.direction[0]*nv[0] + self.direction[1] * nv[1]
-            
-            return [d*n, point[2], c*n]
-    
-    def inverse_point(self, point):
-        """
-        Given a point in model coordinates, returns its inverse.
-        parameters:
-            point: point to query in model coordinates
-        return:
-            point: point in normal coordinates.
-        """
-        dsq = self.direction[0]**2 + self.direction[1]**2
-        v1 = (point[2]*self.direction[0] + point[0]*self.direction[1])/dsq
-        if math.fabs(self.direction[1]) < 1e-9:
-            v0 = point[0]/self.direction[0]
-        else:
-            v0 = (self.direction[0]*v1-point[2])/self.direction[1]
-        return [ self.base_point[0] + v0, self.base_point[1] + v1, point[1] ]
-    
-    def query_point(self, point):
-        """
-        Returns the formation in which the point is located.
-        parameters:
-            point:  the 3 coordinates of the point to query.
-        """
-        point = self.model_point(point)
-        return self.query_point_cut((point[0], point[1]), point[2])
-    
-    def query_point_topo(self, point):
-        """
-        Convenience function that also evaluates if the point is above
-        the topography and returns none.
-        parameters:
-            point: the 3 coordinates of the point to query.
-        """
-        height = self.query_height((point[0], point[1]))
-        if height < point[2] or height is None:
-            return None
-        else:
-            return self.query_point(point)
-        
-    def query_point_cut(self, point, cut):
-        
-        if cut <= self.sections[0].cut:
-            return query.query_cross_point(self.sections[0], point)
-        elif cut >= self.sections[-1].cut:
-            return query.query_cross_point(self.sections[-1], point)
-        
-        rng = [0, len(self.sections)-1]
-        while rng[0] < (rng[1] - 1):
-            mid = (rng[0] + rng[1])/2
-            if cut > self.sections[mid].cut:
-                rng[0] = mid
-            elif cut < self.sections[mid].cut:
-                rng[1] = mid
-            else:
-                rng = [mid, mid+1]
-        
-        return query.query_single_point(self.sections[rng[0]], self.sections[rng[1]], self.matching[rng[0]], self.faults[rng[0]], point, cut)
-    
-    def query_height(self, point):
-        """
-        Queries the height at a point in the plane.
-        Returns the closest point if outside the bounds.
-        """
-        abspos = [(point[0]-self.topography['point'][0])/self.topography['sample'][0], 
-                  (point[1]-self.topography['point'][1])/self.topography['sample'][1]]
-        
-        x = int(abspos[0])
-        y = int(abspos[1])
-        
-        if x < 0:
-            x = 0
-        
-        if y < 0:
-            y = 0
-        
-        if x >= self.topography['dims'][0]:
-            x = self.topography['dims'][0]-1
-        
-        if y >= self.topography['dims'][1]:
-            y = self.topography['dims'][1]-1
-        
-        return self.topography['heights'][x][y]
     
     def intersect_plane( self, plane ):
         return faults.find_faults_plane_intersection( self.joined_faults, plane )

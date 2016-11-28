@@ -22,6 +22,7 @@ import argparse
 import json
 import fileinput
 import sys
+import shared
 from model import GeologicalModel
 
 class ParametersException(Exception):
@@ -29,18 +30,7 @@ class ParametersException(Exception):
 
 def prep_model(geojson, save=False):
     model = GeologicalModel(json.loads(geojson.read()))
-    model.calc_cache()
     changed = False
-    if not model.has_interpolation():
-        print >> sys.stderr, ">> no match in file, calculating match"
-        model.calc_interpolation()
-        print >> sys.stderr, ">> matching created"
-        changed = True
-    if not model.has_faults():
-        print >> sys.stderr, ">> no faults in file, calculating faults"
-        model.calc_faults()
-        print >> sys.stderr, ">> faults created"
-        changed = True
     
     if changed and save:
         geojson.close()
@@ -57,7 +47,7 @@ def query_coordinates(geojson, verbose=False):
             point = map(float, line.split())
         except ValueError:
             raise ParametersException("three numerical values are required per line")
-        model.query_point(point)
+        sys.stdout.write(shared.force_encode(model.closest(point)[0]).replace(" ", "_") + "\n")
         line = sys.stdin.readline()
 
 def query_grid(geojson, verbose=False):
@@ -89,7 +79,7 @@ def query_grid(geojson, verbose=False):
                 for j in xrange(ny):
                     for k in xrange(nx):
                         point = (mnx + dx*k, mny + dy*j, mnz + dz*i)
-                        sys.stdout.write(model.query_point(point).replace(" ", "_") + " ")
+                        sys.stdout.write(shared.force_encode(model.closest(point)[0]).replace(" ", "_") + " ")
                     sys.stdout.flush()
         except ParametersException as e:
             print >> sys.stderr, ">>", e

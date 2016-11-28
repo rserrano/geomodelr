@@ -92,10 +92,18 @@ Match Model::load_match( const pylist& match, size_t sa, size_t sb ) {
 	return Match(vmatch, sa, sb);
 }
 
-Model::Model( const pyobject& base_point, const pyobject& direction, const pylist& sections):
+Model::Model( const pyobject& base_point, const pyobject& direction, const pyobject& map, const pyobject& topography, const pylist& sections):
 base_point(python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
-direction(python::extract<double>(direction[0]), python::extract<double>(direction[1]) )
+direction(python::extract<double>(direction[0]), python::extract<double>(direction[1]) ),
+topography(nullptr)
 {
+	if ( python::len(topography) > 0 ) {
+		const pyobject& point = python::extract<pyobject>(topography["point"]);
+		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
+		const pyobject& dims = python::extract<pyobject>(topography["dims"]);
+		const pylist& heights = python::extract<pylist>(topography["heights"]);
+		this->topography = new Topography(point, sample, dims,heights);
+	}
 	size_t nsects = python::len(sections);
 	for ( size_t i = 0; i < nsects; i++ ) {
 		const wstring& name    = python::extract<wstring>(sections[i][0]);
@@ -114,6 +122,9 @@ direction(python::extract<double>(direction[0]), python::extract<double>(directi
 }
 
 Model::~Model(){
+	if ( this->topography != nullptr ) {
+		delete this->topography;
+	}
 	for ( auto it = this->sections.begin(); it != this->sections.end(); it++ ) {
 		delete *it;
 	}
@@ -166,7 +177,7 @@ pylist Model::get_matches( ) const {
 std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, const point2& pt ) const {
 	const Match& m = this->match[a_idx];
 	const Section& s = (a) ? *(this->sections[a_idx+1]) : *(this->sections[a_idx]);
-	const vector<bool> fr = (a) ? m.a_free : m.b_free;
+	const vector<bool>& fr = (a) ? m.a_free : m.b_free;
 	if ( fr[pol_idx] ) {
 		return std::make_pair(-1, std::numeric_limits<double>::infinity());
 	}
@@ -476,10 +487,16 @@ pytuple Model::closest(const pyobject& pypt) const {
 	if ( not this->sections.size() ) {
 		return python::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
 	}
+	
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
+	if ( this->topography != nullptr ) {
+		if ( this->topography->height(pt) < gz(pt) ) {
+			return python::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
+		}
+	}
 	std::pair<point2, double> mp = this->to_model_point(pt);
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 	size_t a_idx = it - this->cuts.begin();
@@ -504,3 +521,48 @@ pytuple Model::closest(const pyobject& pypt) const {
 	}
 	return python::make_tuple(unit, std::get<2>(clst));
 }
+
+Topography::Topography( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights ):
+point(python::extract<double>(point[0]), python::extract<double>(point[1])),
+sample(python::extract<double>(sample[0]), python::extract<double>(sample[1])),
+heights(python::extract<int>(dims[0]) * python::extract<int>(dims[1]))
+{
+	this->dims[0] = python::extract<size_t>(dims[0]);
+	this->dims[1] = python::extract<size_t>(dims[1]);
+	size_t rows = python::len(heights);
+	if ( rows != this->dims[0] ) {
+		throw GeomodelrException("topography rows does not correspond with dims.");
+	}
+	for ( size_t i = 0; i < rows; i++ ) {
+		size_t cols = python::len(heights[i]);
+		if ( cols != this->dims[1] ) {
+			throw GeomodelrException("topography columns does not correspond with dims.");
+		}
+		for ( size_t j = 0; j < cols; j++ ) {
+			this->heights[i*this->dims[1]+j] = python::extract<double>(heights[i][j]);
+		}
+	}
+}
+
+double Topography::height(const point3& pt) const {
+	point2 pos(gx(pt), gy(pt));
+	geometry::subtract_point(pos, this->point);
+	geometry::divide_point(pos, this->sample);
+	size_t x = int(gx(pos));
+	size_t y = int(gy(pos));
+
+        if ( x < 0 )
+            x = 0;
+        
+        if ( y < 0 )
+            y = 0;
+        
+        if ( x >= this->dims[0] )
+            x = this->dims[0]-1;
+        
+        if ( y >= this->dims[1] )
+            y = this->dims[1]-1;
+        
+	return this->heights[x*dims[1]+y];
+}
+

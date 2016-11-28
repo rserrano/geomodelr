@@ -62,8 +62,8 @@ BOOST_PYTHON_MODULE(cpp)
 							const pylist&, const pylist&>())
 							.def("info", &Section::info)
 							.def("closest", &Section::closest);
-	python::class_<Model>("Model", python::init<const pylist&, const pylist&, 
-						    const pylist&>())
+	python::class_<Model>("Model", python::init<const pylist&, const pylist&, const pyobject&,
+						    const pyobject&, const pylist&>())
 						    .def("make_matches", &Model::make_matches)
 						    .def("possible_closest", &Model::possible_closest)
 						    .def("model_point", &Model::model_point)

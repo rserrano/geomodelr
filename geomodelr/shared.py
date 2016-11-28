@@ -205,4 +205,28 @@ def cross_from_geojson(geojson, base_line):
     cut, pi = cross_idx_repr(geojson, base_line)
     return Cross(cut, pi['points'], pi['polygons'], pi['units'], pi['lines'], pi['lnames'])
 
+def force_encode(f):
+    """
+    returns an encoded string from a unicode, forcing it
+    reaaaally forcing it.
+    This is probably the ugliest function ever.
+    Probably someone will shame me for this. :(.
+    """
+    try:
+        return f.encode()
+    except:
+        pass
+    try:
+        return f.encode('utf')
+    except:
+        pass
+    try:
+        return f.encode('utf8')
+    except:
+        pass
+    try:
+        return f.encode('utf16')
+    except:
+        pass
+    return f.encode('utf32')
 

@@ -66,6 +66,7 @@ typedef python::tuple pytuple;
 
 class Section;
 class Model;
+class Topography;
 
 struct GeomodelrException : std::runtime_error
 {
@@ -98,6 +99,7 @@ class Model {
 	vector<Section *> sections;
 	vector<Match> match;
 	vector<double> cuts;
+	Topography * topography;
 	Match make_match( const Section& a, const Section& b );
 	Match load_match( const pylist& match, size_t sa, size_t sb );
 	
@@ -111,6 +113,7 @@ class Model {
 		bool operator<( const Possible& other ) const;
 		double distance( double c ) const;
 	};
+	
 	// Returns all the possible matches of this 2d point, given the distance is unknown.
 	std::pair<point2, double> to_model_point(const point3& pt) const;
 	point3 to_inverse_point(const point2& p, double cut) const;
@@ -119,6 +122,7 @@ class Model {
 	std::tuple<int, int, double> closest_to( size_t a_idx, const point2& pt, double cut ) const;
 public:
 	Model(const pyobject& basepoint, const pyobject& direction, 
+	      const pyobject& map, const pyobject& topography,
 	      const pylist& sections);
 	virtual ~Model();
 	// Methods to create matches or load them from files.
@@ -130,6 +134,16 @@ public:
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
+};
+
+class Topography {
+	point2 point;
+	point2 sample;
+	size_t dims[2];
+	vector<double> heights;
+public:
+	Topography( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights );
+	double height(const point3&) const;
 };
 
 /* C++ section that queries points to polygons so much faster. */
