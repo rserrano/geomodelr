@@ -216,7 +216,6 @@ vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt ) c
 	const Section& s_a = *(this->sections[a_idx]);
 	const Section& s_b = *(this->sections[a_idx+1]);
 	
-	auto always_true = [](const value& v){ return true; };
 	double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
 	
 	// Simple lambda for obtaining the match as a Possible.
@@ -465,7 +464,7 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	// If it's behind the last or above the first, return the closest in the section.
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
-		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(s.valid));
+		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(always_true));
 		wstring unit = s.units[cls.first];
 		pylist ret;
 		ret.append(python::make_tuple(unit, cls.second, cls.second));
@@ -503,7 +502,11 @@ pytuple Model::closest(const pyobject& pypt) const {
 	// If it's behind the last or above the first, return the closest in the section.
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
-		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(s.valid));
+		
+		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(always_true));
+		if ( cls.first == -1 ) {
+			return python::make_tuple(wstring(L"NONE", cls.second));
+		}
 		wstring unit = s.units[cls.first];
 		return python::make_tuple(unit, cls.second);
 	}

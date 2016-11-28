@@ -73,14 +73,7 @@ struct GeomodelrException : std::runtime_error
 	GeomodelrException(const string&);
 };
 
-/* Checks if a unit is not empty or "NONE" */
-struct ValidUnit {
-	const Section * section;
-	ValidUnit( const Section * section ); 
-	bool operator() (const value& b) const;
-};
-
-
+bool always_true( const value& v ); 
 
 class Match {
 	map<int, vector<int>> a_to_b;
@@ -156,8 +149,6 @@ class Section {
 	vector<wstring> lnames;
 	rtree * polidx; // To be initialized after polygons and lines.
 	
-	ValidUnit valid;
-	friend class ValidUnit;
 	friend Model;
 	
 	template<typename Predicates>
@@ -166,7 +157,7 @@ class Section {
 		point2 mn(gx(pt) - distance, gy(pt) - distance);
 		box bx(mn, mx);
 		vector<std::pair<int, double>> ret;
-		for ( auto it = this->polidx->qbegin( geometry::index::intersects(bx) and geometry::index::satisfies(this->valid) and predicates );
+		for ( auto it = this->polidx->qbegin( geometry::index::intersects(bx) and predicates );
 			it != this->polidx->qend(); it++ ) {
 			// Check the actual distance to a polygon.
 			int idx = it->second;

@@ -25,12 +25,16 @@ Section::~Section()
 }
 Section::Section(const wstring& name, double cut, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
-	const pylist& lines, const pylist& lnames ): name(name), cut(cut), polidx(nullptr), valid(this)
+	const pylist& lines, const pylist& lnames ): name(name), cut(cut), polidx(nullptr)
 {
 	size_t npols = python::len(polygons);
 	vector<value> envelopes;
 	for ( size_t i = 0; i < npols; i++ ) {
 		polygon pol;
+		wstring unit = python::extract<wstring>( units[i] );
+		if ( unit == L"NONE" or unit == L"" ) {
+			continue;
+		}
 		size_t nrings = python::len(polygons[i]);
 		ring& outer = pol.outer();
 		// Start filling the first ring.
@@ -40,6 +44,7 @@ Section::Section(const wstring& name, double cut, const pylist& points,
 			pylist pypt = pylist(points[polygons[i][0][k]]);
 			outer.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
 		}
+		
 		// Then fill the rest of the rings.
 		if ( nrings > 1 ) { 
 			pol.inners().resize(nrings-1);
@@ -62,7 +67,7 @@ Section::Section(const wstring& name, double cut, const pylist& points,
 		envelopes.push_back(std::make_pair(env, this->polygons.size()));
 		// Now add the actual polygon and its unit.
 		this->polygons.push_back(pol);
-		this->units.push_back(python::extract<wstring>( units[i] ));
+		this->units.push_back(unit);
 	}
 	// Build the rtree.
 	if ( envelopes.size() > 0 ) {
@@ -98,22 +103,17 @@ const {
 	double x = python::extract<double>(pypt[0]);
 	double y = python::extract<double>(pypt[1]);
 	point2 p(x, y);
-	std::pair<int, int> cls = this->closest_to(p, geometry::index::satisfies(this->valid));
+
+	std::pair<int, int> cls = this->closest_to(p, geometry::index::satisfies(always_true));
 	if ( cls.first == -1 ) {
 		return python::make_tuple(-1, wstring(L"NONE"));
 	}
 	return python::make_tuple(cls.first, this->units[cls.first]);
 }
 
-bool ValidUnit::operator()(const value& b) 
-const {
-	const wstring& unit = this->section->units[b.second];
-	return unit != L"NONE" and unit != L""; 
-}
 
-ValidUnit::ValidUnit(const Section * section):section(section) 
+bool always_true( const value& v )
 {
-
+	return true;
 }
-
 

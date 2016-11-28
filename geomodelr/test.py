@@ -181,13 +181,13 @@ class TestGeoModelR(unittest.TestCase):
         polygons = [[[0, 1, 2, 3, 4], [5, 8, 7, 6]], [[5, 6, 7, 8]], [[2, 1, 9]], [[4, 3, 2, 10, 11]]]
         units = ['NONE', 'unit2', 'unit3', 'unit4']
         section = cpp.Section("J-J", 9, points, polygons, units, [], [])
-        self.assertEqual(section.info()['polygons'], 4)
-        self.assertEqual(section.closest([0.5, 0.5]), (1, 'unit2'))
-        self.assertEqual(section.closest([-0.5, -0.5]), (1, 'unit2'))
-        self.assertEqual(section.closest([1.5, -0.5]), (2, 'unit3'))
-        self.assertEqual(section.closest([1.5, 0.75]), (2, 'unit3'))
-        self.assertEqual(section.closest([1.5, 0.25]), (2, 'unit3'))
-        self.assertEqual(section.closest([-0.001, 1.001]), (3, 'unit4'))
+        self.assertEqual(section.info()['polygons'], 3)
+        self.assertEqual(section.closest([0.5, 0.5]), (0, 'unit2'))
+        self.assertEqual(section.closest([-0.5, -0.5]), (0, 'unit2'))
+        self.assertEqual(section.closest([1.5, -0.5]), (1, 'unit3'))
+        self.assertEqual(section.closest([1.5, 0.75]), (1, 'unit3'))
+        self.assertEqual(section.closest([1.5, 0.25]), (1, 'unit3'))
+        self.assertEqual(section.closest([-0.001, 1.001]), (2, 'unit4'))
         
         points = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0.9], [0.9, 0.9], [0.9, 0.1], [0, 0.1],
                   [0.25, 0.25], [0.9, 0.25], [0.9, 0.75], [0.25, 0.75] ]
