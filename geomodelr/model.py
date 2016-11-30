@@ -103,7 +103,7 @@ class GeologicalModel(cpp.Model):
         
         super(GeologicalModel, self).__init__(list(base_point), list(direction), geomap, topography, sections)
         self.make_matches()
-   
+
     def print_information( self, verbose=False ):
         """
         Validates the information of the geological model.

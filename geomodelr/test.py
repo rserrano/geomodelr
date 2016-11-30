@@ -103,7 +103,6 @@ class TestGeoModelR(unittest.TestCase):
         this_dir, this_filename = os.path.split(__file__)
         f = open(os.path.join(this_dir, 'test_files', 'aburra_version1.json'))
         m = model.GeologicalModel(json.loads(f.read()))
-        # m.calc_cache()
     
     def test_sections(self):
         """

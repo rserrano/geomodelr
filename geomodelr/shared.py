@@ -52,6 +52,22 @@ def triangulate(points, fltr=lambda x: True):
                 tris.add(srt)
     return list(tris)
 
+def opposite_triangles(points, na):
+    def is_opposite(tri):
+        """
+        Filter the triangles so that only triangles in the edges 
+        and that are tied between faults are accepted.
+        It's required that tri is ordered.
+        """
+        if not tri[0] < na or not tri[2] >= na:
+            return False
+        if tri[0]+1 == tri[1] and tri[1] < na:
+            return True
+        if tri[1]+1 == tri[2] and tri[1] >= na:
+            return True
+        return False
+    return map( lambda tri: map(int, tri), triangulate(points, is_opposite) )
+
 def line_side(surface_line, cs_line):
     """
     Distance between two surface lines.

@@ -44,6 +44,9 @@ typedef geometry::model::linestring<point2> line;
 typedef std::pair<box, int> value;
 typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
 
+typedef std::tuple<int, int, int> triangle;
+typedef std::tuple<int, int> edge;
+
 template<class Point>
 inline typename geometry::coordinate_type<Point>::type gx(const Point& p){
 	return geometry::get<0, Point>(p);
@@ -75,15 +78,33 @@ struct GeomodelrException : std::runtime_error
 
 bool always_true( const value& v ); 
 
+class AlignedTriangle {
+	point3 normal;
+	point3 point;
+	polygon triangle;
+public:
+	AlignedTriangle(const std::tuple<point3, point3, point3>& triangle);
+};
+
 class Match {
+	friend class Model;
+	static pyobject pytriangulate;
+	const Section * a;
+	const Section * b;
 	map<int, vector<int>> a_to_b;
 	map<int, vector<int>> b_to_a;
 	vector<bool> a_free;
 	vector<bool> b_free;
-	friend class Model;
+	map<wstring, vector<AlignedTriangle>> faults;
+	void set( const vector<std::pair<int, int>>& match );
 public:
-	Match(const vector<std::pair<int, int>>& match, size_t sa, size_t sb);
+	Match( const Section * a, const Section * b );
+	void match_polygons();
+	void match_lines();
+	void load_polygons_match( const pylist& match );
 	pylist get() const;
+	static void load_triangulate();
+	static vector<triangle> triangulate(const vector<point3>& pa, const vector<point3>& pb);
 };
 
 class Model {
@@ -93,8 +114,6 @@ class Model {
 	vector<Match> match;
 	vector<double> cuts;
 	Topography * topography;
-	Match make_match( const Section& a, const Section& b );
-	Match load_match( const pylist& match, size_t sa, size_t sb );
 	
 	std::pair<int, double> closest_match(bool a, int a_idx, int pol_idx, const point2& pt) const;
 	struct Possible {
@@ -141,6 +160,9 @@ public:
 
 /* C++ section that queries points to polygons so much faster. */
 class Section {
+	friend Match;
+	friend Model;
+	
 	wstring name;
 	double cut;
 	vector<polygon> polygons;
@@ -148,9 +170,7 @@ class Section {
 	vector<line> lines;
 	vector<wstring> lnames;
 	rtree * polidx; // To be initialized after polygons and lines.
-	
-	friend Model;
-	
+
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
 		point2 mx(gx(pt) + distance, gy(pt) + distance);

@@ -40,13 +40,11 @@ PyObject* createExceptionClass(const char* name, PyObject* baseTypeObj = PyExc_E
 	return typeObj;
 }
 
-
 void translate(GeomodelrException const& e)
 {
 	// Use the Python 'C' API to set up an exception object
 	boost::python::object pythonExceptionInstance(e);
 	PyErr_SetObject(GeomodelrExceptionType, pythonExceptionInstance.ptr());
-
 	//PyErr_SetString(PyExc_RuntimeError, e.what());
 }
 
