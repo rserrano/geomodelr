@@ -64,22 +64,53 @@ Model::~Model(){
 	if ( this->topography != nullptr ) {
 		delete this->topography;
 	}
+	this->clear_matches();
 	for ( auto it = this->sections.begin(); it != this->sections.end(); it++ ) {
 		delete *it;
 	}
 }
-
-void Model::make_matches() {
-	this->match.clear();
-	for ( size_t i = 1; i < this->sections.size(); i++ ) {
-		this->match.push_back(Match(this->sections[i-1], this->sections[i]));
-		this->match.back().match_polygons();
-		this->match.back().match_lines();
+void Model::clear_matches() {
+	for ( Match * c: this->match ) {
+		delete c;
 	}
+	this->match.clear();
+}
+
+pydict Model::make_matches() {
+	this->clear_matches();
+	map<wstring, vector<triangle_pt>> faults;
+	for ( size_t i = 1; i < this->sections.size(); i++ ) {
+		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
+		this->match.back()->match_polygons();
+		map<wstring, vector<triangle_pt>> m = this->match.back()->match_lines();
+		for ( auto it = m.begin(); it != m.end(); it++ ) {
+			auto& f = faults[it->first];
+			f.reserve(f.size() + it->second.size());
+			f.insert(f.end(), it->second.begin(), it->second.end());
+		}
+	}
+	auto point_coords = [&]( const point3& pt ) {
+		point2 p(gx(pt), gy(pt));
+		point3 glp = this->to_inverse_point(p, gz(pt));
+		return python::make_tuple(gx(glp), gy(glp), gz(glp));
+	};
+	auto triangle_coords = [point_coords]( const triangle_pt& tr ) {
+		return python::make_tuple(point_coords(g0(tr)), point_coords(g1(tr)), point_coords(g2(tr)));
+	};
+	// Now convert to python and return.
+	pydict ret;
+	for ( auto it = faults.begin(); it != faults.end(); it++ ) {
+		pylist tris;
+		for ( const triangle_pt& t: it->second ) {
+			tris.append( triangle_coords( t ) );
+		}
+		ret[it->first] = tris;
+	}
+	return ret;
 }
 
 void Model::set_matches( const pylist& matching ) {
-	this->match.clear();
+	this->clear_matches();
 	size_t nmatch = python::len(matching);
 	map<std::pair<wstring, wstring>, int> match;
 	for ( size_t i = 0; i < nmatch; i++ ) {
@@ -101,8 +132,8 @@ void Model::set_matches( const pylist& matching ) {
 			throw GeomodelrException(error.c_str());
 		}
 		const pylist& m = python::extract<pylist>(matching[match[std::make_pair(name1, name2)]][1]);
-		this->match.push_back(Match(this->sections[i-1], this->sections[i]));
-		this->match.back().load_polygons_match(m);
+		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
+		this->match.back()->load_polygons_match(m);
 	}
 }
 
@@ -111,13 +142,13 @@ pylist Model::get_matches( ) const {
 	for ( size_t i = 0; i < this->match.size(); i++ ) {
 		const wstring& name1 = this->sections[i]->name;
 		const wstring& name2 = this->sections[i+1]->name;
-		ret.append(python::make_tuple(python::make_tuple(name1, name2), this->match[i].get()));
+		ret.append(python::make_tuple(python::make_tuple(name1, name2), this->match[i]->get()));
 	}
 	return ret;
 }
 
 std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, const point2& pt ) const {
-	const Match& m = this->match[a_idx];
+	const Match& m = *(this->match[a_idx]);
 	const Section& s = (a) ? *(this->sections[a_idx+1]) : *(this->sections[a_idx]);
 	const vector<bool>& fr = (a) ? m.a_free : m.b_free;
 	if ( fr[pol_idx] ) {
@@ -396,6 +427,9 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	if ( not this->sections.size() ) {
 		return pylist();
 	}
+	if ( this->match.size()+1 != this->sections.size() ) {
+		throw GeomodelrException("You need to call make_matches before using this function.");
+	}
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
@@ -424,10 +458,15 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	return ret;
 }
 
-pytuple Model::closest(const pyobject& pypt) const {
-	if ( not this->sections.size() ) {
-		return python::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
+pydict Model::info() const {
+	pydict ret;
+	for ( const Section * s: this->sections ) {
+		ret[s->name] = s->info();
 	}
+	return ret;
+}
+
+pytuple Model::closest(const pyobject& pypt) const {
 	
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
@@ -438,21 +477,41 @@ pytuple Model::closest(const pyobject& pypt) const {
 			return python::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
 		}
 	}
+	if ( not this->sections.size() ) {
+		return python::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
+	}
+	
+	if ( this->match.size()+1 != this->sections.size() ) {
+		throw GeomodelrException("You need to call make_matches before using this function.");
+	}
+	
 	std::pair<point2, double> mp = this->to_model_point(pt);
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 	size_t a_idx = it - this->cuts.begin();
 	// If it's behind the last or above the first, return the closest in the section.
-	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
-		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
-		
+
+	auto closest_single =[&](const Section& s) {
 		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(always_true));
 		if ( cls.first == -1 ) {
 			return python::make_tuple(wstring(L"NONE", cls.second));
 		}
 		wstring unit = s.units[cls.first];
 		return python::make_tuple(unit, cls.second);
+	};
+	// For a cut below the lowest or above the highest.
+	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
+		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
+		return closest_single(s);
 	}
+	// Check if it crosses a fault and then only evaluate the cross in the actual site.
 	a_idx--;
+	int crosses = this->match[a_idx]->crosses_triangles(mp.first, mp.second);
+	if ( crosses < 0 ) {
+		return closest_single(*(this->sections[a_idx]));
+	} else if ( crosses > 0 ) {
+		return closest_single(*(this->sections[a_idx+1]));
+	}
+	// Finally evaluate the full transition.
 	std::tuple<int, int, double> clst = this->closest_to(a_idx, mp.first, mp.second);
 	int a_match = std::get<0>(clst);
 	int b_match = std::get<1>(clst);

@@ -38,25 +38,25 @@ class TestGeoModelR(unittest.TestCase):
         la = [(0, 0, 0), (1,1,0), (2,2,0), (3,3,0)]
         lb = [(0, 3, 1), (1,2,1), (2,1,1), (3,0,1)]
         # This is a weird testcase that should work. Star in two directions.
-        self.assertEqual(faults.faultplane_for_lines(la, lb), [(0, 1, 4), (1, 4, 5), (1, 2, 5), (2, 3, 5), (3, 5, 6), (3, 6, 7)])
+        self.assertEqual(cpp.faultplane_for_lines(la, lb), [(0, 1, 4), (1, 4, 5), (1, 2, 5), (2, 3, 5), (3, 5, 6), (3, 6, 7)])
         
         # This is a weird testcase that should not work.
         # Open circles in different directions.
         la = [(-1, 2,0), (-2,1, 0), (-2,-1,0), (-1,-2,0), (1,-2,0), (2,-1,0), (2, 1,0), (1,2,0)]
         lb = [(-1,-2,1), (-2,-1,1), (-2,1,1),  (-1, 2,1), (1, 2,1), (2, 1,1), (2,-1,1), (1, -2, 1)]
-        with self.assertRaises(shared.GeometryException):
-            faults.faultplane_for_lines(la, lb)
+        with self.assertRaises(cpp.GeomodelrException):
+            cpp.faultplane_for_lines(la, lb)
         la = [(-1, 2,0), (-2,1, 0), (-2,-1,0), (-1,-2,0), (1,-2,0), (2,-1,0), (2, 1,0), (1,2,0)]
         lb = [(-1, 2, 1), (-2, 3, 1), (-2, 5, 1), (-1, 6, 1), (1, 6, 1), (2, 5, 1), (2, 3, 1), (1, 2, 1)]
         
         # Open circles in different directions but one on top of the other.
-        with self.assertRaises(shared.GeometryException):
-            faults.faultplane_for_lines(la, lb)
+        with self.assertRaises(cpp.GeomodelrException):
+            cpp.faultplane_for_lines(la, lb)
         
         # One starts when the other finishes.
         la = [(-1,-2,0), (-2,-1,0), (-2,1,0),  (-1, 2,0), (1, 2,0), (2, 1,0), (2,-1,0), (1, -2, 0)]
         lb = [(-1, 2, 1), (-2, 3, 1), (-2, 5, 1), (-1, 6, 1), (1, 6, 1), (2, 5, 1), (2, 3, 1), (1, 2, 1)]
-        self.assertEqual(faults.faultplane_for_lines(la, lb), [(0,1,  8), (1,  8,  9), (1,  2,  9), 
+        self.assertEqual(cpp.faultplane_for_lines(la, lb), [(0,1,  8), (1,  8,  9), (1,  2,  9), 
                                                                 (2, 9,10), (2,  3, 10), (3, 10, 11), 
                                                                 (3,11,12), (3,  4, 12), (4, 12, 13), 
                                                                 (4, 5,13), (5, 13, 14), (5,  6, 14), 
@@ -80,22 +80,13 @@ class TestGeoModelR(unittest.TestCase):
               (827315.46193332784, 1169500.0, -284.6906919181347), 
               (840876.00000000093, 1169500.0, -30000)]
         
-        self.assertEqual(faults.faultplane_for_lines(la, lb), [(0, 8, 9), (0, 9, 10), (0, 1, 10), 
+        self.assertEqual(cpp.faultplane_for_lines(la, lb), [(0, 8, 9), (0, 9, 10), (0, 1, 10), 
                                                                (1, 10, 11), (1, 11, 12), (1, 12, 13), 
                                                                (1, 2, 13), (2, 3, 13), (3, 13, 14), 
                                                                (3, 4, 14), (4, 5, 14), (5, 14, 15), 
                                                                (5, 6, 15), (6, 7, 15), (7, 15, 16)])
         
     
-    def test_next_and_check(self):
-        """
-        Test helper function next_and_check.
-        """
-        self.assertEqual( faults.next_and_check( (1,2,6), (2,6), 4), ( (1,6), (1,2) ) )
-        self.assertEqual( faults.next_and_check( (1,2,6), (1,6), 4), ( (2,6), (1,2) ) )
-        self.assertEqual( faults.next_and_check( (1,5,6), (1,6), 4), ( (1,5), (5,6) ) )
-        self.assertEqual( faults.next_and_check( (1,5,6), (1,5), 4), ( (1,6), (5,6) ) )
-
     def test_aburra_valley(self):
         """
         Test that you can load and test aburra Valley.
@@ -332,11 +323,17 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(model.inverse_point([3,1,2]), (3,2,1))
         self.assertAlmostEqual(model.inverse_point([6,0,3]), (6,3,0))
         
+        with self.assertRaises(cpp.GeomodelrException):
+            model.closest([1.5,1.5,1.5])
+        
+        model.make_matches()
         self.assertEqual(model.closest([1.5,1.5,1.5]), ('NONE', float('inf')))
         self.assertEqual(model.possible_closest([1.5, 1.5, 1.5]), [])
         n = la.norm([-1,1])
+        
         model = cpp.Model([1, 1], list(np.array([-1, 1])/n), {}, {}, [])
-
+        model.make_matches()
+        
         self.assertEqual(model.closest([1,1,1]), ("NONE", float('inf')))
         self.assertEqual(model.possible_closest([-1,0,-1]), [])
         mp = model.model_point([1.5,0.5,0.5])
@@ -365,6 +362,40 @@ class TestGeoModelR(unittest.TestCase):
         model = cpp.Model([0, 0], [1, 0], {}, {}, [(u"A-Á", 1, points_1, polygons_1, units_1, [], []), (u"Ñ-Ñ", 2, points_2, polygons_1, units_1, [], [])])
         model.make_matches()
        	self.assertEqual(model.closest([1.5, 1.5, 1.5])[0], u"unót2")
+
+    def test_faults_model(self):
+        points_1 = [[0, 0], [1, 0], [3, 0], [0, 0.5], [5.0/6.0, 0.5], [2.0/3.0, 1], [3, 1], [0.0, 1.5], [0.5, 1.5], [1.0/3.0, 2], [3, 2], [0, 2.5], [1.0/6.0, 2.5], [0, 3], [3,3]]
+        points_2 = [[0, 0], [2, 0], [3, 0], [0, 0.5], [2, 0.5], [2, 1], [3, 1], [0, 1.5], [2, 1.5], [2, 2], [3, 2], [0, 2.5], [2, 2.5], [0, 3], [2, 3], [3, 3]]
+        pols_1 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 14, 13, 12]], [[11, 12, 13]]]
+        pols_2 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 15, 14, 12]], [[11, 12, 14, 13]]]
+        units = ["unit1", "unit1", "unit2", "unit2", "unit3", "unit3", "unit4"]
+        
+        model = cpp.Model([0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, [], []), ("s2", 2, points_2, pols_2, units, [], [])])
+        model.make_matches()
+        self.assertEqual(model.matches, [((u's1', u's2'), [(0, 0), (1, 0), (1, 1), (2, 2), (3, 2), (3, 3), (4, 4), (5, 4), (5, 5), (6, 6)])])
+        
+        # Test what happens in the case of no faults.
+        self.assertEqual(model.closest([7.0/6.0, 1.5, 2])[0], 'unit3')
+        cls = model.closest([7.0/6.0, 1.4, 1.9])
+        # Unit3 should dominate the closest.
+        self.assertEqual(cls[0], 'unit3')
+        self.assertAlmostEqual(cls[1], 0.06)
+        
+        # Instead, test what happens when there are faults.
+        faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
+        faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
+        fname = ["F1"]
+        model = cpp.Model([0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, faults_1, fname), ("s2", 2, points_2, pols_2, units, faults_2, fname)])
+        model.make_matches()
+        # It should have the unit of the side of the fault.
+        cls = model.closest([7.0/6.0, 1.4, 1.9])
+        self.assertEqual(cls[0], 'unit2')
+        self.assertAlmostEqual(cls[1], 0.0)
+        cls = model.closest([7.0/6.0, 1.6, 1.9])
+        self.assertEqual(cls[0], 'unit3')
+        self.assertAlmostEqual(cls[1], 0.0)
+        
+        
 
         
 if __name__ == '__main__':

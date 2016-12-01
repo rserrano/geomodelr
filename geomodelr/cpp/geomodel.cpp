@@ -45,7 +45,7 @@ void translate(GeomodelrException const& e)
 	// Use the Python 'C' API to set up an exception object
 	boost::python::object pythonExceptionInstance(e);
 	PyErr_SetObject(GeomodelrExceptionType, pythonExceptionInstance.ptr());
-	//PyErr_SetString(PyExc_RuntimeError, e.what());
+	PyErr_SetString(GeomodelrExceptionType, e.what());
 }
 
 BOOST_PYTHON_MODULE(cpp)
@@ -54,7 +54,7 @@ BOOST_PYTHON_MODULE(cpp)
 	python::class_<GeomodelrException> GeomodelrExceptionClass("GeomodelrException", boost::python::init<std::string>());
 	GeomodelrExceptionType = createExceptionClass("GeomodelrException");
 	python::register_exception_translator<GeomodelrException>(&translate);
-	
+	def("faultplane_for_lines", test_faultplane_for_lines);
 	python::class_<Section>("Section", python::init<const wstring&, double, const pylist&, 
 							const pylist&, const pylist&, 
 							const pylist&, const pylist&>())
@@ -67,6 +67,7 @@ BOOST_PYTHON_MODULE(cpp)
 						    .def("model_point", &Model::model_point)
 						    .def("inverse_point", &Model::inverse_point)
 						    .def("closest", &Model::closest)
+						    .def("info", &Model::info)
 						    .add_property("matches", &Model::get_matches, &Model::set_matches);
 
 }

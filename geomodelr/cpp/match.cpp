@@ -20,38 +20,20 @@
 #include <cmath>
 
 
-template<class T>
-inline const typename std::tuple_element<0, T>::type& g0(const T& t){
-	return std::get<0>(t);
-}
-template<class T>
-inline const typename std::tuple_element<1, T>::type& g1(const T& t){
-	return std::get<1>(t);
-}
-template<class T>
-inline const typename std::tuple_element<2, T>::type& g2(const T& t){
-	return std::get<2>(t);
-}
-
-template<class T>
-inline typename std::tuple_element<0, T>::type& g0(T& t){
-	return std::get<0>(t);
-}
-template<class T>
-inline typename std::tuple_element<1, T>::type& g1(T& t){
-	return std::get<1>(t);
-}
-template<class T>
-inline typename std::tuple_element<2, T>::type& g2(T& t){
-	return std::get<2>(t);
-}
-
 pyobject Match::pytriangulate = python::object();
 
 Match::Match( const Section * a, const Section * b )
-:a(a), b(b), a_free(a->polygons.size()), b_free(a->polygons.size())
+:a(a), b(b), a_free(a->polygons.size()), b_free(a->polygons.size()), faultidx(nullptr)
 {
 
+}
+
+Match::~Match( )
+{
+	if ( this->faultidx != nullptr ) 
+	{
+		delete this->faultidx;
+	}
 }
 
 void Match::set( const vector<std::pair<int, int>>& match ){
@@ -120,6 +102,21 @@ void Match::load_polygons_match( const pylist& match ) {
 	this->set(vmatch);
 }
 
+int Match::crosses_triangles(const point2& point, double cut) const {
+	if ( this->faultidx == nullptr ) {
+		return 0;
+	}
+	for ( auto it = this->faultidx->qbegin( geometry::index::contains(point) ); it != this->faultidx->qend(); it++ ) {
+		const auto fl = this->faults.find(g1(*it));
+		const AlignedTriangle& tr = fl->second[g2(*it)];
+		int side = tr.crosses_triangle(point, cut);
+		if ( side != 0 ) 
+		{
+			return side;
+		}
+	}
+	return 0;
+}
 
 AlignedTriangle::AlignedTriangle(const std::tuple<point3, point3, point3>& triangle) {
 	const point3& p0 = g0(triangle);
@@ -135,6 +132,21 @@ AlignedTriangle::AlignedTriangle(const std::tuple<point3, point3, point3>& trian
 	outer.push_back(point2(gx(p0), gy(p0)));
 	outer.push_back(point2(gx(p1), gy(p1)));
 	outer.push_back(point2(gx(p2), gy(p2)));
+
+}
+
+int AlignedTriangle::crosses_triangle(const point2& point, double cut ) const {
+	if ( geometry::within(point, this->triangle) ) {
+		point3 pt(gx(point), gy(point), cut);
+		geometry::subtract_point(pt, this->point);
+		double d = geometry::dot_product(pt, this->normal);
+		if ( d < 0 ) {
+			return -1;
+		} else {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 point3 angles( const point3& t ) 
@@ -314,7 +326,34 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	throw GeomodelrException("The faults were not completely triangulated");
 }
 
-void Match::match_lines()
+pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb) {
+	auto pypoint = []( const pyobject& pt ) {
+		return point3(python::extract<double>(pt[0]), 
+			      python::extract<double>(pt[1]), 
+			      python::extract<double>(pt[2]));
+	};
+	auto pytovct = [pypoint]( const pylist& pyl ) {
+		vector<point3> l;
+		for ( int i = 0; i < python::len(pyl); i++ ) {
+			l.push_back(pypoint(python::extract<pyobject>(pyl[i])));
+		}
+		return l;
+	};
+	auto vcttopy = []( const vector<triangle>& l ) {
+		pylist pyl;
+		for ( size_t i = 0; i < l.size(); i++ ) {
+			pyl.append(python::make_tuple(g0(l[i]),g1(l[i]),g2(l[i])));
+		}
+		return pyl;
+	};
+	vector<point3> la = pytovct(pyla);
+	vector<point3> lb = pytovct(pylb);
+	
+	vector<triangle> res = faultplane_for_lines(la, lb);
+	return vcttopy(res);
+}
+
+map<wstring, vector<triangle_pt>> Match::match_lines()
 {
 	/*
 	Creates the fault planes given the cross sections with faults with the same name.
@@ -342,6 +381,7 @@ void Match::match_lines()
 			++it;
 		}
 	}
+	map<wstring, vector<triangle_pt>> retfaults;
 	for ( auto it = rel_faults.begin(); it != rel_faults.end(); it++ ) {
 		const line& la = this->a->lines[g0(it->second)];
 		const line& lb = this->b->lines[g1(it->second)];
@@ -358,12 +398,18 @@ void Match::match_lines()
 				if ( n < na ) {
 					return pa[n]; 
 				} else {
-					return pb[n]; 
+					return pb[n-na]; 
 				}
 			};
-			std::transform(fplane.begin(), fplane.end(), std::back_inserter(this->faults[name]),
-				[&] ( const triangle& t ) -> AlignedTriangle { 
-					return AlignedTriangle(std::make_tuple(pt(g0(t)), pt(g1(t)), pt(g2(t)))); 
+			
+			std::transform(fplane.begin(), fplane.end(), std::back_inserter(retfaults[name]),
+				[&] ( const triangle& t ) {
+					return std::make_tuple(pt(g0(t)), pt(g1(t)), pt(g2(t))); 
+				} );
+			
+			std::transform(retfaults[name].begin(), retfaults[name].end(), std::back_inserter(this->faults[name]),
+				[&] ( const triangle_pt& t ) -> AlignedTriangle {
+					return AlignedTriangle(std::make_tuple(g0(t), g1(t), g2(t))); 
 				} );
 		
 		} catch ( const GeomodelrException& e ) {
@@ -374,6 +420,18 @@ void Match::match_lines()
 				  << aname << " and " << bname << " " << e.what() << "\n"; 
 		}
 	}
+	vector<value_f> envelopes;
+	for ( auto it = this->faults.begin(); it != this->faults.end(); it++ ) {
+		const auto& triangles = it->second;
+		for ( size_t i = 0; i < triangles.size(); i++ ) {
+			const auto& tr = triangles[i];
+			box trbox;
+			geometry::envelope(tr.triangle, trbox);
+			envelopes.push_back(std::make_tuple(trbox, it->first, i));
+		}
+	}
+	this->faultidx = new rtree_f(envelopes.begin(), envelopes.end());
+	return retfaults;
 }
 
 

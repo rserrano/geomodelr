@@ -42,8 +42,9 @@ typedef geometry::model::polygon<point2, false, false> polygon;
 typedef polygon::ring_type ring;
 typedef geometry::model::linestring<point2> line;
 typedef std::pair<box, int> value;
+typedef std::tuple<box, wstring, int> value_f;
 typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
-
+typedef geometry::index::rtree<value_f, geometry::index::quadratic<16>> rtree_f;
 typedef std::tuple<int, int, int> triangle;
 typedef std::tuple<int, int> edge;
 
@@ -67,6 +68,33 @@ typedef python::dict pydict;
 typedef python::object pyobject;
 typedef python::tuple pytuple;
 
+typedef std::tuple<point3, point3, point3> triangle_pt;
+template<class T>
+inline const typename std::tuple_element<0, T>::type& g0(const T& t){
+	return std::get<0>(t);
+}
+template<class T>
+inline const typename std::tuple_element<1, T>::type& g1(const T& t){
+	return std::get<1>(t);
+}
+template<class T>
+inline const typename std::tuple_element<2, T>::type& g2(const T& t){
+	return std::get<2>(t);
+}
+
+template<class T>
+inline typename std::tuple_element<0, T>::type& g0(T& t){
+	return std::get<0>(t);
+}
+template<class T>
+inline typename std::tuple_element<1, T>::type& g1(T& t){
+	return std::get<1>(t);
+}
+template<class T>
+inline typename std::tuple_element<2, T>::type& g2(T& t){
+	return std::get<2>(t);
+}
+
 class Section;
 class Model;
 class Topography;
@@ -79,11 +107,13 @@ struct GeomodelrException : std::runtime_error
 bool always_true( const value& v ); 
 
 class AlignedTriangle {
+	friend class Match;
 	point3 normal;
 	point3 point;
 	polygon triangle;
 public:
 	AlignedTriangle(const std::tuple<point3, point3, point3>& triangle);
+	int crosses_triangle(const point2& point, double cut) const;
 };
 
 class Match {
@@ -96,22 +126,25 @@ class Match {
 	vector<bool> a_free;
 	vector<bool> b_free;
 	map<wstring, vector<AlignedTriangle>> faults;
+	rtree_f * faultidx;
 	void set( const vector<std::pair<int, int>>& match );
 public:
 	Match( const Section * a, const Section * b );
+	virtual ~Match();
 	void match_polygons();
-	void match_lines();
+	map<wstring, vector<triangle_pt>> match_lines();
 	void load_polygons_match( const pylist& match );
 	pylist get() const;
 	static void load_triangulate();
 	static vector<triangle> triangulate(const vector<point3>& pa, const vector<point3>& pb);
+	int crosses_triangles(const point2& pt, double cut) const;
 };
 
 class Model {
 	point2 base_point;
 	point2 direction;
 	vector<Section *> sections;
-	vector<Match> match;
+	vector<Match *> match;
 	vector<double> cuts;
 	Topography * topography;
 	
@@ -125,7 +158,7 @@ class Model {
 		bool operator<( const Possible& other ) const;
 		double distance( double c ) const;
 	};
-	
+	void clear_matches();
 	// Returns all the possible matches of this 2d point, given the distance is unknown.
 	std::pair<point2, double> to_model_point(const point3& pt) const;
 	point3 to_inverse_point(const point2& p, double cut) const;
@@ -138,7 +171,7 @@ public:
 	      const pylist& sections);
 	virtual ~Model();
 	// Methods to create matches or load them from files.
-	void make_matches();
+	pydict make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const pylist& matching);
 	pylist get_matches() const;
 	// Methods to query matches.
@@ -146,6 +179,7 @@ public:
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
+	pydict info() const;
 };
 
 class Topography {
@@ -244,5 +278,8 @@ public:
 	virtual ~Section();
 	pydict info() const;
 	pytuple closest( const pyobject& pypt ) const;
+	
 };
+
+pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
 

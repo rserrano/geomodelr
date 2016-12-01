@@ -102,7 +102,7 @@ class GeologicalModel(cpp.Model):
                 sections.append(sect)
         
         super(GeologicalModel, self).__init__(list(base_point), list(direction), geomap, topography, sections)
-        self.make_matches()
+        self.joined_faults = self.make_matches()
 
     def print_information( self, verbose=False ):
         """
@@ -184,39 +184,6 @@ class GeologicalModel(cpp.Model):
             print "\tFault names present: %s" % ", ".join(lnames)
             print "\tFault properties present: %s" % ", ".join(lprops)
     
-    def load_faults( self ):
-        """
-        Calculates objects which are easier to work with and faster
-        but can't be serialized, like shapely polygons.
-        """
-        
-        # Check that faults exist. If so, make a side to side representation.
-        # fexist = False
-        # for idx, feature in enumerate(self.geojson['features']):
-        #     # TODO: Check that it's in the correct order or has not changed.
-        #     if feature['geology_type'] == 'faults':
-        #         if not fexist:
-        #             fexist = True
-        #             self.faults = []
-        #             self.joined_faults = []
-        #         self.faults.append(faults.align_fault_with(feature, self.model_point))
-        #         for surface in feature['features']:
-        #             name = surface['properties']['name']
-        #             fplane = surface['geometry']['coordinates']
-        #             if name in self.joined_faults:
-        #                 self.joined_faults[name] += fplane
-        #             else:
-        #                 self.joined_faults[name] = fplane
-        
-    def has_interpolation( self ):
-        return 'interpolation' in self.geojson
-    
-    def has_faults( self ):
-        for feature in self.geojson['features']:
-            if feature['geology_type'] == 'faults':
-                return True
-        return False
-    
     def calc_faults( self ):
         """ 
         Adds a FeatureCollection to the GeoJSON with 
@@ -224,7 +191,6 @@ class GeologicalModel(cpp.Model):
         represent a fault between two cross sections.
         """
         self.faults = []
-        self.joined_faults = { }
         for idx in xrange(len(self.section_idxs)-1):
             mdx = self.section_idxs[idx]
             ndx = self.section_idxs[idx+1]
