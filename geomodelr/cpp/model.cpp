@@ -526,6 +526,19 @@ pytuple Model::closest(const pyobject& pypt) const {
 	return python::make_tuple(unit, std::get<2>(clst));
 }
 
+double Model::height( const pyobject& pt ) const {
+	if ( this->topography != nullptr ) {
+		double d0 = python::extract<double>(pt[0]);
+		double d1 = python::extract<double>(pt[1]);
+		double d2 = python::extract<double>(pt[2]);
+		
+		point3 cpt(d0, d1, d2);
+
+		return this->topography->height(cpt);
+	}
+	return std::numeric_limits<double>::infinity();
+}
+
 Topography::Topography( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights ):
 point(python::extract<double>(point[0]), python::extract<double>(point[1])),
 sample(python::extract<double>(sample[0]), python::extract<double>(sample[1])),

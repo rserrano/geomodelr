@@ -184,31 +184,6 @@ class GeologicalModel(cpp.Model):
             print "\tFault names present: %s" % ", ".join(lnames)
             print "\tFault properties present: %s" % ", ".join(lprops)
     
-    def calc_faults( self ):
-        """ 
-        Adds a FeatureCollection to the GeoJSON with 
-        surfaces containing triangles that
-        represent a fault between two cross sections.
-        """
-        self.faults = []
-        for idx in xrange(len(self.section_idxs)-1):
-            mdx = self.section_idxs[idx]
-            ndx = self.section_idxs[idx+1]
-            fplanes = faults.faultplanes_between_sections(self.geojson['features'][mdx], self.geojson['features'][ndx])
-            
-            for name, fplane in fplanes.iteritems():
-                if name in self.joined_faults:
-                    self.joined_faults[name] += fplane
-                else:
-                    self.joined_faults[name] = fplane
-            
-            fplanes = faults.faultplanes_to_featurecollection(fplanes)
-            name1 = self.geojson['features'][mdx]['name']
-            name2 = self.geojson['features'][ndx]['name']
-            fplanes['name'] = [name1, name2]
-            self.geojson['features'].append(fplanes)
-            self.faults.append(faults.align_fault_with(fplanes, self.model_point))
-    
     def intersect_plane( self, plane ):
         return faults.find_faults_plane_intersection( self.joined_faults, plane )
 

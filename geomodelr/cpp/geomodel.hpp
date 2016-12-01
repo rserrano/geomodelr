@@ -180,6 +180,7 @@ public:
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
 	pydict info() const;
+	double height(const pyobject& pt) const;
 };
 
 class Topography {
