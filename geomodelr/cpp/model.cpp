@@ -150,19 +150,20 @@ pylist Model::get_matches( ) const {
 std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, const point2& pt ) const {
 	const Match& m = *(this->match[a_idx]);
 	const Section& s = (a) ? *(this->sections[a_idx+1]) : *(this->sections[a_idx]);
-	const vector<bool>& fr = (a) ? m.a_free : m.b_free;
-	if ( fr[pol_idx] ) {
+	const map<int, vector<int>>& mp = (a) ? m.a_to_b : m.b_to_a;
+	auto it = (a) ? mp.find(pol_idx): mp.find(pol_idx);
+	if ( it == mp.end() ) {
 		return std::make_pair(-1, std::numeric_limits<double>::infinity());
 	}
-	const vector<int>& op = (a) ? m.a_to_b.find(pol_idx)->second: m.b_to_a.find(pol_idx)->second;
-	
+	const vector<int>& op = it->second;
 	double mindist = std::numeric_limits<double>::infinity();
 	int minidx = -1;
 	for ( size_t i = 0; i < op.size(); i++ ) {
-		double dist = geometry::distance(s.polygons[op[i]], pt);
+		size_t pl = op[i];
+		double dist = geometry::distance(s.polygons[pl], pt);
 		if ( dist < mindist ) {
 			mindist = dist;
-			minidx = op[i];
+			minidx = pl;
 		}
 	}
 	return std::make_pair( minidx, mindist );
@@ -473,7 +474,7 @@ pytuple Model::closest(const pyobject& pypt) const {
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
 	if ( this->topography != nullptr ) {
-		if ( this->topography->height(pt) < gz(pt) ) {
+		if ( this->topography->height(point2(p0, p1)) < gz(pt) ) {
 			return python::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
 		}
 	}
@@ -530,10 +531,7 @@ double Model::height( const pyobject& pt ) const {
 	if ( this->topography != nullptr ) {
 		double d0 = python::extract<double>(pt[0]);
 		double d1 = python::extract<double>(pt[1]);
-		double d2 = python::extract<double>(pt[2]);
-		
-		point3 cpt(d0, d1, d2);
-
+		point2 cpt(d0, d1);
 		return this->topography->height(cpt);
 	}
 	return std::numeric_limits<double>::infinity();
@@ -561,7 +559,7 @@ heights(python::extract<int>(dims[0]) * python::extract<int>(dims[1]))
 	}
 }
 
-double Topography::height(const point3& pt) const {
+double Topography::height(const point2& pt) const {
 	point2 pos(gx(pt), gy(pt));
 	geometry::subtract_point(pos, this->point);
 	geometry::divide_point(pos, this->sample);

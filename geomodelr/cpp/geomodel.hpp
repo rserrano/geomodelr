@@ -123,8 +123,6 @@ class Match {
 	const Section * b;
 	map<int, vector<int>> a_to_b;
 	map<int, vector<int>> b_to_a;
-	vector<bool> a_free;
-	vector<bool> b_free;
 	map<wstring, vector<AlignedTriangle>> faults;
 	rtree_f * faultidx;
 	void set( const vector<std::pair<int, int>>& match );
@@ -190,7 +188,7 @@ class Topography {
 	vector<double> heights;
 public:
 	Topography( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights );
-	double height(const point3&) const;
+	double height(const point2&) const;
 };
 
 /* C++ section that queries points to polygons so much faster. */

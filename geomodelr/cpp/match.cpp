@@ -23,7 +23,7 @@
 pyobject Match::pytriangulate = python::object();
 
 Match::Match( const Section * a, const Section * b )
-:a(a), b(b), a_free(a->polygons.size()), b_free(a->polygons.size()), faultidx(nullptr)
+:a(a), b(b), faultidx(nullptr)
 {
 
 }
@@ -37,13 +37,9 @@ Match::~Match( )
 }
 
 void Match::set( const vector<std::pair<int, int>>& match ){
-	std::fill(this->a_free.begin(), this->a_free.end(), true);
-	std::fill(this->b_free.begin(), this->b_free.end(), true);
 	this->a_to_b.clear();
 	this->b_to_a.clear();
 	for ( size_t i = 0; i < match.size(); i++ ) {
-		this->a_free[match[i].first]  = false;
-		this->b_free[match[i].second] = false;
 		a_to_b[match[i].first].push_back(match[i].second);
 		b_to_a[match[i].second].push_back(match[i].first);
 	}
@@ -437,7 +433,7 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 
 void Match::load_triangulate() {
 	if ( Match::pytriangulate.is_none() ) {
-		pyobject shared = python::import("shared");
+		pyobject shared = python::import("geomodelr.shared");
 		Match::pytriangulate = shared.attr("opposite_triangles");
 	}
 }

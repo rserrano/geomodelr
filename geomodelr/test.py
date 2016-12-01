@@ -94,7 +94,9 @@ class TestGeoModelR(unittest.TestCase):
         this_dir, this_filename = os.path.split(__file__)
         f = open(os.path.join(this_dir, 'test_files', 'aburra_version1.json'))
         m = model.GeologicalModel(json.loads(f.read()))
-    
+        m.height([813487.938015, 1164500.0])
+        m.height([80000, 1100000])
+
     def test_sections(self):
         """
         Test that you can create cross sections and that bugs are catched.
@@ -394,9 +396,6 @@ class TestGeoModelR(unittest.TestCase):
         cls = model.closest([7.0/6.0, 1.6, 1.9])
         self.assertEqual(cls[0], 'unit3')
         self.assertAlmostEqual(cls[1], 0.0)
-        
-        
-
-        
+    
 if __name__ == '__main__':
     unittest.main()
