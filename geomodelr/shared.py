@@ -207,6 +207,7 @@ def points_index_repr(geojson):
     return { 'points': points, 'lines': lines, 'polygons': polygons, 'units': units, 'lnames': lnames }
 
 def cross_idx_repr(geojson, base_line):
+    
     pi = points_index_repr(geojson)
     line = geojson['transform']['line']
     offset = line_offset(base_line, line)

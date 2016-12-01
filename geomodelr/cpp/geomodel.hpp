@@ -177,6 +177,7 @@ public:
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
+	pytuple closest_topo(const pyobject& pt) const;
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };

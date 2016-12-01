@@ -58,7 +58,11 @@ Section::Section(const wstring& name, double cut, const pylist& points,
 				}
 			}
 		}
-		if ( not geometry::is_valid(pol) or not geometry::is_simple(pol) ) {
+		string message;
+		if ( not geometry::is_valid(pol, message) or not geometry::is_simple(pol) ) {
+			string su(unit.begin(), unit.end());
+			std::cerr << "removed polygon with unit " << su << " valid: " << (geometry::is_valid(pol)?"true":"false")
+				  << " " << message << " simple: " << (geometry::is_simple(pol)?"true":"false") << "\n";
 			continue;
 		}
 		// Calculate the envelope and add it to build the rtree layer.

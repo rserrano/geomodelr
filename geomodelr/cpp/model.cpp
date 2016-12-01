@@ -467,17 +467,23 @@ pydict Model::info() const {
 	return ret;
 }
 
+pytuple Model::closest_topo( const pyobject& pypt ) const {
+	const double& p0 = python::extract<double>(pypt[0]);
+	const double& p1 = python::extract<double>(pypt[1]);
+	const double& p2 = python::extract<double>(pypt[2]);
+	if ( this->topography != nullptr ) {
+		if ( this->topography->height(point2(p0, p1)) < p2 ) {
+			return python::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
+		}
+	}
+	return this->closest(pypt);
+}
+
 pytuple Model::closest(const pyobject& pypt) const {
-	
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
-	if ( this->topography != nullptr ) {
-		if ( this->topography->height(point2(p0, p1)) < gz(pt) ) {
-			return python::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
-		}
-	}
 	if ( not this->sections.size() ) {
 		return python::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
 	}

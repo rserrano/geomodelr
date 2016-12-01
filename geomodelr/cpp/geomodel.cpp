@@ -67,6 +67,7 @@ BOOST_PYTHON_MODULE(cpp)
 						    .def("model_point", &Model::model_point)
 						    .def("inverse_point", &Model::inverse_point)
 						    .def("closest", &Model::closest)
+						    .def("closest_topo", &Model::closest_topo)
 						    .def("height", &Model::height)
 						    .def("info", &Model::info)
 						    .add_property("matches", &Model::get_matches, &Model::set_matches);

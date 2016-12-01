@@ -47,7 +47,7 @@ def query_coordinates(geojson, verbose=False):
             point = map(float, line.split())
         except ValueError:
             raise ParametersException("three numerical values are required per line")
-        sys.stdout.write(shared.force_encode(model.closest(point)[0]).replace(" ", "_") + "\n")
+        sys.stdout.write(shared.force_encode(model.closest_topo(point)[0]).replace(" ", "_") + "\n")
         line = sys.stdin.readline()
 
 def query_grid(geojson, verbose=False):
@@ -79,7 +79,7 @@ def query_grid(geojson, verbose=False):
                 for j in xrange(ny):
                     for k in xrange(nx):
                         point = (mnx + dx*k, mny + dy*j, mnz + dz*i)
-                        sys.stdout.write(shared.force_encode(model.closest(point)[0]).replace(" ", "_") + " ")
+                        sys.stdout.write(shared.force_encode(model.closest_topo(point)[0]).replace(" ", "_") + " ")
                     sys.stdout.flush()
         except ParametersException as e:
             print >> sys.stderr, ">>", e

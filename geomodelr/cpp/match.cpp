@@ -120,15 +120,24 @@ AlignedTriangle::AlignedTriangle(const std::tuple<point3, point3, point3>& trian
 	const point3& p2 = g2(triangle);
 	point3 v1 = p1;
 	point3 v2 = p2;
+	// Find vectors and its cross product.
 	geometry::subtract_point(v1, p0);
 	geometry::subtract_point(v2, p0);
 	this->normal = point3(gy(v1)*gz(v2)-gz(v1)*gy(v2), gz(v1)*gx(v2)-gx(v1)*gz(v2), gx(v1)*gy(v2)-gy(v1)*gx(v2));
+	// Find norm of the vector.
+	double norm = std::sqrt(gx(this->normal)*gx(this->normal) + gy(this->normal)*gy(this->normal) + gz(this->normal)*gz(this->normal));
+	// Reverse if below 0.0
+	if ( gz(normal) < 0 ) {
+		norm *= -1.0;
+	}
+	// divide by norm.
+	geometry::divide_value(this->normal, norm);
+	
 	this->point  = p0;
 	ring& outer = this->triangle.outer();
 	outer.push_back(point2(gx(p0), gy(p0)));
 	outer.push_back(point2(gx(p1), gy(p1)));
 	outer.push_back(point2(gx(p2), gy(p2)));
-
 }
 
 int AlignedTriangle::crosses_triangle(const point2& point, double cut ) const {
