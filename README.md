@@ -38,7 +38,7 @@ Install project by calling:
     pip install geomodelr
 
 It needs boost libraries and C++ compiler. In case boost libraries are not in a 
-standard location, call it with `INCLUDE_DIRS=...` `and/or LIBRARY_DIRS=...`
+standard location, call it with `INCLUDE_DIRS=...` and/or `LIBRARY_DIRS=...`
 
 ## Support
 If you are having problems, write to support@geomodelr.com.
