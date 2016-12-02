@@ -41,7 +41,7 @@ cppextension = Extension("cpp", [ 'geomodelr/cpp/match.cpp', 'geomodelr/cpp/geom
 
 setup(name='geomodelr',
     version='0.1',
-    description='GeoModelR is the open source client of the geological modeler.',
+    description='Geomodelr is the open source query tool for geomodelr.com models.',
     url='http://github.com/rserrano/geomodelr',
     author='Ricardo Serrano',
     author_email='rserrano@geomodelr.com',
@@ -49,6 +49,7 @@ setup(name='geomodelr',
     packages=['geomodelr'],
     ext_modules=[cppextension],
     install_requires=['numpy', 'scipy', 'shapely'],
+    keywords=['geology', 'geological modelling', 'cross sections', 'geomodelr'],
     entry_points = {
         'console_scripts': [
             'geomodelr=geomodelr.__main__:main'
