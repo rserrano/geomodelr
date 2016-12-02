@@ -21,14 +21,7 @@
 #include <functional>
 #include <cmath>
 
-/*
-template<typename P>
-void print_possible( const P& possible ) {
-	for ( const auto& a: possible ) {
-		std::cerr << "p " << a.a_match << " " << a.b_match << " " << a.a_dist << " " << a.b_dist << std::endl;
-	}
-	std::cerr << "\n";
-}*/
+bool Model::verbose = false;
 
 Model::Model( const pyobject& base_point, const pyobject& direction, const pyobject& map, const pyobject& topography, const pylist& sections):
 base_point(python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
@@ -57,7 +50,7 @@ topography(nullptr)
 	for ( size_t i = 0; i < this->sections.size(); i++ ) {
 		this->cuts.push_back(this->sections[i]->cut);
 	}
-	Match::load_triangulate();
+	
 }
 
 Model::~Model(){

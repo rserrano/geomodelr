@@ -164,6 +164,7 @@ class Model {
 	vector<Possible> all_closest(size_t a_idx, const point2& pt) const;
 	std::tuple<int, int, double> closest_to( size_t a_idx, const point2& pt, double cut ) const;
 public:
+	static bool verbose;
 	Model(const pyobject& basepoint, const pyobject& direction, 
 	      const pyobject& map, const pyobject& topography,
 	      const pylist& sections);

@@ -27,10 +27,8 @@ class GeometryException(Exception):
 class ModelException(Exception):
     pass
 
+# Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of simpler shapes.
 def shape_list(shape, sh_type):
-   """
-   Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of simpler shapes.
-   """
    try:
        shapes = []
        for sh in shape.geoms:
@@ -42,6 +40,7 @@ def shape_list(shape, sh_type):
            return [shape]
        return []
 
+# Triangulates a set of points and returns the triangles filtered by the given filter.
 def triangulate(points, fltr=lambda x: True):
     tetras = Delaunay(points)
     tris = set()
@@ -52,13 +51,9 @@ def triangulate(points, fltr=lambda x: True):
                 tris.add(srt)
     return list(tris)
 
+# Triangulates a set of points filtering them because they are on both sides of the line.
 def opposite_triangles(points, na):
     def is_opposite(tri):
-        """
-        Filter the triangles so that only triangles in the edges 
-        and that are tied between faults are accepted.
-        It's required that tri is ordered.
-        """
         if not tri[0] < na or not tri[2] >= na:
             return False
         if tri[0]+1 == tri[1] and tri[1] < na:
@@ -68,10 +63,8 @@ def opposite_triangles(points, na):
         return False
     return map( lambda tri: map(int, tri), triangulate(points, is_opposite) )
 
+# Calculates the distance between two parallel lines.
 def line_side(surface_line, cs_line):
-    """
-    Distance between two surface lines.
-    """
     section_dir = np.array(surface_line[1])-np.array(surface_line[0])
     nsect = la.norm(section_dir)
     nvsect = section_dir/nsect
@@ -84,10 +77,8 @@ def line_side(surface_line, cs_line):
         s = nvsect[0]*nv[1] - nvsect[1] * nv[0]
         return s*n
 
+# Calculates how much distance this section has to be offset to be aligned with the first.
 def line_offset(surface_line, cs_line):
-    """
-    Offset to the first line.
-    """
     section_dir = np.array(surface_line[1])-np.array(surface_line[0])
     nsect = la.norm(section_dir)
     nvsect = section_dir/nsect
@@ -100,64 +91,14 @@ def line_offset(surface_line, cs_line):
         s = nvsect[0]*nv[0] + nvsect[1] * nv[1]
         return s*n
 
+# Returns the set of nodes but transformed so that the begining of coordinates is 
+# The first point of the base, with get_base_transform
 def nodes_offset(nodes, offset):
-    """
-    Returns the set of nodes but transformed so that the begining of coordinates is 
-    The first point of the base, with get_base_transform
-    """
     for node in nodes:
         node[0] = node[0] + offset
 
-class Cross:
-    """ Cross is a representation for the cross section where points-polygons are separated
-        and also shapely_polygons are calculated. """
-    def __init__(self, cut, points, polygons, units, lines, lnames):
-        self.cut = cut
-        self.points = points
-        # Import polygons with shapely versions.
-        self.polygons = []
-        self.shapely_polygons = []
-        self.units = []
-        
-        for idx, poly in enumerate(polygons):
-            ppoly = []
-            for ring in poly:
-                pring = [self.points[n] for n in ring]
-                ppoly.append(pring)
-            try:
-                self.shapely_polygons.append(Polygon(ppoly[0], ppoly[1:]))
-                self.polygons.append(poly)
-                self.units.append(units[idx])
-            except:
-                # Ignore errors.
-                pass
-        
-        reorder = sorted(range(len(self.polygons)), key=lambda o: abs(self.shapely_polygons[o].area))
-        self.polygons = [self.polygons[i] for i in reorder]
-        self.shapely_polygons = [self.shapely_polygons[i] for i in reorder]
-        self.units = [self.units[i] for i in reorder]
-        
-        self.lines = []
-        self.shapely_lines = []
-        self.lnames = []
-        
-        # Import faults, with shapely versions.
-        for idx, line in enumerate(lines):
-            pline = [self.points[n] for n in ring]
-            try:
-                
-                self.shapely_lines.append(LineString(pline))
-                self.lines.append(line)
-                self.lnames.append(lnames[idx])
-            except Exception as e:
-                # Ignore errors.
-                print(e)
-                pass
-
+# Returns from the geojson data a set of points with indexed lines and polygons.  
 def points_index_repr(geojson):
-    """ 
-    Returns the geojson data a set of points with indexed lines and polygons.  
-    """
     lines = []
     lnames = []
     polygons = []
@@ -206,8 +147,8 @@ def points_index_repr(geojson):
     
     return { 'points': points, 'lines': lines, 'polygons': polygons, 'units': units, 'lnames': lnames }
 
+# Returns the points index representation of a cross section.
 def cross_idx_repr(geojson, base_line):
-    
     pi = points_index_repr(geojson)
     line = geojson['transform']['line']
     offset = line_offset(base_line, line)
@@ -215,20 +156,11 @@ def cross_idx_repr(geojson, base_line):
     cut = line_side(base_line, line)
     return ( cut, pi )
 
-def cross_from_geojson(geojson, base_line):
-    """
-    Converts a GeoJSON cross section into a 
-    """
-    cut, pi = cross_idx_repr(geojson, base_line)
-    return Cross(cut, pi['points'], pi['polygons'], pi['units'], pi['lines'], pi['lnames'])
-
+# returns an encoded string from a unicode, forcing it
+# reaaaally forcing it.
+# This is probably the ugliest function ever.
+# Probably someone will shame me for this. :(.
 def force_encode(f):
-    """
-    returns an encoded string from a unicode, forcing it
-    reaaaally forcing it.
-    This is probably the ugliest function ever.
-    Probably someone will shame me for this. :(.
-    """
     try:
         return f.encode()
     except:

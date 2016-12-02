@@ -29,15 +29,12 @@ import numpy as np
 from numpy import linalg as la
 
 class TestGeoModelR(unittest.TestCase):
-    def test_create_model(self):
-        pass
+    # Tests function fault plane for lines.
     def test_faultplane_for_lines(self):
-        """
-        Tests function fault plane for lines.
-        """
         la = [(0, 0, 0), (1,1,0), (2,2,0), (3,3,0)]
         lb = [(0, 3, 1), (1,2,1), (2,1,1), (3,0,1)]
         # This is a weird testcase that should work. Star in two directions.
+        
         self.assertEqual(cpp.faultplane_for_lines(la, lb), [(0, 1, 4), (1, 4, 5), (1, 2, 5), (2, 3, 5), (3, 5, 6), (3, 6, 7)])
         
         # This is a weird testcase that should not work.
@@ -86,21 +83,16 @@ class TestGeoModelR(unittest.TestCase):
                                                                (3, 4, 14), (4, 5, 14), (5, 14, 15), 
                                                                (5, 6, 15), (6, 7, 15), (7, 15, 16)])
         
-    
+    # Test that you can load and test aburra Valley.
     def test_aburra_valley(self):
-        """
-        Test that you can load and test aburra Valley.
-        """
         this_dir, this_filename = os.path.split(__file__)
         f = open(os.path.join(this_dir, 'test_files', 'aburra_version1.json'))
         m = model.GeologicalModel(json.loads(f.read()))
         m.height([813487.938015, 1164500.0])
         m.height([80000, 1100000])
-
+    
+    # Test that you can create cross sections and that bugs throw something in python (and not segfault).
     def test_sections(self):
-        """
-        Test that you can create cross sections and that bugs are catched.
-        """
         points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1]]
         polygons = [[[0, 1, 2, 3, 4]]]
         units = ["unit1"]
@@ -151,7 +143,8 @@ class TestGeoModelR(unittest.TestCase):
         units = ['unit1', 'unit2']
         section = cpp.Section("H-H", 7, points, polygons, units, lines, lnames)
         self.assertEqual(section.info()['polygons'], 2)
-        
+    
+    # Test the section closest function, without faults.
     def test_section_closest(self):
         points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1], [0.25, 0.25], 
                   [0.75, 0.25], [0.75, 0.75], [0.25, 0.75], [2, 0], [2, 2], [0, 2]]
@@ -188,7 +181,8 @@ class TestGeoModelR(unittest.TestCase):
         section = cpp.Section("K-K", 10, points, polygons, units, [], [])
         self.assertEqual(section.closest([0, 0.5]), (1, 'unit2'))
         self.assertEqual(section.closest([0, 0.3]), (0, 'unit1'))
-
+    
+    # Test the model matches correctly, test it launches GeomodelrException and that inherits from Exception.
     def test_model_matching(self):
         points_1   = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1], [0.25, 0.25], 
                       [0.75, 0.25], [0.75, 0.75], [0.25, 0.75], [2, 0], [2, 2], [0, 2]]
@@ -213,7 +207,7 @@ class TestGeoModelR(unittest.TestCase):
             model.matches = [((u'B-B', u'C-C'), [(0, 0), (2, 2), (3, 4)])]
         with self.assertRaises(Exception):
             model.matches = [((u'C-C', u'D-D'), [(0, 0), (2, 2), (3, 4)])]
-    
+    # Test the possible closest, all the units that can be a match given a line.
     def test_possible_closest(self):
         # Evaluate simple models.
         # Evaluate a model where a middle square changes between unit2 and unit3
@@ -314,7 +308,8 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(pos_cls[0][2], 0.0)
         self.assertAlmostEqual(pos_cls[1][2], 0.25)
         self.assertAlmostEqual(pos_cls[2][2], 1.0)
-        
+    
+    # Test the inverse point, plus other possible_closest and closest tests.
     def test_point_inverse(self):
         model = cpp.Model([0, 0], [1, 0], {}, {}, [("A-A", 1, [], [], [], [], []), ("B-B", 2, [], [], [], [], [])])
         
@@ -355,6 +350,7 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(ip[1], 0.5)
         self.assertAlmostEqual(ip[2], 0.5)
     
+    # Test that unicode can be input into model units.
     def test_unicode_models(self):
         points_1   = [[0, 0], [3, 0], [0, 1], [2, 1], [3, 1], [0, 2], [2, 2], [3, 2]]
         points_2   = [[0, 0], [3, 0], [0, 1], [1, 1], [3, 1], [0, 2], [1, 2], [3, 2]]
@@ -364,7 +360,8 @@ class TestGeoModelR(unittest.TestCase):
         model = cpp.Model([0, 0], [1, 0], {}, {}, [(u"A-Á", 1, points_1, polygons_1, units_1, [], []), (u"Ñ-Ñ", 2, points_2, polygons_1, units_1, [], [])])
         model.make_matches()
        	self.assertEqual(model.closest([1.5, 1.5, 1.5])[0], u"unót2")
-
+    
+    # Test that the model interpolates faults and that it takes the unit of the side it falls.
     def test_faults_model(self):
         points_1 = [[0, 0], [1, 0], [3, 0], [0, 0.5], [5.0/6.0, 0.5], [2.0/3.0, 1], [3, 1], [0.0, 1.5], [0.5, 1.5], [1.0/3.0, 2], [3, 2], [0, 2.5], [1.0/6.0, 2.5], [0, 3], [3,3]]
         points_2 = [[0, 0], [2, 0], [3, 0], [0, 0.5], [2, 0.5], [2, 1], [3, 1], [0, 1.5], [2, 1.5], [2, 2], [3, 2], [0, 2.5], [2, 2.5], [0, 3], [2, 3], [3, 3]]
@@ -396,6 +393,9 @@ class TestGeoModelR(unittest.TestCase):
         cls = model.closest([7.0/6.0, 1.6, 1.9])
         self.assertEqual(cls[0], 'unit3')
         self.assertAlmostEqual(cls[1], 0.0)
-    
-if __name__ == '__main__':
+
+def main(args=None):
     unittest.main()
+
+if __name__ == '__main__':
+    main()

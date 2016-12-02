@@ -20,49 +20,12 @@ from scipy.spatial.distance import euclidean as dist
 import math
 import numpy as np
 from numpy import linalg as la
-import sortedcontainers
 from shapely.geometry import Polygon, Point, LineString
 from copy import deepcopy
 
-def faultplane_to_feature(fplane, name):
-    """
-    Converts a fault plane to a Feature.
-    """
-    return { 'type': 'Feature',
-             'geometry': { 'type': 'Surface', 
-                           'coordinates': fplane },
-             'properties': { 'name': name } }
-
-def faultplanes_to_featurecollection(fplanes):
-    """
-    Converts a set of faultplanes to a FeatureCollection
-    """
-    features = [ faultplane_to_feature(fplane, name) for name, fplane in fplanes.iteritems() ]
-    return  { 
-        'type': 'FeatureCollection',
-        'geology_type': 'faults',
-        'features': features,
-        'transform': {
-                    'type': 'identity'
-                }
-            }
-
-def align_fault_with(faults, model_point):
-    """
-    It returns a structure that can be used to know if the triangle is before of after the point.
-    """
-    ret = {}
-    for feature in faults['features']:
-        triangles = []
-        for triangle in feature['geometry']['coordinates']:
-            triangles.append(AlignedTriangle(map(model_point, triangle)))
-        ret[feature['properties']['name']] = triangles 
-    return ret
-
+# Finds the lines that result after intersecting a fault plane with a plane.
 def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
-    """
-    Finds the lines that result after intersecting a fault plane with a plane.
-    """
+
     lines = []
     for tp in fplane:
         ints = []
@@ -130,13 +93,12 @@ def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
         else:
             j_lines.append(deepcopy(l))
     return j_lines
-    
+
+# Finds the lines that intersect a plane with the fault planes.
+# fplanes:    the set of fault planes to intersect with the plane.
+# plane:      plane to intersect. It's the four corners of the plane.
 def find_faults_plane_intersection(fplanes, plane):
-    """
-    Finds the lines that intersect a plane with the fault planes.
-    fplanes:    the set of fault planes to intersect with the plane.
-    plane:      plane to intersect. It's the four corners of the plane.
-    """
+    
     # Find the vectors in the plane that generate the space.
     pn = map(np.array, plane)
     # First is the vector with two corners in the top.
@@ -181,6 +143,7 @@ def find_faults_plane_intersection(fplanes, plane):
     
     return joined_lines
 
+# Finds the intersection but for multiple planes.
 def find_faults_multiple_planes_intersection(fplanes, planes):
     # All joined lines.
     joined_lines = {}

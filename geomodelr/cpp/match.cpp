@@ -25,7 +25,7 @@ pyobject Match::pytriangulate = python::object();
 Match::Match( const Section * a, const Section * b )
 :a(a), b(b), faultidx(nullptr)
 {
-
+	Match::load_triangulate();
 }
 
 Match::~Match( )
@@ -271,8 +271,10 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	*/
 	int na = l_a.size();
 	int nb = l_b.size();
+	vector<triangle> tris;
 	
-	vector<triangle> tris = Match::triangulate(l_a, l_b);
+	// Triangulate.
+	tris = Match::triangulate(l_a, l_b);
 	
 	// pt is the point depending on the index.
 	auto pt = [&](int i) -> point3 {
@@ -332,6 +334,7 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 }
 
 pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb) {
+	Match::load_triangulate();
 	auto pypoint = []( const pyobject& pt ) {
 		return point3(python::extract<double>(pt[0]), 
 			      python::extract<double>(pt[1]), 
@@ -418,11 +421,13 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 				} );
 		
 		} catch ( const GeomodelrException& e ) {
-			string aname(this->a->name.begin(), this->a->name.end());
-			string bname(this->b->name.begin(), this->b->name.end());
-			string sname(name.begin(), name.end());
-			std::cerr << "could not interpolate fault " << sname << " between " 
-				  << aname << " and " << bname << " " << e.what() << "\n"; 
+			if ( Model::verbose ) {
+				string aname(this->a->name.begin(), this->a->name.end());
+				string bname(this->b->name.begin(), this->b->name.end());
+				string sname(name.begin(), name.end());
+				std::cerr << "could not interpolate fault " << sname << " between " 
+					  << aname << " and " << bname << " " << e.what() << "\n"; 
+			}
 		}
 	}
 	vector<value_f> envelopes;
@@ -469,187 +474,4 @@ vector<triangle> Match::triangulate( const vector<point3>& l_a, const vector<poi
 	}
 	return tris;
 }
-
-/*
-def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
-    """
-    Finds the lines that result after intersecting a fault plane with a plane.
-    """
-    lines = []
-    for tp in fplane:
-        ints = []
-        for i in range(3):
-            # Find the ray parameters.
-            ni = (i+1)%3
-            p0 = np.array(tp[i])
-            p1 = np.array(tp[ni])
-            nt = p1-p0
-            d  = la.norm(nt)
-            nt = nt/d
-            
-            # Find if the ray and the plane are parallel. (plane normal perpendicular).
-            div = np.dot(nv, nt)
-            if math.fabs(div) < 1e-9:
-                continue
-            
-            # Find the intersection between the ray and the plane.
-            a = np.dot(x0 - p0, nv)/div
-            
-            # Find if it lies within the line.
-            if a > (d + 1e-9) or (a < -1e-9):
-                continue
-            
-            # Find if the point is already in the list.
-            p = p0 + nt*a
-            for pp in ints:
-                if la.norm(pp-p) < 1e-9:
-                    break
-            else:
-                ints.append(p)
-        
-        # Size of ints must be 2 to append it as lines.
-        if len(ints) == 2:
-            lines.append(ints)
-    
-    filt_lines = []
-    # Cut the lines to the plane.
-    for line in lines:
-        res = intersect_line(line)
-        filt_lines += res
-    
-    # Join the lines.
-    j_lines = []
-    for l in filt_lines:
-        # Check that the resulting lines have two coordinates.
-        assert len(l) == 2
-        for i in range(2):
-            p = l[i]
-            pc = l[(i+1)%2]
-            br = False
-            for pl in j_lines:
-                fp = pl[0]
-                if dist(fp, p) < 1e-9:
-                    pl.insert(0, pc)
-                    br = True
-                    break
-                lp = pl[-1]
-                if dist(lp, p) < 1e-9:
-                    pl.append(pc)
-                    br = True
-                    break
-            if br:
-                break
-        else:
-            j_lines.append(deepcopy(l))
-    return j_lines
-    
-def find_faults_plane_intersection(fplanes, plane):
-    """
-    Finds the lines that intersect a plane with the fault planes.
-    fplanes:    the set of fault planes to intersect with the plane.
-    plane:      plane to intersect. It's the four corners of the plane.
-    """
-    # Find the vectors in the plane that generate the space.
-    pn = map(np.array, plane)
-    # First is the vector with two corners in the top.
-    v1 = pn[1] - pn[0]
-    # Second is last point and first point.
-    v2 = pn[-1] - pn[0]
-    v1 = v1/la.norm(v1)
-    
-    # Gram-Schmidt is used to make them perpendicular.
-    v2 = v2 - np.dot(v1, v2)*v1
-    v2 = v2/la.norm(v2)
-    
-    # Normal orthogonal to both.
-    nv = np.cross(v1, v2)
-    nv = nv/la.norm(nv)
-    x0 = pn[0]
-    
-    # planep is a function that returns the plane coordinate in terms of v1, v2.
-    planep = lambda p: [np.dot(v1, p-pn[0]), np.dot(v2, p-pn[0])]
-    
-    # Get the polygon terms of v1, v2.
-    poly = map(planep, pn)
-    shpoly = Polygon(poly)
-    
-    # Corverts line to point coordinates.
-    to_coords = lambda line: map(list, line.coords)
-    # Converts returned multigeometry to coordinate lines.
-    sep_lines = lambda lg: map( to_coords, shared.shape_list(lg, 'LineString') )
-    def intersect_line(line):
-        """
-        Returns line after cutting it with a polygon.
-        """
-        p0 = planep(line[0])
-        p1 = planep(line[1])
-        l = LineString([p0, p1])
-        inter = shpoly.intersection(l)
-        return sep_lines(inter)
-     
-    joined_lines = {}
-    for nam, fplane in fplanes.iteritems():
-        joined_lines[nam] = find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line)
-    
-    return joined_lines
-
-def find_faults_multiple_planes_intersection(fplanes, planes):
-    # All joined lines.
-    joined_lines = {}
-    
-    # Coordinate in x to add to the plane lines.
-    startx = 0.0
-    for plane in planes:
-        lines = find_faults_plane_intersection(fplanes, plane)
-        for nam, lines in lines.iteritems():
-            for line in lines:
-                for point in line:
-                    point[0] += startx
-            if nam in joined_lines:
-                joined_lines[nam] += lines
-            else:
-                joined_lines[nam] = lines
-        # Find the vectors in the plane that generate the space.
-        pn = map(np.array, plane)
-        # First is the vector with two corners in the top.
-        v1 = pn[1] - pn[0]
-        # Update the coordinate in x to start.
-        startx += la.norm(v1)
-    return joined_lines
-*/
-/*
-def faultplane_to_feature(fplane, name):
-    """
-    Converts a fault plane to a Feature.
-    """
-    return { 'type': 'Feature',
-             'geometry': { 'type': 'Surface', 
-                           'coordinates': fplane },
-             'properties': { 'name': name } }
-
-def faultplanes_to_featurecollection(fplanes):
-    """
-    Converts a set of faultplanes to a FeatureCollection
-    """
-    features = [ faultplane_to_feature(fplane, name) for name, fplane in fplanes.iteritems() ]
-    return  { 
-        'type': 'FeatureCollection',
-        'geology_type': 'faults',
-        'features': features,
-        'transform': {
-                    'type': 'identity'
-                }
-            }
-def align_fault_with(faults, model_point):
-    """
-    It returns a structure that can be used to know if the triangle is before of after the point.
-    """
-    ret = {}
-    for feature in faults['features']:
-        triangles = []
-        for triangle in feature['geometry']['coordinates']:
-            triangles.append(AlignedTriangle(map(model_point, triangle)))
-        ret[feature['properties']['name']] = triangles 
-    return ret
-*/
 

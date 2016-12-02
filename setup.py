@@ -40,14 +40,19 @@ cppextension = Extension("cpp", [ 'geomodelr/cpp/match.cpp', 'geomodelr/cpp/geom
                          extra_compile_args=['-std=c++11'])
 
 setup(name='geomodelr',
-      version='0.1',
-      description='GeoModelR is the open source client of the geological modeler.',
-      url='http://github.com/rserrano/geomodelr',
-      author='Ricardo Serrano',
-      author_email='rserrano@geomodelr.com',
-      license='AGPL',
-      packages=['geomodelr'],
-      ext_modules=[cppextension],
-      install_requires=['sortedcontainers', 'numpy', 'scipy', 'shapely'],
-      zip_safe=False)
+    version='0.1',
+    description='GeoModelR is the open source client of the geological modeler.',
+    url='http://github.com/rserrano/geomodelr',
+    author='Ricardo Serrano',
+    author_email='rserrano@geomodelr.com',
+    license='AGPL',
+    packages=['geomodelr'],
+    ext_modules=[cppextension],
+    install_requires=['numpy', 'scipy', 'shapely'],
+    entry_points = {
+        'console_scripts': [
+            'geomodelr=geomodelr.__main__:main'
+        ]
+    },
+    zip_safe=False)
 

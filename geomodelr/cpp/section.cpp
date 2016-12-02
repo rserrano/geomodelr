@@ -37,8 +37,8 @@ Section::Section(const wstring& name, double cut, const pylist& points,
 		}
 		size_t nrings = python::len(polygons[i]);
 		ring& outer = pol.outer();
-		// Start filling the first ring.
 		
+		// Start filling the first ring.
 		size_t nnodes = python::len(polygons[i][0]);
 		for ( size_t k = 0; k < nnodes; k++ ) {
 			pylist pypt = pylist(points[polygons[i][0][k]]);
@@ -58,17 +58,22 @@ Section::Section(const wstring& name, double cut, const pylist& points,
 				}
 			}
 		}
+
 		string message;
 		if ( not geometry::is_valid(pol, message) or not geometry::is_simple(pol) ) {
-			string su(unit.begin(), unit.end());
-			std::cerr << "removed polygon with unit " << su << " valid: " << (geometry::is_valid(pol)?"true":"false")
-				  << " " << message << " simple: " << (geometry::is_simple(pol)?"true":"false") << "\n";
+			if ( Model::verbose ) {
+				string su(unit.begin(), unit.end());
+				std::cerr << "removed polygon with unit " << su << " valid: " << (geometry::is_valid(pol)?"true":"false")
+					  <<" simple: " << (geometry::is_simple(pol)?"true":"false") << "\n";
+			}
 			continue;
 		}
+		
 		// Calculate the envelope and add it to build the rtree layer.
 		box env;
 		geometry::envelope(pol, env);
 		envelopes.push_back(std::make_pair(env, this->polygons.size()));
+		
 		// Now add the actual polygon and its unit.
 		this->polygons.push_back(pol);
 		this->units.push_back(unit);

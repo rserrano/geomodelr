@@ -23,20 +23,15 @@ import json
 import fileinput
 import sys
 import shared
+import unittest
+import cpp
 from model import GeologicalModel
 
 class ParametersException(Exception):
     pass
 
-def prep_model(geojson, save=False):
+def prep_model(geojson):
     model = GeologicalModel(json.loads(geojson.read()))
-    changed = False
-    
-    if changed and save:
-        geojson.close()
-        fp = open(geojson.name, "w")
-        fp.write(json.dumps(model.geojson))
-    
     return model
 
 def query_coordinates(geojson, verbose=False):
@@ -116,8 +111,14 @@ def get_information(geojson, verbose):
     model = GeologicalModel(json.loads(geojson.read()))
     model.print_information(verbose)
 
-if __name__ == "__main__":
-
+def main(args=None):
+    if len(sys.argv) > 1 and sys.argv[1] in ["-t", "--test"]:
+        del(sys.argv[1])
+        sys.exit(unittest.main(module='geomodelr.test'))
+    
+    if args is None:
+        args = sys.argv[1:]
+    
     parser = argparse.ArgumentParser(description="""GeoModelR helps you to manage the versions 
                                                     of your geological models and use them to 
                                                     generate meshes or make any calculation
@@ -155,6 +156,9 @@ if __name__ == "__main__":
     parser.add_argument("model", nargs="?", type=argparse.FileType('r'))
     args = parser.parse_args()
     
+    if args.verbose:
+        cpp.set_verbose(True)
+    
     # Profile GeoModelR
     if args.profile:
         import cProfile, pstats, StringIO
@@ -181,4 +185,8 @@ if __name__ == "__main__":
         ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
         ps.print_stats()
         print >> sys.stderr, s.getvalue()
+   
+
+if __name__ == "__main__":
+    main()
 

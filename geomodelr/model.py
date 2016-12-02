@@ -17,7 +17,6 @@
 """
 import shared
 import faults
-import query
 import json
 import datetime
 import numpy as np
@@ -26,17 +25,14 @@ import cpp
 
 from numpy import linalg as la
 
+# Validates that the feature is valid and can be used.
 def validate_feature(f):
-    """
-    Validates that the feature is valid and can be used.
-    """
     # TODO
     pass
 
+# Validate the transforms.
 def validate_transform(transform, geology_type):
-    """
-    Validate the transforms.
-    """
+    
     # TODO
     if not 'type' in transform:
         raise shared.ModelException("transform needs a type")
@@ -45,6 +41,7 @@ def validate_transform(transform, geology_type):
     
     pass
 
+# Validate a FeatureCollection.
 def validate_feature_collection(fc):
     if not 'type' in fc:
         raise shared.ModelException("type is necessary for feature collection")
@@ -63,11 +60,33 @@ def validate_feature_collection(fc):
         validate_feature(f)
 
 class GeologicalModel(cpp.Model):
-    def __init__( self, geojson ):
+    """
+    Interface to query a Geological model from Geomodelr.com. The models in Geomodelr.com
+    are saved in Geological JSON. A Geological JSON is a set of GeoJSON FeatureCollections 
+    with a transformation. Go to Geomodelr.com, create a new model and use it with this 
+    tool.
+    """
+    def __init__( self, geolojson ):
         """ 
-        Initializes the geological model from a geojson file.
+        Initializes the geological model from a Geological JSON 
+        file created in www.geomodelr.com.
+        
+        You can create a free user at geomodelr.com and it will allow you to create the 
+        Geological Model. After you are finished, create a version and it will allow you
+        to download it as a Geological JSON. You can use this constructor by loading the 
+        json, like this:
+        
+        import json
+        import geomodelr
+        mfile = open('/path/to/your/version.json')
+        geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
+
+        Parameters
+        ----------
+        geolojson : dict
+            The Geological JSON
         """
-        self.geojson = geojson
+        self.geojson = geolojson
         sections = []
         
         geomap = []
@@ -102,11 +121,29 @@ class GeologicalModel(cpp.Model):
                 sections.append(sect)
         
         super(GeologicalModel, self).__init__(list(base_point), list(direction), geomap, topography, sections)
-        self.joined_faults = self.make_matches()
+        self.make_matches()
+    
+    def make_matches(self):
+        """ Prepares the model to query by matching polygons and lines.
 
+            It finds which polygons, when projected to the next cross section,
+            intersect. After that, it tries to match faults with the same name
+            by triangulating them and trying to find a continuous set of triangles
+            between the two lines that go from the ends to the other side.
+        """
+        self.joined_faults = super(GeologicalModel, self).make_matches()
+    
     def print_information( self, verbose=False ):
         """
-        Validates the information of the geological model.
+        Prints the information of the geological model just loaded.
+        
+        Prints the version, coordinate system and valid coordinates 
+        that the geological model takes.
+        
+        Parameters
+        ----------
+        verbose : boolean
+            You can print more information with verbose=True.
         """
         # Get name of the study.
         if 'name' in self.geojson:
@@ -185,14 +222,49 @@ class GeologicalModel(cpp.Model):
             print "\tFault properties present: %s" % ", ".join(lprops)
     
     def intersect_plane( self, plane ):
+        """
+        Intersects a plane with the faults of the Geological Model.
+        
+        Takes a plane represented with its four corners and returns the set 
+        of lines that intersect that plane with the faults.
+        
+        Arguments
+        ---------
+        plane : list
+            list with the four corners of the plane that we want to intersect the fault with.
+        
+        Returns
+        -------
+        dict
+            a dictionary with fault names as keys, and lines, (list of points) as values.
+            the coordinates go from the lower left corner, (0.0, 0.0).
+        """
         return faults.find_faults_plane_intersection( self.joined_faults, plane )
-
+    
     def intersect_planes( self, planes ):
+        """
+        Intersects a set of planes with the faults of the Geological Model.
+        
+        Takes a set of plane represented with its four corners and returns the set 
+        of lines that intersect that plane with the faults. The coordinates start from
+        the first plane lower corner, and increase by dist(plane[i][0], plane[i][1]) for the
+        next plane.
+        
+        Arguments
+        ---------
+        plane : list
+            list with planes. Each plane has a list with four corners that we want to intersect the fault with.
+        
+        Returns
+        -------
+        dict
+            a dictionary with fault names as keys, and lines, (list of points) as values.
+        """
         return faults.find_faults_multiple_planes_intersection( self.joined_faults, planes )
 
     def validate( self ):
         """
-        Validates that the geojson is correct. 
+        Validates that the Geological JSON has correct information.
         """
         # Validate basic GeoJSON contents.
         if type(self.geojson) != dict:
@@ -225,4 +297,22 @@ class GeologicalModel(cpp.Model):
             raise shared.ModelException("features is necessary in model")
         for fc in self.geojson['features']:
             validate_feature_collection(fc)
- 
+
+def model_from_file(filename):
+    """
+    Entry point for the API. It creates the geological model 
+    from the file path. The geological model is a model of 
+    geomodelr.com, downloaded as a version.
+    
+    Arguments
+    ---------
+    filename : str
+        The path to the Geological JSON file downloaded from Geomodelr.com.
+    Returns
+    -------
+    GeologicalModel
+        The output Geological model to query the geological units freely.
+    """
+    f = open(filename)
+    return GeologicalModel(json.loads(f.read()))
+
