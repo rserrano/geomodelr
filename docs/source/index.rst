@@ -7,13 +7,17 @@ Welcome to geomodelr's query tool documentation!
 ================================================
 
 Geomodelr is a web tool for creating geological models easily.
-To create a geological model, go to https://www.geomodelr.com.
-After creating your geological model you might want to use it
-for calculations, geostatistics, simulations, or simply to know
-what geological unit is present at a given path. With this tool 
-you can do all that.
+To create a geological model: 
+- Go to https://www.geomodelr.com.
+- Register.
+- Create your model.
+- Create and download a version of your model as Geological JSON.
 
-To use geomodelr query tool you just need to:
+You might want to use the model for calculations, geostatistics, 
+simulations, or simply to know what geological unit is present 
+at a given point. With this tool you can do all that.
+
+To use geomodelr query tool you just need to::
 
     import geomodelr
     # load your model.
@@ -22,12 +26,12 @@ To use geomodelr query tool you just need to:
     unit, distance = model.closest((1000, 1000, 0.0))
     # do stuff...
     if unit == 'Batholith':
-    ...
+    	...
 
-You can also use this tool as a script.
+You can also use this tool as a script::
 
     $ geomodelr -q /path/to/your/model_version.json
-    x y z
+    1000 1000 0
     Batholith
 
 
@@ -41,12 +45,12 @@ Features
 
 Installation
 ------------
-Install project by calling:
+Install project by calling::
 
     pip install geomodelr
 
 It needs boost libraries and C++ compiler. In case boost libraries are not in a 
-standard location, call it with INCLUDE_DIRS=... and/or LIBRARY_DIRS=...
+standard location, call it with :code:`INCLUDE_DIRS=...` and/or :code:`LIBRARY_DIRS=...`.
 
 Support
 -------
@@ -56,12 +60,14 @@ License
 -------
 This project is licensed under the Affero GPL license https://www.gnu.org/licenses/
 
-Contents:
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
-
-
+   
+   api
+   
 
 Indices and tables
 ==================

@@ -71,19 +71,18 @@ class GeologicalModel(cpp.Model):
         Initializes the geological model from a Geological JSON 
         file created in www.geomodelr.com.
         
-        You can create a free user at geomodelr.com and it will allow you to create the 
+        You can create a free user at https://geomodelr.com and it will allow you to create the 
         Geological Model. After you are finished, create a version and it will allow you
         to download it as a Geological JSON. You can use this constructor by loading the 
-        json, like this:
+        json, like this::
         
-        import json
-        import geomodelr
-        mfile = open('/path/to/your/version.json')
-        geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
+            import json
+            import geomodelr
+            mfile = open('/path/to/your/version.json')
+            geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
 
-        Parameters
-        ----------
-        geolojson : dict
+        Parameters:
+            geolojson : dict
             The Geological JSON
         """
         self.geojson = geolojson
@@ -140,9 +139,8 @@ class GeologicalModel(cpp.Model):
         Prints the version, coordinate system and valid coordinates 
         that the geological model takes.
         
-        Parameters
-        ----------
-        verbose : boolean
+        Parameters:
+            verbose : boolean
             You can print more information with verbose=True.
         """
         # Get name of the study.
@@ -228,14 +226,12 @@ class GeologicalModel(cpp.Model):
         Takes a plane represented with its four corners and returns the set 
         of lines that intersect that plane with the faults.
         
-        Arguments
-        ---------
-        plane : list
+        Args:
+            plane : list
             list with the four corners of the plane that we want to intersect the fault with.
         
-        Returns
-        -------
-        dict
+        Returns:
+            dict
             a dictionary with fault names as keys, and lines, (list of points) as values.
             the coordinates go from the lower left corner, (0.0, 0.0).
         """
@@ -250,14 +246,12 @@ class GeologicalModel(cpp.Model):
         the first plane lower corner, and increase by dist(plane[i][0], plane[i][1]) for the
         next plane.
         
-        Arguments
-        ---------
-        plane : list
+        Args:
+            plane : list
             list with planes. Each plane has a list with four corners that we want to intersect the fault with.
         
-        Returns
-        -------
-        dict
+        Returns:
+            dict
             a dictionary with fault names as keys, and lines, (list of points) as values.
         """
         return faults.find_faults_multiple_planes_intersection( self.joined_faults, planes )
@@ -304,13 +298,11 @@ def model_from_file(filename):
     from the file path. The geological model is a model of 
     geomodelr.com, downloaded as a version.
     
-    Arguments
-    ---------
-    filename : str
+    Args:
+        filename : str
         The path to the Geological JSON file downloaded from Geomodelr.com.
-    Returns
-    -------
-    GeologicalModel
+    Returns:
+        GeologicalModel
         The output Geological model to query the geological units freely.
     """
     f = open(filename)

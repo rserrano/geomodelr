@@ -32,7 +32,7 @@ def_libraries    = ['boost_python']
 def_library_dirs = ['/usr/local/lib', '/usr/lib/x86_64-linux-gnu/']
 def_include_dirs = ['/usr/local/include']
 
-cppextension = Extension("cpp", [ 'geomodelr/cpp/match.cpp', 'geomodelr/cpp/geomodel.cpp', 'geomodelr/cpp/model.cpp', 'geomodelr/cpp/section.cpp',], 
+cppextension = Extension("geomodelr.cpp", [ 'geomodelr/cpp/match.cpp', 'geomodelr/cpp/geomodel.cpp', 'geomodelr/cpp/model.cpp', 'geomodelr/cpp/section.cpp',], 
                          depends=['geomodelr/cpp/geomodel.hpp'],
                          include_dirs=if_env(INCLUDE_DIRS=def_include_dirs),
                          library_dirs=if_env(LIBRARY_DIRS=def_library_dirs), 
