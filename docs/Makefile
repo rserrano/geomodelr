@@ -48,6 +48,12 @@ help:
 clean:
 	rm -rf $(BUILDDIR)/*
 
+.PHONY: rst
+rst:
+	$(SPHINXBUILD) -b rst $(ALLSPHINXOPTS) $(BUILDDIR)/rst
+	@echo
+	@echo "Build finished. The RST sources are in $(BUILDDIR)/rst."
+
 .PHONY: html
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html

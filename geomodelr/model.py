@@ -1,20 +1,20 @@
-"""
-	Geomodelr query tool. Tools for using a geomodelr.com geological model.
-	Copyright (C) 2016 Geomodelr, Inc.
-	
-	This program is free software: you can redistribute it and/or modify
-	it under the terms of the GNU Affero General Public License as
-	published by the Free Software Foundation, either version 3 of the
-	License, or (at your option) any later version.
-	
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-	GNU Affero General Public License for more details.
-	
-	You should have received a copy of the GNU Affero General Public License
-	along with this program. If not, see <http://www.gnu.org/licenses/>.
-"""
+
+# Geomodelr query tool. Tools for using a geomodelr.com geological model.
+# Copyright (C) 2016 Geomodelr, Inc.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import shared
 import faults
 import json
@@ -82,8 +82,7 @@ class GeologicalModel(cpp.Model):
             geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
 
         Parameters:
-            geolojson : dict
-            The Geological JSON
+            (dict) geolojson: The Geological JSON.
         """
         self.geojson = geolojson
         sections = []
@@ -140,8 +139,7 @@ class GeologicalModel(cpp.Model):
         that the geological model takes.
         
         Parameters:
-            verbose : boolean
-            You can print more information with verbose=True.
+            (boolean) verbose: You can print more information with verbose=True.
         """
         # Get name of the study.
         if 'name' in self.geojson:
@@ -227,13 +225,13 @@ class GeologicalModel(cpp.Model):
         of lines that intersect that plane with the faults.
         
         Args:
-            plane : list
-            list with the four corners of the plane that we want to intersect the fault with.
+            (list) plane: list with the four corners of the plane that we 
+            want to intersect the fault with.
         
         Returns:
-            dict
-            a dictionary with fault names as keys, and lines, (list of points) as values.
-            the coordinates go from the lower left corner, (0.0, 0.0).
+            (dict): a dictionary with fault names as keys, and lines, 
+            (list of points) as values. The coordinates go from the 
+            lower left corner, (0.0, 0.0).
         """
         return faults.find_faults_plane_intersection( self.joined_faults, plane )
     
@@ -247,12 +245,12 @@ class GeologicalModel(cpp.Model):
         next plane.
         
         Args:
-            plane : list
-            list with planes. Each plane has a list with four corners that we want to intersect the fault with.
+            (list) plane: List with planes. Each plane has a list with four corners 
+            that we want to intersect the fault with.
         
         Returns:
-            dict
-            a dictionary with fault names as keys, and lines, (list of points) as values.
+            (dict): a dictionary with fault names as keys, and lines, (list of points) 
+            as values.
         """
         return faults.find_faults_multiple_planes_intersection( self.joined_faults, planes )
 
@@ -299,11 +297,11 @@ def model_from_file(filename):
     geomodelr.com, downloaded as a version.
     
     Args:
-        filename : str
-        The path to the Geological JSON file downloaded from Geomodelr.com.
+        (str) filename: The path to the Geological JSON file downloaded from 
+        Geomodelr.com.
     Returns:
-        GeologicalModel
-        The output Geological model to query the geological units freely.
+        (GeologicalModel): The output Geological model to query the geological
+        units freely.
     """
     f = open(filename)
     return GeologicalModel(json.loads(f.read()))

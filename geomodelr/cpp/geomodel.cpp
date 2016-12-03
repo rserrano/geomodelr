@@ -59,10 +59,10 @@ BOOST_PYTHON_MODULE(cpp)
 						"It can be used to query a grid aligned with the model faster, for purposes of\n"
 						"generating a triangulated mesh or a grid.\n\n"
 						"Args:\n"
-						"    point : tuple\n"
+						"    (tuple) point:\n"
 						"    The three coordinates of the point in the given coordinate system.\n"
 						"Returns:\n"
-						"    list(tuple(), ...)\n"
+						"    (list(tuple(), ...)):\n"
 						"    a list with all the possible units, each unit with the distance to the previous\n"
 						"    and next cross sections.\n";
 	
@@ -72,20 +72,20 @@ BOOST_PYTHON_MODULE(cpp)
 					"the distance from the point to the unit is the sum of the in-section distance to the point\n"
 					"averaged by the distance to the cross section.\n\n"
 					"Args:\n"
-					"    point : tuple\n"
+					"    (tuple) point:\n"
 					"    The three coordinates of the point in the given coordinate system.\n"
 					"Returns:\n"
-					"    tuple\n"
+					"    (tuple):\n"
 					"    A tuple with the geological unit and the defined distance to that unit.";
 	
 	const char* doc_closest_topo =	"Same as closest but it returns (AIR, inf) if the point is above the topography.\n\n"
 					"It first looks if the point is above the topography and returns (AIR, inf) in that case.\n"
 					"Otherwise it returns the same as closest.\n\n"
 					"Args:\n"
-					"    point : tuple\n"
+					"    (tuple) point:\n"
 					"    The three coordinates (easting, northing, altitude a.s.l) of the point in the given coordinate system.\n"
 					"Returns:\n"
-					"    tuple\n"
+					"    (tuple):\n"
 					"    A tuple with the geological unit and the defined distance to that unit or AIR if it's\n"
 					"    above the topography.";
 	
@@ -93,35 +93,35 @@ BOOST_PYTHON_MODULE(cpp)
 				"It returns the height at the point stored in the topography. In case the point it's outside the bounds of\n"
 				"the model, it returns the height of the closest point inside.\n\n"
 				"Args:\n"
-				"    point tuple\n\n"
-				"    The two coordinates (easting, northing) of the point in the given coordinate system.\n\n"
+				"    (tuple)point:\n"
+				"    The two coordinates (easting, northing) of the point in the given coordinate system.\n"
 				"Returns:\n"
-				"    real\n"
+				"    (real)\n"
 				"    The height as stored in the topography.\n";
 	
 	const char* doc_model_point =	"Translates the point to internal coordinates\n\n"
 					"It returns in-section x coordinate, in-section y coordinate, cut coordinate\n\n"
 					"Args:\n"
-					"    point : tuple\n"
+					"    (tuple) point:\n"
 					"    The three coordinates (esting, norting, altitute a.s.l) of the point in the given coordinate system.\n"
 					"Returns:\n"
-					"    tuple\n"
+					"    (tuple)\n"
 					"    The point in the internal coordinate system.\n";
 	
 	const char* doc_inverse_point =	"From internal coordinates, it returns the point in the given coordinate system.\n\n"
 					"It returns easting, northing and altitude from in-section x coordinate, in-section\n"
 					"y coordinate, cut coordinate\n\n"
 					"Args:\n"
-					"    point : tuple\n"
+					"    (tuple) point:\n"
 					"    The three coordinates of the internal point.\n"
 					"Returns:\n"
-					"    tuple\n"
+					"    (tuple)\n"
 					"    The point in the given coordinate system\n";
 	
 	const char* doc_verb =	"Sets the operations as verbose.\n\n"
 				"When creating the model, it will advice the user of problems with geometries or matchings.\n\n"
 				"Args:\n"
-				"    verbose : boolean\n"
+				"    (boolean) verbose:\n"
 				"    if geomodelr should be verbose when creating the model.\n";
 	
 	// Register exception.
