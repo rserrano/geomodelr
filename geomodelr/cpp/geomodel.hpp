@@ -212,13 +212,15 @@ class Section {
 		point2 mn(gx(pt) - distance, gy(pt) - distance);
 		box bx(mn, mx);
 		vector<std::pair<int, double>> ret;
-		for ( auto it = this->polidx->qbegin( geometry::index::intersects(bx) and predicates );
-			it != this->polidx->qend(); it++ ) {
-			// Check the actual distance to a polygon.
-			int idx = it->second;
-			double poldist = geometry::distance(this->polygons[idx], pt);
-			if ( poldist <= distance ) {
-				ret.push_back(std::make_pair(idx, poldist));
+		if ( this->polidx != nullptr ) {
+			for ( auto it = this->polidx->qbegin( geometry::index::intersects(bx) and predicates );
+				it != this->polidx->qend(); it++ ) {
+				// Check the actual distance to a polygon.
+				int idx = it->second;
+				double poldist = geometry::distance(this->polygons[idx], pt);
+				if ( poldist <= distance ) {
+					ret.push_back(std::make_pair(idx, poldist));
+				}
 			}
 		}
 		return ret;

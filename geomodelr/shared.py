@@ -97,6 +97,31 @@ def nodes_offset(nodes, offset):
     for node in nodes:
         node[0] = node[0] + offset
 
+def fault_points_index_repr(fault):
+    pointsd = {}
+    def ipoint(point):
+        """
+        Gets the index of the point and increases the counter if it does not exist.
+        """
+        tpoint = tuple(point)
+        if tpoint in pointsd:
+            ipoint = pointsd[tpoint]
+        else:
+            ipoint = len(pointsd)
+            pointsd[tpoint] = ipoint
+        return ipoint
+    itris = []
+    for triangle in fault:
+        itris.append( map( ipoint, triangle ) )
+    
+    points = [ None for i in xrange(len(pointsd)) ]
+    for p in pointsd:
+        points[pointsd[p]] = list(p)
+    return {'triangles': itris, 'points': points}    
+
+def faults_points_index_repr(faults):
+    return { k: fault_points_index_repr(v) for k, v in faults.iteritems() }
+
 # Returns from the geojson data a set of points with indexed lines and polygons.  
 def points_index_repr(geojson):
     lines = []
