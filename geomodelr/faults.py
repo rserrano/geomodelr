@@ -24,7 +24,6 @@ from copy import deepcopy
 
 # Finds the lines that result after intersecting a fault plane with a plane.
 def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
-
     lines = []
     for tp in fplane:
         ints = []

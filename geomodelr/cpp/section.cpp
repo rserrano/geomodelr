@@ -120,9 +120,38 @@ const {
 	return python::make_tuple(cls.first, this->units[cls.first]);
 }
 
-
 bool always_true( const value& v )
 {
 	return true;
+}
+
+map<wstring, vector<triangle_pt>> Section::last_lines( bool is_back, double end ) {
+	map<wstring, vector<triangle_pt>> ret;
+	for ( size_t i = 0; i < this->lines.size(); i++ )
+	{
+		const wstring& name = this->lnames[i];
+		if ( name == L"" ) 
+		{
+			continue;
+		}
+		for ( size_t j = 1; j < this->lines[i].size(); j++ ) {
+			point3 p0(gx(this->lines[i][j-1]), gy(this->lines[i][j-1]), end);
+			point3 p1(gx(this->lines[i][j]),   gy(this->lines[i][j]),   end);
+			point3 p2(gx(this->lines[i][j-1]), gy(this->lines[i][j-1]), this->cut);
+			point3 p3(gx(this->lines[i][j]),   gy(this->lines[i][j]),   this->cut);
+			
+			if ( ! is_back ) {
+				std::swap(p0, p2);
+				std::swap(p1, p3);
+			}
+			
+			triangle_pt t1(p0, p1, p2);
+			triangle_pt t2(p1, p3, p2);
+			
+			ret[name].push_back(t1);
+			ret[name].push_back(t2);
+		}
+	}
+	return ret;
 }
 

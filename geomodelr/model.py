@@ -107,7 +107,10 @@ class GeologicalModel(cpp.Model):
                 break
         
         # Calculate direction and base point.
-        base_line = base_section['transform']['line']
+        try:
+            base_line = base_section['transform']['line']
+        except TypeError:
+            raise ModelException("The model needs minimum a base cross section.")
         base_point = np.array(base_line[0][:2])
         direction = np.array(base_line[1][:2])-base_point
         direction = direction/la.norm(direction)
@@ -118,12 +121,15 @@ class GeologicalModel(cpp.Model):
                 sect = [feature['name'], cs[0], cs[1]['points'], cs[1]['polygons'], cs[1]['units'], cs[1]['lines'], cs[1]['lnames']]
                 sections.append(sect)
         
-        super(GeologicalModel, self).__init__(list(base_point), list(direction), geomap, topography, sections)
+        # Obtain the possible farthest cuts to add triangles towards them.
+        bbox = self.geojson['bbox']
+        cuts = [shared.line_side(base_line, [bbox[0:3]]), shared.line_side(base_line, [bbox[3:6]])]
+        
+        super(GeologicalModel, self).__init__(cuts, list(base_point), list(direction), geomap, topography, sections)
         self.make_matches()
     
     def make_matches(self):
         """ Prepares the model to query by matching polygons and lines.
-
             It finds which polygons, when projected to the next cross section,
             intersect. After that, it tries to match faults with the same name
             by triangulating them and trying to find a continuous set of triangles

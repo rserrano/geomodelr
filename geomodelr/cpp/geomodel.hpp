@@ -35,6 +35,8 @@ using std::string;
 using std::wstring;
 using std::map;
 
+static const double tolerance = 1e-15;
+
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;
 typedef geometry::model::point<double, 3, geometry::cs::cartesian> point3;
 typedef geometry::model::box<point2> box;
@@ -157,6 +159,7 @@ class Model {
 		double distance( double c ) const;
 	};
 	void clear_matches();
+	std::pair<double, double> cuts_range;
 	// Returns all the possible matches of this 2d point, given the distance is unknown.
 	std::pair<point2, double> to_model_point(const point3& pt) const;
 	point3 to_inverse_point(const point2& p, double cut) const;
@@ -165,7 +168,8 @@ class Model {
 	std::tuple<int, int, double> closest_to( size_t a_idx, const point2& pt, double cut ) const;
 public:
 	static bool verbose;
-	Model(const pyobject& basepoint, const pyobject& direction, 
+	Model(const pyobject& cuts_range,
+	      const pyobject& basepoint, const pyobject& direction, 
 	      const pyobject& map, const pyobject& topography,
 	      const pylist& sections);
 	virtual ~Model();
@@ -181,6 +185,7 @@ public:
 	pytuple closest_topo(const pyobject& pt) const;
 	pydict info() const;
 	double height(const pyobject& pt) const;
+
 };
 
 class Topography {
@@ -274,6 +279,7 @@ class Section {
 		
 		return std::make_pair(minidx, mindist); 
 	}
+	map<wstring, vector<triangle_pt>> last_lines(bool is_back, double end);
 public:
 	Section(const wstring& name, double cut, const pylist& points, 
 		const pylist& polygons, const pylist& units, 

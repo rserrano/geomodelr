@@ -23,11 +23,15 @@
 
 bool Model::verbose = false;
 
-Model::Model( const pyobject& base_point, const pyobject& direction, const pyobject& map, const pyobject& topography, const pylist& sections):
+Model::Model( const pyobject& cuts_range, const pyobject& base_point, const pyobject& direction, const pyobject& map, const pyobject& topography, const pylist& sections ):
 base_point(python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
 direction(python::extract<double>(direction[0]), python::extract<double>(direction[1]) ),
 topography(nullptr)
 {
+	double c0 = python::extract<double>(cuts_range[0]);
+	double c1 = python::extract<double>(cuts_range[1]);
+	this->cuts_range = std::make_pair(c0, c1);
+	
 	if ( python::len(topography) > 0 ) {
 		const pyobject& point = python::extract<pyobject>(topography["point"]);
 		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
@@ -50,7 +54,6 @@ topography(nullptr)
 	for ( size_t i = 0; i < this->sections.size(); i++ ) {
 		this->cuts.push_back(this->sections[i]->cut);
 	}
-	
 }
 
 Model::~Model(){
@@ -72,33 +75,55 @@ void Model::clear_matches() {
 pydict Model::make_matches() {
 	this->clear_matches();
 	map<wstring, vector<triangle_pt>> faults;
-	for ( size_t i = 1; i < this->sections.size(); i++ ) {
-		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
-		this->match.back()->match_polygons();
-		map<wstring, vector<triangle_pt>> m = this->match.back()->match_lines();
+	auto add_to_faults = [&](const map<wstring, vector<triangle_pt>>& m) {
 		for ( auto it = m.begin(); it != m.end(); it++ ) {
 			auto& f = faults[it->first];
 			f.reserve(f.size() + it->second.size());
 			f.insert(f.end(), it->second.begin(), it->second.end());
 		}
+	};
+	// Get all the matching faults.
+	for ( size_t i = 1; i < this->sections.size(); i++ ) {
+		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
+		this->match.back()->match_polygons();
+		map<wstring, vector<triangle_pt>> m = this->match.back()->match_lines();
+		add_to_faults(m);
 	}
+
+	// Get the extended faults from the begining.
+	if ( this->sections.size() and (this->sections[0]->cut - this->cuts_range.first) > tolerance ) {
+		map<wstring, vector<triangle_pt>> m = this->sections[0]->last_lines(true, this->cuts_range.first);
+		add_to_faults(m);
+	}
+	// Get the extended faults from the end.
+	if ( this->sections.size() and (this->cuts_range.second - this->sections.back()->cut) > tolerance ) {
+		// Get the extended faults from the end.
+		map<wstring, vector<triangle_pt>> m = this->sections.back()->last_lines(false, this->cuts_range.second);
+		add_to_faults(m);
+	}
+	
 	auto point_coords = [&]( const point3& pt ) {
 		point2 p(gx(pt), gy(pt));
 		point3 glp = this->to_inverse_point(p, gz(pt));
 		return python::make_tuple(gx(glp), gy(glp), gz(glp));
 	};
+
 	auto triangle_coords = [point_coords]( const triangle_pt& tr ) {
 		return python::make_tuple(point_coords(g0(tr)), point_coords(g1(tr)), point_coords(g2(tr)));
 	};
+
 	// Now convert to python and return.
 	pydict ret;
 	for ( auto it = faults.begin(); it != faults.end(); it++ ) {
 		pylist tris;
 		for ( const triangle_pt& t: it->second ) {
-			tris.append( triangle_coords( t ) );
+			pytuple tr = triangle_coords( t );
+			tris.append( tr );
+			
 		}
 		ret[it->first] = tris;
 	}
+	
 	return ret;
 }
 
@@ -365,7 +390,7 @@ std::pair<point2, double> Model::to_model_point( const point3& pt ) const {
 	
 	double norm = std::sqrt(gx(ppoint)*gx(ppoint) + gy(ppoint)*gy(ppoint));
 
-	if ( norm < 1e-10 ) {
+	if ( norm < tolerance ) {
 		return std::make_pair(point2(0.0, z), 0.0);
 	}
 	
@@ -389,7 +414,7 @@ point3 Model::to_inverse_point( const point2& pt, double cut ) const {
 	const double& p1 = gy(pt);
 	
         double v1 = (cut*d0 + p0*d1)/dsq;
-        double v0 = ( std::fabs(d1) < 1e-9 ) ? p0/d0 : (d0*v1-cut)/d1;
+        double v0 = ( std::fabs(d1) < tolerance ) ? p0/d0 : (d0*v1-cut)/d1;
         
 	return point3(gx(this->base_point) + v0, gy(this->base_point) + v1, p1);
 }
