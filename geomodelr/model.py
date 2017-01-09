@@ -110,7 +110,7 @@ class GeologicalModel(cpp.Model):
         try:
             base_line = base_section['transform']['line']
         except TypeError:
-            raise ModelException("The model needs minimum a base cross section.")
+            raise shared.ModelException("The model needs minimum a base cross section.")
         base_point = np.array(base_line[0][:2])
         direction = np.array(base_line[1][:2])-base_point
         direction = direction/la.norm(direction)
