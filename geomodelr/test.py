@@ -24,11 +24,27 @@ import model
 import json
 import faults
 import shared
+import utils
 import cpp
 import numpy as np
 from numpy import linalg as la
+import cProfile, pstats, StringIO
+import sys
 
 class TestGeoModelR(unittest.TestCase):
+    def setUp(self):
+        # Profile GeoModelR
+        self.pr = cProfile.Profile()
+        self.pr.enable()
+    def tearDown(self):
+        # Print profiling of GeoModelR.
+        self.pr.disable()
+        s = StringIO.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print >> sys.stderr, s.getvalue()
+
     # Tests function fault plane for lines.
     def test_faultplane_for_lines(self):
         la = [(0, 0, 0), (1,1,0), (2,2,0), (3,3,0)]
@@ -83,15 +99,7 @@ class TestGeoModelR(unittest.TestCase):
                                                                (3, 4, 14), (4, 5, 14), (5, 14, 15), 
                                                                (5, 6, 15), (6, 7, 15), (7, 15, 16)])
         
-    # Test that you can load and test aburra Valley.
-    def test_aburra_valley(self):
-        this_dir, this_filename = os.path.split(__file__)
-        f = open(os.path.join(this_dir, 'test_files', 'aburra_version1.json'))
-        m = model.GeologicalModel(json.loads(f.read()))
-        m.height([813487.938015, 1164500.0])
-        m.height([80000, 1100000])
-    
-    # Test that you can create cross sections and that bugs throw something in python (and not segfault).
+        # Test that you can create cross sections and that bugs throw something in python (and not segfault).
     def test_sections(self):
         points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1]]
         polygons = [[[0, 1, 2, 3, 4]]]
@@ -195,7 +203,7 @@ class TestGeoModelR(unittest.TestCase):
         polygons_2 = [[[0, 1, 2, 3], [7, 6, 5, 4]], [[4, 5, 6, 7]], [[1, 10, 8]], [[1, 9, 10]], [[8, 10, 11, 2]]]
         units_2 = ["unit1", "unit2", "unit3", "unit1", "unit4"]
         
-        model = cpp.Model([1, 0], [0, 1], {}, {}, [("A-A", 11, points_1, polygons_1, units_1, [], []), ("B-B", 12, points_2, polygons_2, units_2, [], [])])
+        model = cpp.Model([0,0,2,2],[1, 0], [0, 1], {}, {}, [("A-A", 11, points_1, polygons_1, units_1, [], []), ("B-B", 12, points_2, polygons_2, units_2, [], [])])
         
         model.make_matches()
         self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (0, 3), (2, 2), (3, 4)])])
@@ -216,7 +224,7 @@ class TestGeoModelR(unittest.TestCase):
         polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
         units_1 = ["unit1", "unit2", "unit3"]
         
-        model = cpp.Model([0, 0], [1, 0], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_1, [], [])])
+        model = cpp.Model([0,0,3,3],[0, 0], [1, 0], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_1, [], [])])
         model.make_matches()
         self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (1, 1), (2, 2)])])
         self.assertEqual(model.model_point([1.5, 1.5, 1.5]), (1.5, 1.5, 1.5))
@@ -262,7 +270,7 @@ class TestGeoModelR(unittest.TestCase):
         units_1 = ["unit1", "unit2", "unit3"]
         units_2 = ["unit4", "unit5", "unit6"]
         
-        model = cpp.Model([0, 0], [1, 0], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_2, [], [])])
+        model = cpp.Model([0,0,3,3],[0, 0], [1, 0], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_2, [], [])])
         model.make_matches()
         
         cls_1 = model.closest([1.5, 1.1, 1.2])
@@ -294,7 +302,7 @@ class TestGeoModelR(unittest.TestCase):
         units_1 = ["unit1", "unit2", "unit3"]
         units_2 = ["unit1", "unit5", "unit6"]
         
-        model = cpp.Model([0, 0], [1, 0], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_2, [], [])])
+        model = cpp.Model([0,0,3,3],[0, 0], [1, 0], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_2, [], [])])
         model.make_matches()
         pos_cls = model.possible_closest([1.5, 1.5, 1.25])
         
@@ -311,7 +319,7 @@ class TestGeoModelR(unittest.TestCase):
     
     # Test the inverse point, plus other possible_closest and closest tests.
     def test_point_inverse(self):
-        model = cpp.Model([0, 0], [1, 0], {}, {}, [("A-A", 1, [], [], [], [], []), ("B-B", 2, [], [], [], [], [])])
+        model = cpp.Model([0,0,2,2],[0, 0], [1, 0], {}, {}, [("A-A", 1, [], [], [], [], []), ("B-B", 2, [], [], [], [], [])])
         
         self.assertAlmostEqual(model.model_point([1,2,3]), (1,3,2))
         self.assertAlmostEqual(model.model_point([3,2,1]), (3,1,2))
@@ -328,7 +336,7 @@ class TestGeoModelR(unittest.TestCase):
         self.assertEqual(model.possible_closest([1.5, 1.5, 1.5]), [])
         n = la.norm([-1,1])
         
-        model = cpp.Model([1, 1], list(np.array([-1, 1])/n), {}, {}, [])
+        model = cpp.Model([0,0,2,2],[1, 1], list(np.array([-1, 1])/n), {}, {}, [])
         model.make_matches()
         
         self.assertEqual(model.closest([1,1,1]), ("NONE", float('inf')))
@@ -357,7 +365,7 @@ class TestGeoModelR(unittest.TestCase):
         polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
         units_1 = [u"unít1", u"unót2", u"unét3"]
         
-        model = cpp.Model([0, 0], [1, 0], {}, {}, [(u"A-Á", 1, points_1, polygons_1, units_1, [], []), (u"Ñ-Ñ", 2, points_2, polygons_1, units_1, [], [])])
+        model = cpp.Model([0,0,3,3],[0, 0], [1, 0], {}, {}, [(u"A-Á", 1, points_1, polygons_1, units_1, [], []), (u"Ñ-Ñ", 2, points_2, polygons_1, units_1, [], [])])
         model.make_matches()
        	self.assertEqual(model.closest([1.5, 1.5, 1.5])[0], u"unót2")
     
@@ -369,7 +377,7 @@ class TestGeoModelR(unittest.TestCase):
         pols_2 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 15, 14, 12]], [[11, 12, 14, 13]]]
         units = ["unit1", "unit1", "unit2", "unit2", "unit3", "unit3", "unit4"]
         
-        model = cpp.Model([0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, [], []), ("s2", 2, points_2, pols_2, units, [], [])])
+        model = cpp.Model([0,0,3,3],[0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, [], []), ("s2", 2, points_2, pols_2, units, [], [])])
         model.make_matches()
         self.assertEqual(model.matches, [((u's1', u's2'), [(0, 0), (1, 0), (1, 1), (2, 2), (3, 2), (3, 3), (4, 4), (5, 4), (5, 5), (6, 6)])])
         
@@ -384,7 +392,7 @@ class TestGeoModelR(unittest.TestCase):
         faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
         faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
         fname = ["F1"]
-        model = cpp.Model([0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, faults_1, fname), ("s2", 2, points_2, pols_2, units, faults_2, fname)])
+        model = cpp.Model([0,0,2,2],[0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, faults_1, fname), ("s2", 2, points_2, pols_2, units, faults_2, fname)])
         model.make_matches()
         # It should have the unit of the side of the fault.
         cls = model.closest([7.0/6.0, 1.4, 1.9])
@@ -393,6 +401,57 @@ class TestGeoModelR(unittest.TestCase):
         cls = model.closest([7.0/6.0, 1.6, 1.9])
         self.assertEqual(cls[0], 'unit3')
         self.assertAlmostEqual(cls[1], 0.0)
+    
+    # Test that you can load and test aburra Valley. Test grids and volumes.
+    def test_aburra_valley(self):
+        this_dir, this_filename = os.path.split(__file__)
+        f = open(os.path.join(this_dir, 'test_files', 'aburra_version1.json'))
+        m = model.GeologicalModel(json.loads(f.read()))
+        m.height([813487.938015, 1164500.0])
+        m.height([80000, 1100000])
+        bbox = m.geojson['bbox']
+        t = {}
+        def query_func(p):
+            q = m.closest(p)[0]
+            if q in t:
+                return t[q]
+            else:
+                l = len(t)
+                t[q] = l
+                return l
+        # First test the simple grid.
+        simple_grid = utils.generate_simple_grid(query_func, bbox, 6)
+        units = simple_grid['units'].flatten()
+        grid = simple_grid['grid'].flatten()
+        self.assertEqual(grid.size, 1029)
+        
+        for i in range(3):
+            self.assertEqual(bbox[i], grid[i])
+            u = grid.size-3+i
+            self.assertEqual(bbox[i+3], grid[u])
+        
+        usum = {}
+        for u in units:
+            if u in usum:
+                usum[u] += 1
+            else:
+                usum[u] = 1
+        # Now test performance.
+        # sample_grid = utils.generate_simple_grid(query_func, bbox, 100)
+        rt = { v: k for k, v in t.iteritems() }
+        
+        srt = sorted(usum.items(), key = lambda i: rt[i[0]])
+        self.assertEqual(map( lambda x: x[1], srt ), [110, 45, 69, 5, 41, 5, 1, 56, 4, 7])
+       
+        # Then test the fdm refined grid.
+        ref_grid = utils.generate_fdm_grid(query_func, bbox, 5, 5)
+        
+        self.assertEqual(ref_grid['grid'].shape[3], 3)
+        self.assertGreaterEqual(ref_grid['grid'].shape[0], ref_grid['units'].shape[0])
+        self.assertGreaterEqual(ref_grid['grid'].shape[1], ref_grid['units'].shape[1])
+        self.assertGreaterEqual(ref_grid['grid'].shape[2], ref_grid['units'].shape[2])
+        
+        grid = utils.generate_octtree_grid(query_func, bbox, 3, 3, 3)
 
 def main(args=None):
     unittest.main()

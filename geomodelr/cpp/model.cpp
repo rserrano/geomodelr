@@ -536,6 +536,7 @@ pytuple Model::closest(const pyobject& pypt) const {
 	} else if ( crosses > 0 ) {
 		return closest_single(*(this->sections[a_idx+1]));
 	}
+	
 	// Finally evaluate the full transition.
 	std::tuple<int, int, double> clst = this->closest_to(a_idx, mp.first, mp.second);
 	int a_match = std::get<0>(clst);
