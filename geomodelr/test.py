@@ -97,7 +97,7 @@ class TestGeoModelR(unittest.TestCase):
                                                                (1, 10, 11), (1, 11, 12), (1, 12, 13), 
                                                                (1, 2, 13), (2, 3, 13), (3, 13, 14), 
                                                                (3, 4, 14), (4, 5, 14), (5, 14, 15), 
-                                                               (5, 6, 15), (6, 7, 15), (7, 15, 16)])
+                                                               (5, 6, 15), (6, 15, 16), (6, 7, 16)])
         
         # Test that you can create cross sections and that bugs throw something in python (and not segfault).
     def test_sections(self):

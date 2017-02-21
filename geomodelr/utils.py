@@ -205,10 +205,12 @@ def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refi
     
     checked = np.zeros((elems.shape[0],), dtype=bool)
     for r in xrange(oct_refine):
+        
         elems_ti = []
         points_ti = []
         units_ti = []
         creamids = {}
+        
         for idx in xrange(elems.shape[0]):
             if not checked[idx] and should_refine_cell(idx):
                 newelems = []
@@ -232,7 +234,7 @@ def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refi
                 points_ti += newpoints
             else:
                 checked[idx] = True
-
+        
         units = np.insert(units, units.shape[0], units_ti)
         points = np.insert(points, points.shape[0], np.array(points_ti), axis=0)
         elems = np.insert(elems, elems.shape[0], elems_ti, axis=0)

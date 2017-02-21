@@ -20,6 +20,7 @@ import numpy as np
 from numpy import linalg as la
 from scipy.spatial import Delaunay
 import itertools
+import math
 
 class GeometryException(Exception):
     pass
@@ -40,20 +41,67 @@ def shape_list(shape, sh_type):
            return [shape]
        return []
 
+def over_point( points ):
+    """
+    Returns a point perpendicular to the plane and above all the others. 
+    This is to avoid errors with the triangulation.
+    """
+    mxx = -float('inf')
+    mxy = -float('inf')
+    mxz = -float('inf')
+    mnx =  float('inf')
+    mny =  float('inf')
+    mnz =  float('inf')
+    
+    for p in points:
+        mxx = max(p[0], mxx)
+        mxy = max(p[1], mxy)
+        mxz = max(p[2], mxz)
+        mnx = min(p[0], mnx)
+        mny = min(p[1], mny)
+        mnz = min(p[2], mnz)
+    
+    maxd = -1
+    maxp = None
+    for p in points:
+        dx = max(mxx-p[0], p[0]-mnx)
+        dy = max(mxy-p[0], p[0]-mny)
+        dz = max(mxz-p[0], p[0]-mnz)
+        sq = math.sqrt(dx*dx+dy*dy+dz*dz)
+        if sq > maxd:
+            maxd = sq
+            maxp = p
+    
+    p0 = np.array(maxp)
+    A = np.array( map( lambda p: [p[0], p[1], 1], points ) )
+    y = np.array( map( lambda p: p[2], points ) )
+    x = la.lstsq(A, y)[0]
+    d = math.sqrt( 1 + x[0]*x[0] + x[1]*x[1] )
+    x /= d
+    n = np.array([-x[0], -x[1], 1.0/d])
+    sqd = math.sqrt((mxx-mnx)*(mxx-mnx)+(mxy-mny)*(mxy-mny)+(mxz-mnz)*(mxz-mnz))
+    
+    return p0 + n*sqd
+    
 # Triangulates a set of points and returns the triangles filtered by the given filter.
 def triangulate(points, fltr=lambda x: True):
+
     tetras = Delaunay(points)
     tris = set()
     for tet in tetras.simplices.copy():
         for tri in itertools.combinations(tet,3):
             srt = tuple(sorted(tri))
-            if not tri in tris and fltr(srt):
+            if fltr(srt):
                 tris.add(srt)
     return list(tris)
 
 # Triangulates a set of points filtering them because they are on both sides of the line.
 def opposite_triangles(points, na):
+    n = len(points)
+    pt = over_point(points)
     def is_opposite(tri):
+        if n in tri:
+            return False
         if not tri[0] < na or not tri[2] >= na:
             return False
         if tri[0]+1 == tri[1] and tri[1] < na:
@@ -61,7 +109,8 @@ def opposite_triangles(points, na):
         if tri[1]+1 == tri[2] and tri[1] >= na:
             return True
         return False
-    return map( lambda tri: map(int, tri), triangulate(points, is_opposite) )
+
+    return map( lambda tri: map(int, tri), triangulate(points+[pt], is_opposite) )
 
 # Calculates the distance between two parallel lines.
 def line_side(surface_line, cs_line):

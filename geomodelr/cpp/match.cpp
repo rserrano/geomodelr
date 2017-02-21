@@ -461,7 +461,23 @@ vector<triangle> Match::triangulate( const vector<point3>& l_a, const vector<poi
 	for ( const auto& p: l_b ) {
 		points.append(python::make_tuple(gx(p), gy(p), gz(p)));
 	}
-	pyobject pytris = Match::pytriangulate(points, na);
+	pyobject pytris;
+	try {
+		pytris = Match::pytriangulate(points, na);
+	} catch ( const python::error_already_set& ex ) {
+		PyObject *e, *v, *t;
+		PyErr_Fetch(&e, &v, &t);
+		if (!e) {
+			throw GeomodelrException("There was an error triangulating the faults");
+		}
+		
+		pyobject e_obj(python::handle<>(python::allow_null(e)));
+		pyobject v_obj(python::handle<>(python::allow_null(v)));
+		pyobject t_obj(python::handle<>(python::allow_null(t)));
+		
+		
+		throw GeomodelrException("There was an error triangulating the faults");
+	}
 	vector<triangle> tris;
 	int nt = python::len(pytris);
 	for ( int i = 0; i < nt; i++ ) {
