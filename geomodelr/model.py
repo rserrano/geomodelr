@@ -123,7 +123,11 @@ class GeologicalModel(cpp.Model):
         
         # Obtain the possible farthest cuts to add triangles towards them.
         bbox = self.geojson['bbox']
-        cuts = [shared.line_side(base_line, [bbox[0:3]]), shared.line_side(base_line, [bbox[3:6]])]
+        all_cuts = [shared.line_side(base_line, [bbox[0:3]]), shared.line_side(base_line, [bbox[3:6]]),
+                    shared.line_side(base_line, [[bbox[0], bbox[4], bbox[2]]]), shared.line_side(base_line, [[bbox[3], bbox[1], bbox[5]]])]
+        
+        
+        cuts = [min(all_cuts), max(all_cuts)]
         
         super(GeologicalModel, self).__init__(cuts, list(base_point), list(direction), geomap, topography, sections)
         self.make_matches()
