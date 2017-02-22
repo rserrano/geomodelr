@@ -452,6 +452,10 @@ class TestGeoModelR(unittest.TestCase):
         self.assertGreaterEqual(ref_grid['grid'].shape[2], ref_grid['units'].shape[2])
         
         grid = utils.generate_octtree_grid(query_func, bbox, 3, 3, 3)
+        vols, elems = utils.octtree_volume_calculation(query_func, bbox, 100, 3)
+        tot = sum( vols.values() )
+        exp = (bbox[3]-bbox[0])*(bbox[4]-bbox[1])*(bbox[5]-bbox[2])
+        
 
 def main(args=None):
     unittest.main()

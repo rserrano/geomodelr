@@ -1,4 +1,3 @@
-
 # Geomodelr query tool. Tools for using a geomodelr.com geological model.
 # Copyright (C) 2016 Geomodelr, Inc.
 # 
@@ -23,6 +22,7 @@ from shared import ModelException
 import random
 import numpy as np
 import itertools
+import gc
 
 def generate_simple_grid(query_func, bbox, grid_divisions):
     """
@@ -224,6 +224,7 @@ def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refi
                         l = points.shape[0]+len(points_ti)+len(newpoints)
                         newpoints.append((points[ie]+points[je])/2.0)
                         currelem.append(l)
+                        creamidx[ie,je] = l
                 for e in elemsidx:
                     newelems.append([])
                     for ie in e:
@@ -243,3 +244,291 @@ def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refi
         checked = ccopy
     
     return {'points': points, 'elems': elems, 'units': units}
+
+def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refine):
+    
+    simple = generate_fdm_grid(query_func, bbox, grid_divisions, fdm_refine)
+    grid  = simple['grid']
+    prev_units = simple['units']
+    # Convert it to mesh.
+    pdims = (grid.shape[0], grid.shape[1], grid.shape[2])
+    points = np.zeros((pdims[0]*pdims[1]*pdims[2], 3))
+    mdims = ts(pdims, (-1,-1,-1))
+    elems = np.zeros((mdims[0]*mdims[1]*mdims[2], 8), dtype=int)
+    units = np.zeros((pdims[0]*pdims[1]*pdims[2],), dtype=object)
+    for i in xrange(pdims[0]):
+        for j in xrange(pdims[1]):
+            for k in xrange(pdims[2]):
+                pidx = i*pdims[1]*pdims[2] + j*pdims[2] + k
+                points[pidx,:] = grid[i,j,k,:]
+                units[pidx] = prev_units[i,j,k]
+    
+    for i in xrange(mdims[0]):
+        for j in xrange(mdims[1]):
+            for k in xrange(mdims[2]):
+                pidx = i*pdims[1]*pdims[2] + j*pdims[2] + k
+                elem = []
+                for ix in range(2):
+                    for jx in range(2):
+                        for kx in range(2):
+                            elem.append(pidx+ix*pdims[1]*pdims[2]+jx*pdims[2]+kx)
+                elems[i*mdims[1]*mdims[2] + j*mdims[2] + k,:] = elem
+    
+    def should_refine_cell(idx):
+        # Check that all the points are equal.
+        u = None
+        for i in elems[idx,:]:
+            if u == None:
+                u = units[i]
+            elif u != units[i]:
+                return True
+        
+        # Find a random point and check if the formation is different to it.
+        a = points[elems[idx][0]]
+        b = points[elems[idx][1]]
+        g = triangular_pt(a, b)
+        ug = query_func(g)
+        if ug != u:
+            return True
+        return False
+    
+    midpairs = [(0,1),(2,3),(4,5),(6,7),(0,2),(1,3),(4,6),(5,7),(0,4),(1,5),(2,6),(3,7),(0,3),(4,7),(0,5),(2,7),(0,6),(1,7),(0,7)]
+    elemsidx = [(0,8,12,20,16,22,24,26),
+                (8,1,20,13,22,17,26,25),
+                (12,20,2,9,24,26,18,23),
+                (20,13,9,3,26,25,23,19),
+                (16,22,24,26,4,10,14,21),
+                (22,17,26,25,10,5,21,15),
+                (24,26,18,23,14,21,6,11),
+                (26,25,23,19,21,15,11,7)]
+    
+    checked = np.zeros((elems.shape[0],), dtype=bool)
+    for r in xrange(oct_refine):
+        
+        elems_ti = []
+        points_ti = []
+        units_ti = []
+        creamids = {}
+        
+        for idx in xrange(elems.shape[0]):
+            if not checked[idx] and should_refine_cell(idx):
+                newelems = []
+                newpoints = []
+                currelem = list(elems[idx,:])
+                for i,j in midpairs:
+                    ie, je = (elems[idx][i],elems[idx][j])
+                    if ( ie,je ) in creamids:
+                        currelem.append(creamids[ie,je])
+                    else:
+                        l = points.shape[0]+len(points_ti)+len(newpoints)
+                        newpoints.append((points[ie]+points[je])/2.0)
+                        currelem.append(l)
+                for e in elemsidx:
+                    newelems.append([])
+                    for ie in e:
+                        newelems[-1].append(currelem[ie])
+                units_ti += map( query_func, newpoints )
+                elems[idx] = newelems[0]
+                elems_ti += newelems[1:]
+                points_ti += newpoints
+            else:
+                checked[idx] = True
+        
+        units = np.insert(units, units.shape[0], units_ti)
+        points = np.insert(points, points.shape[0], np.array(points_ti), axis=0)
+        elems = np.insert(elems, elems.shape[0], elems_ti, axis=0)
+        ccopy = np.zeros((elems.shape[0],),dtype=bool)
+        ccopy[:checked.shape[0]] = checked
+        checked = ccopy
+    
+    return {'points': points, 'elems': elems, 'units': units}
+
+def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
+    
+    total_volumes = {}
+    
+    def percent_aggregated():
+        tot = sum( total_volumes.values() )
+        exp = (bbox[3]-bbox[0])*(bbox[4]-bbox[1])*(bbox[5]-bbox[2])
+        print tot, exp, "%s%%" % (100*tot/exp)
+    
+    # Generate a simple grid.
+    simple = generate_simple_grid(query_func, bbox, grid_divisions)
+    prev_units = simple['units']
+    grid = simple['grid']
+    
+    # Convert it to mesh.
+    pdims = (grid.shape[0], grid.shape[1], grid.shape[2])
+    points = np.zeros((pdims[0]*pdims[1]*pdims[2], 3))
+    mdims = ts(pdims, (-1,-1,-1))
+    elems = np.zeros((mdims[0]*mdims[1]*mdims[2], 8), dtype=int)
+    units = np.zeros((pdims[0]*pdims[1]*pdims[2],), dtype=object)
+    for i in xrange(pdims[0]):
+        for j in xrange(pdims[1]):
+            for k in xrange(pdims[2]):
+                pidx = i*pdims[1]*pdims[2] + j*pdims[2] + k
+                points[pidx,:] = grid[i,j,k,:]
+                units[pidx] = prev_units[i,j,k]
+    
+    for i in xrange(mdims[0]):
+        for j in xrange(mdims[1]):
+            for k in xrange(mdims[2]):
+                pidx = i*pdims[1]*pdims[2] + j*pdims[2] + k
+                elem = []
+                for ix in range(2):
+                    for jx in range(2):
+                        for kx in range(2):
+                            elem.append(pidx+ix*pdims[1]*pdims[2]+jx*pdims[2]+kx)
+                elems[i*mdims[1]*mdims[2] + j*mdims[2] + k,:] = elem
+    
+    print "INITIAL", elems.shape[0]
+    percent_aggregated()
+    # Function to check which cells should be refined.
+    def should_refine_cell(pts, uns):
+        # Check that all the points are equal.
+        u = None
+        for i in xrange(8):
+            if u == None:
+                u = uns[i]
+            elif u != uns[i]:
+                return True
+        # Find a random point inside and check if the formation is different to it.
+        a = pts[0]
+        b = pts[7]
+        g = triangular_pt(a, b)
+        ug = query_func(g)
+        if ug != u:
+            return True
+        return False
+    
+    def add_cell_volume(pts, uns):
+        diff = pts[7]-pts[0]
+        sm = diff[0]*diff[1]*diff[2]
+        unit = uns[0]
+        if unit in total_volumes:
+            total_volumes[unit] += sm    
+        else:
+            total_volumes[unit] = sm
+    
+    # Find which elements should remain, wich should be removed, and reduce points and units accordingly.
+    rem_idx = []
+    for i in xrange(elems.shape[0]):
+        if should_refine_cell(list(points[elems[i,:],:]), list(units[elems[i,:]])):
+            rem_idx.append(i)
+        else:
+            add_cell_volume(list(points[elems[i,:],:]), list(units[elems[i,:]]))
+    
+    elems = elems[rem_idx,:]
+    
+    def reduce_points( ):
+        rem_points = set()
+        for i in xrange(elems.shape[0]):
+            for j in xrange(8):
+                rem_points.add(elems[i,j])
+    
+        rem_points = sorted(list(rem_points))
+        points_dict = { n: i for i, n in enumerate(rem_points) }
+    
+        for i in xrange( elems.shape[0] ):
+            for j in xrange( 8 ):
+                elems[i, j] = points_dict[elems[i,j]]
+        return (points[rem_points], units[rem_points])
+        
+    points, units = reduce_points( )
+
+    midpairs = [(0,1),(2,3),(4,5),(6,7),(0,2),(1,3),(4,6),(5,7),(0,4),(1,5),(2,6),(3,7),(0,3),(4,7),(0,5),(2,7),(0,6),(1,7),(0,7)]
+    elemsidx = [(0,8,12,20,16,22,24,26),
+                (8,1,20,13,22,17,26,25),
+                (12,20,2,9,24,26,18,23),
+                (20,13,9,3,26,25,23,19),
+                (16,22,24,26,4,10,14,21),
+                (22,17,26,25,10,5,21,15),
+                (24,26,18,23,14,21,6,11),
+                (26,25,23,19,21,15,11,7)]
+    
+    
+    print "FILTERED", elems.shape[0]
+    percent_aggregated()
+    for r in xrange(oct_refine):
+        print "ITERATION", r
+        
+        elems_ti = []
+        points_ti = []
+        units_ti = []
+        creamids = {}
+        
+        for idx in xrange(elems.shape[0]):
+            newelems  = []
+            newpoints = []
+            newunits = []
+            currelem  = list(elems[idx,:])
+            creamthis = []
+            minuse = -1
+            
+            for i,j in midpairs:
+                ie, je = (elems[idx][i],elems[idx][j])
+                if ( ie,je ) in creamids:
+                    currelem.append(creamids[ie,je])
+                else:
+                    # Create a new node.
+                    newpoints.append((points[ie]+points[je])/2.0)
+                    newunits.append(query_func(newpoints[-1]))
+                    currelem.append(minuse)
+                    # Add it to the set of created.
+                    creamthis.append( (ie,je) )
+                    minuse -= 1
+            
+            for e in elemsidx:
+                newelems.append([])
+                for ie in e:
+                    newelems[-1].append(currelem[ie])
+            
+            rempts = set()
+            remele = []
+            
+            for e in newelems:
+                pt = []
+                u = []
+                for ie in e:
+                    if ie < 0:
+                        pt.append(newpoints[-ie-1])
+                        u.append(newunits[-ie-1])
+                    else:
+                        if ie >= points.shape[0]:
+                            pt.append(points_ti[ie-points.shape[0]])
+                            u.append(units_ti[ie-points.shape[0]])
+                        else:
+                            pt.append(points[ie,:])
+                            u.append(units[ie])
+                
+                if should_refine_cell(pt, u):
+                    remele.append(e)
+                    for ie in e:
+                        if ie < 0:
+                            rempts.add(ie)
+                else:
+                    add_cell_volume(pt, u)
+            
+            rempts = sorted(list(rempts), reverse=True)
+            
+            for i, n in enumerate(rempts):
+                l = len(points_ti) + points.shape[0]
+                points_ti.append(newpoints[-n-1])
+                units_ti.append(newunits[-n-1])
+                creamids[creamthis[-n-1]] = l
+                for e in remele:
+                    for j in range(8):
+                        if e[j] == n:
+                            e[j] = l
+            for e in remele:
+                elems_ti.append(e)
+        
+        points = np.append( points, points_ti, axis=0 )
+        units = np.append( units, units_ti, axis=0 )
+        elems = np.array(elems_ti)
+        points, units = reduce_points()
+        gc.collect()
+        print "ELEMENTS", elems.shape[0]
+        percent_aggregated()
+    
+    return ( total_volumes, { 'points': points, 'units': units, 'elems': elems } )
