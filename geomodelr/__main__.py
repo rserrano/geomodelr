@@ -24,6 +24,7 @@ import sys
 import shared
 import unittest
 import cpp
+import utils
 from model import GeologicalModel
 
 class ParametersException(Exception):
@@ -105,6 +106,28 @@ def intersect_plane( geojson, verbose=False ):
             raise
         line = sys.stdin.readline()
 
+def calculate_volumes( geojson, params, verbose=False ):
+    model = prep_model(geojson)
+    t = {}
+    
+    def query_func(p):
+        q = model.closest_topo(p)[0]
+        if q in t:
+            return t[q]
+        else:
+            l = len(t)
+            t[q] = l
+            return l
+    
+    vols, elems = utils.octtree_volume_calculation(query_func, model.geojson['bbox'], params[0], params[1])
+    
+    r = { v: k for k, v in t.iteritems() }
+    print "VOLUMES"
+    vols = sorted( [ ( v, k ) for k, v in vols.iteritems() ] )
+    for v, i in vols:
+        if r[i] != "AIR":
+            print "%s: %s" % ( r[i], v )
+
 def get_information(geojson, verbose):
     # Show map, cross sections, polygons, etc.
     model = GeologicalModel(json.loads(geojson.read()))
@@ -146,13 +169,19 @@ def main(args=None):
                        help = """ intersects a plane with the faults of the model and 
                                   returns the lines using the coordinate system dictated by the plane. """)
     
+    group.add_argument("-vol", "--volume", nargs=2, metavar=("INIT_REFS", "OCTREE_REFS"),
+                        default=None, type=int,
+                        help=""" approximates the raw volumes of every matherial in the model
+                                 using an octree. Parameters are the initial number of grid
+                                 refinements, and the number of octree subdivisions after that. """)
+
     parser.add_argument("-v", "--verbose", action="store_true",
                         help = """shows more information to the user.""")
     
     parser.add_argument("-p", "--profile", action="store_true",
                         help = """profiles geomodelr.""")
     
-    parser.add_argument("model", nargs="?", type=argparse.FileType('r'))
+    parser.add_argument("model", type=argparse.FileType('r'))
     args = parser.parse_args()
     
     if args.verbose:
@@ -173,6 +202,8 @@ def main(args=None):
         args.info(args.model, args.verbose)
     elif args.intersect_plane:
         args.intersect_plane(args.model, args.verbose)
+    elif args.volume:
+        calculate_volumes(args.model, args.volume)
     else:
         parser.print_help()
     

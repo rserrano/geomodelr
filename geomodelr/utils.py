@@ -350,7 +350,8 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
     def percent_aggregated():
         tot = sum( total_volumes.values() )
         exp = (bbox[3]-bbox[0])*(bbox[4]-bbox[1])*(bbox[5]-bbox[2])
-        print tot, exp, "%s%%" % (100*tot/exp)
+
+        print "VOLUME AGGREGATED", tot, "VOLUME EXPECTED", exp, "PERCENTAGE %s%%" % (100*tot/exp)
     
     # Generate a simple grid.
     simple = generate_simple_grid(query_func, bbox, grid_divisions)
@@ -362,7 +363,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
     points = np.zeros((pdims[0]*pdims[1]*pdims[2], 3))
     mdims = ts(pdims, (-1,-1,-1))
     elems = np.zeros((mdims[0]*mdims[1]*mdims[2], 8), dtype=int)
-    units = np.zeros((pdims[0]*pdims[1]*pdims[2],), dtype=object)
+    units = np.zeros((pdims[0]*pdims[1]*pdims[2],), dtype=int)
     for i in xrange(pdims[0]):
         for j in xrange(pdims[1]):
             for k in xrange(pdims[2]):
@@ -401,15 +402,26 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
             return True
         return False
     
-    def add_cell_volume(pts, uns):
+    def get_volume( pts ):
         diff = pts[7]-pts[0]
-        sm = diff[0]*diff[1]*diff[2]
-        unit = uns[0]
+        return diff[0]*diff[1]*diff[2]
+    
+    def add_volume( unit, sm ):
         if unit in total_volumes:
             total_volumes[unit] += sm    
         else:
             total_volumes[unit] = sm
     
+    def add_cell_volume(pts, uns):
+        sm = get_volume( pts )
+        unit = uns[0]
+        add_volume(unit, sm)
+    
+    def cell_size( ):
+        pts = points[elems[0,:]]
+        dif = pts[7]-pts[0]
+        print "CELL SIZE", dif[0], dif[1], dif[2]
+
     # Find which elements should remain, wich should be removed, and reduce points and units accordingly.
     rem_idx = []
     for i in xrange(elems.shape[0]):
@@ -449,6 +461,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
     
     print "FILTERED", elems.shape[0]
     percent_aggregated()
+    cell_size()
     for r in xrange(oct_refine):
         print "ITERATION", r
         
@@ -530,5 +543,12 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
         gc.collect()
         print "ELEMENTS", elems.shape[0]
         percent_aggregated()
+        cell_size()
     
+    for i in xrange(elems.shape[0]):
+        sm = get_volume(points[elems[i,:]])
+        for ie in elems[i,:].tolist():
+            add_volume( units[ie], sm / 8.0 )
+    print "APPROXIMATED"
+    percent_aggregated()
     return ( total_volumes, { 'points': points, 'units': units, 'elems': elems } )
