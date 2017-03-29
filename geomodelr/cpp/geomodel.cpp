@@ -148,3 +148,37 @@ BOOST_PYTHON_MODULE(cpp)
 						    .add_property("matches", &Model::get_matches, &Model::set_matches);
 }
 
+
+wstring human_failure_type( const geometry::validity_failure_type& fail )
+{
+	switch ( fail ) {
+		case geometry::validity_failure_type::no_failure:
+			return L"no failure";
+		case geometry::validity_failure_type::failure_few_points:
+			return L"failure few points";
+		case geometry::validity_failure_type::failure_wrong_topological_dimension:
+			return L"failure wrong topological dimension";
+		case geometry::validity_failure_type::failure_spikes:
+			return L"failure spikes";
+		case geometry::validity_failure_type::failure_duplicate_points:
+			return L"failure duplicate points";
+		case geometry::validity_failure_type::failure_not_closed:
+			return L"failure not closed";
+		case geometry::validity_failure_type::failure_self_intersections:
+			return L"failure self intersections";
+		case geometry::validity_failure_type::failure_wrong_orientation:
+			return L"failure wrong orientation";
+		case geometry::validity_failure_type::failure_interior_rings_outside:
+			return L"failure interior rings outside";
+		case geometry::validity_failure_type::failure_nested_interior_rings:
+			return L"failure nested interior rings";
+		case geometry::validity_failure_type::failure_disconnected_interior:
+			return L"failure disconnected interior";
+		case geometry::validity_failure_type::failure_intersecting_interiors:
+			return L"failure intersecting interiors";
+		case geometry::validity_failure_type::failure_wrong_corner_order:
+			return L"failure wrong corner order";
+		default:
+			return L"unknown";
+	}
+}

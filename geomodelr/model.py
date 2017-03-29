@@ -131,7 +131,7 @@ class GeologicalModel(cpp.Model):
         
         super(GeologicalModel, self).__init__(cuts, list(base_point), list(direction), geomap, topography, sections)
         self.make_matches()
-    
+        
     def make_matches(self):
         """ Prepares the model to query by matching polygons and lines.
             It finds which polygons, when projected to the next cross section,
@@ -139,6 +139,7 @@ class GeologicalModel(cpp.Model):
             by triangulating them and trying to find a continuous set of triangles
             between the two lines that go from the ends to the other side.
         """
+
         self.joined_faults = super(GeologicalModel, self).make_matches()
     
     def print_information( self, verbose=False ):

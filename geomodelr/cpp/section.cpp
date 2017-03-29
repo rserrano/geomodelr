@@ -58,17 +58,22 @@ Section::Section(const wstring& name, double cut, const pylist& points,
 				}
 			}
 		}
-
-		string message;
-		if ( not geometry::is_valid(pol, message) or not geometry::is_simple(pol) ) {
-			if ( Model::verbose ) {
-				string su(unit.begin(), unit.end());
-				std::cerr << "removed polygon with unit " << su << " valid: " << (geometry::is_valid(pol)?"true":"false")
-					  <<" simple: " << (geometry::is_simple(pol)?"true":"false") << "\n";
+		
+		geometry::validity_failure_type failure;
+		if ( not geometry::is_valid(pol, failure) ) {
+			geometry::correct(pol);
+			string reason;
+			if ( not geometry::is_valid(pol, reason) ) {
+				if ( Model::verbose ) {
+					std::wcerr << L"non valid polygon in section " << name << L" from with unit " << unit << L" valid: " << (geometry::is_valid(pol)?L"true":L"false")
+						   << L" simple: " << (geometry::is_simple(pol)?L"true":L"false") << "\n";
+				}
+				// continue; not avoiding non valid polygons, as they have been validated by shapely. Somehow these polygons get wronget.
 			}
+		}
+		if ( not geometry::is_simple(pol) ) {
 			continue;
 		}
-		
 		// Calculate the envelope and add it to build the rtree layer.
 		box env;
 		geometry::envelope(pol, env);

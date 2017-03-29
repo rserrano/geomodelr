@@ -63,12 +63,15 @@ pylist Match::get() const {
 void Match::match_polygons() {
 	map<wstring, vector<int>> units_a;
 	map<wstring, vector<int>> units_b;
+	
 	for ( size_t i = 0; i < this->a->polygons.size(); i++ ) {
 		units_a[this->a->units[i]].push_back(i);
 	}
+	
 	for ( size_t i = 0; i < this->b->polygons.size(); i++ ) {
 		units_b[this->b->units[i]].push_back(i);
 	}
+	
 	vector<std::pair<int, int>> m;
 	for ( auto it = units_a.begin(); it != units_a.end(); it++ ) {
 		if ( units_b.find(it->first) != units_b.end() ) {
@@ -84,6 +87,7 @@ void Match::match_polygons() {
 			}
 		}
 	}
+
 	this->set( m );
 }
 

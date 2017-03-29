@@ -35,6 +35,8 @@ using std::string;
 using std::wstring;
 using std::map;
 
+wstring human_failure_type( const geometry::validity_failure_type& fail );
+
 static const double tolerance = 1e-15;
 
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;

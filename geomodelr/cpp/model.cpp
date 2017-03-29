@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <functional>
 #include <cmath>
+#include <iostream>
 
 bool Model::verbose = false;
 
@@ -41,7 +42,7 @@ topography(nullptr)
 	}
 	size_t nsects = python::len(sections);
 	for ( size_t i = 0; i < nsects; i++ ) {
-		const wstring& name    = python::extract<wstring>(sections[i][0]);
+		wstring name    = python::extract<wstring>(sections[i][0]);
 		double cut             = python::extract<double>(sections[i][1]);
 		const pylist& points   = python::extract<pylist>(sections[i][2]);
 		const pylist& polygons = python::extract<pylist>(sections[i][3]);
@@ -50,6 +51,7 @@ topography(nullptr)
 		const pylist& lnames   = python::extract<pylist>(sections[i][6]);
 		this->sections.push_back(new Section(name, cut, points, polygons, units, lines, lnames));
 	}
+	
 	std::sort(this->sections.begin(), this->sections.end(), [](const Section* a, const Section* b){ return a->cut < b->cut; });
 	for ( size_t i = 0; i < this->sections.size(); i++ ) {
 		this->cuts.push_back(this->sections[i]->cut);
@@ -57,6 +59,7 @@ topography(nullptr)
 }
 
 Model::~Model(){
+	/* clears matches and sections from memory */
 	if ( this->topography != nullptr ) {
 		delete this->topography;
 	}
@@ -66,6 +69,7 @@ Model::~Model(){
 	}
 }
 void Model::clear_matches() {
+	/* clears all the matches from memory */
 	for ( Match * c: this->match ) {
 		delete c;
 	}
@@ -74,6 +78,7 @@ void Model::clear_matches() {
 
 pydict Model::make_matches() {
 	this->clear_matches();
+	
 	map<wstring, vector<triangle_pt>> faults;
 	auto add_to_faults = [&](const map<wstring, vector<triangle_pt>>& m) {
 		for ( auto it = m.begin(); it != m.end(); it++ ) {
@@ -82,19 +87,23 @@ pydict Model::make_matches() {
 			f.insert(f.end(), it->second.begin(), it->second.end());
 		}
 	};
-	// Get all the matching faults.
+	
 	for ( size_t i = 1; i < this->sections.size(); i++ ) {
+
 		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
+		// Match the polygons.
 		this->match.back()->match_polygons();
+		// Get the matching faults.
 		map<wstring, vector<triangle_pt>> m = this->match.back()->match_lines();
 		add_to_faults(m);
 	}
-
+	
 	// Get the extended faults from the begining.
 	if ( this->sections.size() and (this->sections[0]->cut - this->cuts_range.first) > tolerance ) {
 		map<wstring, vector<triangle_pt>> m = this->sections[0]->last_lines(true, this->cuts_range.first);
 		add_to_faults(m);
 	}
+	
 	// Get the extended faults from the end.
 	if ( this->sections.size() and (this->cuts_range.second - this->sections.back()->cut) > tolerance ) {
 		// Get the extended faults from the end.
@@ -107,12 +116,12 @@ pydict Model::make_matches() {
 		point3 glp = this->to_inverse_point(p, gz(pt));
 		return python::make_tuple(gx(glp), gy(glp), gz(glp));
 	};
-
+	
 	auto triangle_coords = [point_coords]( const triangle_pt& tr ) {
 		return python::make_tuple(point_coords(g0(tr)), point_coords(g1(tr)), point_coords(g2(tr)));
 	};
-
-	// Now convert to python and return.
+	
+	// Now convert faults to python and return.
 	pydict ret;
 	for ( auto it = faults.begin(); it != faults.end(); it++ ) {
 		pylist tris;
@@ -267,6 +276,7 @@ vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt ) c
 			possible.insert(a_possible(c));
 		}
 	}
+
 	return vector<Model::Possible>(possible.begin(), possible.end());
 }
 
@@ -359,6 +369,7 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 }
 
 std::tuple<int, int, double> Model::closest_to( size_t a_idx, const point2& pt, double cut ) const {
+	/* Returns the closest formation to a model. */
 	double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
 	double cut_rem = cut - this->cuts[a_idx];
 	double mult_b = cut_rem/s_dist;
@@ -457,6 +468,7 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 	size_t a_idx = it - this->cuts.begin();
 	// If it's behind the last or above the first, return the closest in the section.
+	
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
 		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(always_true));
@@ -465,15 +477,20 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 		ret.append(python::make_tuple(unit, cls.second, cls.second));
 		return ret;
 	}
+	
 	a_idx--;
+	
 	vector<Model::Possible> ap = this->all_closest(a_idx, mp.first);
+	
 	pylist ret;
+	
 	for ( size_t i = 0; i < ap.size(); i++ ) {
 		int a_match = ap[i].a_match;
 		int b_match = ap[i].b_match;
 		wstring unit = ( a_match != -1 ) ? this->sections[a_idx]->units[a_match] : this->sections[a_idx+1]->units[b_match];
 		ret.append(python::make_tuple(unit, ap[i].a_dist, ap[i].b_dist));
 	}
+	
 	return ret;
 }
 
@@ -498,6 +515,7 @@ pytuple Model::closest_topo( const pyobject& pypt ) const {
 }
 
 pytuple Model::closest(const pyobject& pypt) const {
+	/* python exposed functions to search for the closest formation */
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
@@ -512,9 +530,10 @@ pytuple Model::closest(const pyobject& pypt) const {
 	
 	std::pair<point2, double> mp = this->to_model_point(pt);
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
+	
 	size_t a_idx = it - this->cuts.begin();
 	// If it's behind the last or above the first, return the closest in the section.
-
+	
 	auto closest_single =[&](const Section& s) {
 		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(always_true));
 		if ( cls.first == -1 ) {
@@ -523,11 +542,13 @@ pytuple Model::closest(const pyobject& pypt) const {
 		wstring unit = s.units[cls.first];
 		return python::make_tuple(unit, cls.second);
 	};
+	
 	// For a cut below the lowest or above the highest.
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
 		return closest_single(s);
 	}
+	
 	// Check if it crosses a fault and then only evaluate the cross in the actual site.
 	a_idx--;
 	int crosses = this->match[a_idx]->crosses_triangles(mp.first, mp.second);

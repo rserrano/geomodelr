@@ -33,17 +33,19 @@ import sys
 
 class TestGeoModelR(unittest.TestCase):
     def setUp(self):
+        pass
         # Profile GeoModelR
-        self.pr = cProfile.Profile()
-        self.pr.enable()
+        # self.pr = cProfile.Profile()
+        # self.pr.enable()
     def tearDown(self):
+        pass
         # Print profiling of GeoModelR.
-        self.pr.disable()
-        s = StringIO.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print >> sys.stderr, s.getvalue()
+        # self.pr.disable()
+        # s = StringIO.StringIO()
+        # sortby = 'cumulative'
+        # ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
+        # ps.print_stats()
+        # print >> sys.stderr, s.getvalue()
 
     # Tests function fault plane for lines.
     def test_faultplane_for_lines(self):
@@ -215,6 +217,27 @@ class TestGeoModelR(unittest.TestCase):
             model.matches = [((u'B-B', u'C-C'), [(0, 0), (2, 2), (3, 4)])]
         with self.assertRaises(Exception):
             model.matches = [((u'C-C', u'D-D'), [(0, 0), (2, 2), (3, 4)])]
+    
+    def test_closest_single(self):
+        # Evaluate a model that has a hole in the middle.
+        points_1 = [[0, 0], [3, 0], [3, 3], [0, 3], [1, 1], [2, 1], [2, 2], [1, 2]]
+        points_2 = [[0, 0], [3, 0], [3, 3], [0, 3]]
+        
+        polygons_1 = [[[0, 1, 2, 3], [7, 6, 5, 4]], [[4, 5, 6, 7]]]
+        polygons_2 = [[[0, 1, 2, 3]]] 
+        
+        units_1 = ["unit1", "unit2"]
+        units_2 = ["unit1"]
+        
+        model = cpp.Model([0,0,3,3],[0, 0], [1, 0], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_2, units_2, [], [])])
+        model.make_matches()
+        self.assertEqual(model.model_point([1.5, 0.1, 1.5]), (1.5, 1.5, 0.1))
+        pos_cls = model.possible_closest((1.5, 1.1, 1.5))
+        self.assertEqual(pos_cls[0][0], 'unit1')
+        cls = model.closest((1.5, 1.1, 1.5))
+        self.assertEqual(cls[0], 'unit2')
+
+
     # Test the possible closest, all the units that can be a match given a line.
     def test_possible_closest(self):
         # Evaluate simple models.
@@ -452,7 +475,7 @@ class TestGeoModelR(unittest.TestCase):
         self.assertGreaterEqual(ref_grid['grid'].shape[2], ref_grid['units'].shape[2])
         
         grid = utils.generate_octtree_grid(query_func, bbox, 3, 3, 3)
-        vols, elems = utils.octtree_volume_calculation(query_func, bbox, 10, 3)
+        vols, elems = utils.octtree_volume_calculation(query_func, bbox, 10, 2)
 
 def main(args=None):
     unittest.main()
