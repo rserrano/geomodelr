@@ -22,7 +22,7 @@ def if_env(**kwargs):
     varname, default = kwargs.popitem()
     try:
         values = os.environ[varname].split(os.pathsep)
-        if len(value) < 1:
+        if len(values) < 1:
            return  default
         return values
     except KeyError:

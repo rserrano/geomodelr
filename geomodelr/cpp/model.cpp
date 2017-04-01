@@ -609,8 +609,8 @@ double Topography::height(const point2& pt) const {
 	point2 pos(gx(pt), gy(pt));
 	geometry::subtract_point(pos, this->point);
 	geometry::divide_point(pos, this->sample);
-	size_t x = int(gx(pos));
-	size_t y = int(gy(pos));
+	int x = int(gx(pos));
+	int y = int(gy(pos));
 
         if ( x < 0 )
             x = 0;

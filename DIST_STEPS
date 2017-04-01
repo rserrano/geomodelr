@@ -1,0 +1,12 @@
+BUILD GEOMODELR TO DISTRIBUTE
+
+LINUX:
+    python setup.py sdist
+    twine upload -u username -p password dist/geomodelr-x.y.z.tar.gz
+MAC OS X:
+- Install ports
+- Install boost ports. Make sure to activate python.
+    sudo ports install boost
+- Install pip. Make sure to activate python.
+    sudo ports install pip
+- 
