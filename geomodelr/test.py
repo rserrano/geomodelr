@@ -133,13 +133,13 @@ class TestGeoModelR(unittest.TestCase):
         points = [[0, 0], [1, 0], [0, 1], [1, 1]]
         polygons = [[[0, 1, 2, 3]]]
         section = cpp.Section("E-E", 4, points, polygons, units, lines, lnames)
-        self.assertEqual(section.info()['polygons'], 0)
+        self.assertEqual(section.info()['polygons'], 1)
         
         # Test polygons with holes.
         points = [[0, 0], [1, 0], [0, 1], [1, 1]]
         polygons = [[[0, 1, 2, 3]]]
         section = cpp.Section("F-F", 5, points, polygons, units, lines, lnames)
-        self.assertEqual(section.info()['polygons'], 0)
+        self.assertEqual(section.info()['polygons'], 1)
         
         # Test lines get created.
         points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1], [0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
@@ -460,11 +460,10 @@ class TestGeoModelR(unittest.TestCase):
             else:
                 usum[u] = 1
         # Now test performance.
-        # sample_grid = utils.generate_simple_grid(query_func, bbox, 100)
         rt = { v: k for k, v in t.iteritems() }
         
         srt = sorted(usum.items(), key = lambda i: rt[i[0]])
-        self.assertEqual(map( lambda x: x[1], srt ), [110, 45, 69, 5, 41, 5, 1, 56, 4, 7])
+        self.assertEqual(map( lambda x: x[1], srt ), [116, 43, 68, 4, 43, 5, 1, 52, 3, 8])
        
         # Then test the fdm refined grid.
         ref_grid = utils.generate_fdm_grid(query_func, bbox, 5, 5)
