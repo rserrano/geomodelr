@@ -38,11 +38,13 @@ The requirements of Geomodelr Query Tool are:
 - numpy, scipy and shapely, (pip will install them).
 
 In general, you can install geomodelr by calling::
+
     pip install geomodelr
 
 Ubuntu Linux
 ------------
 You can install it from the command line::
+
     # This will install boost.
     sudo apt-get install libboost-all-dev
     # This will install geomodelr globally. 
@@ -55,6 +57,7 @@ Mac OS X
 --------
 - Install mac ports from https://www.macports.org/
 - Now from the command line::
+
     sudo ports install boost
     sudo ports install pip
     INCLUDE_DIRS="/opt/local/include/boost" LIBRARY_DIRS="/opt/local/lib" LIBRARIES="boost_python-mt" pip install geomodelr --user
