@@ -8,7 +8,7 @@ To use geomodelr query tool you just need to::
     # load your model.
     model = geomodelr.model_from_file('/path/to/your/model_version.json')
     # query your model.
-    unit, distance = model.closest((1000, 1000, 0.0))
+    unit, gmlr_distance = model.closest((1000, 1000, 0.0))
     # do stuff...
     if unit == 'Batholith':
         ...
@@ -30,12 +30,36 @@ Features
 
 Installation
 ============
-Install project by calling::
 
+The requirements of Geomodelr Query Tool are:
+- Currently, Linux and Mac OS X are supported in Python 2.7 but we plan to support Windows and Python 3.5 in the near future.
+- C++ Build tools that support C++11.
+- Boost Libraries.
+- numpy, scipy and shapely, (pip will install them).
+
+In general, you can install geomodelr by calling::
     pip install geomodelr
 
-It needs boost libraries and C++ compiler. In case boost libraries are not in a 
-standard location, call it with :code:`INCLUDE_DIRS=...` and/or :code:`LIBRARY_DIRS=...`.
+Ubuntu Linux
+------------
+You can install it from the command line::
+    # This will install boost.
+    sudo apt-get install libboost-all-dev
+    # This will install geomodelr globally. 
+    sudo pip install geomodelr
+    # OR You can also use virtualenv.
+    virtualenv env && source env/bin/activate
+    pip install geomodelr
+
+Mac OS X
+--------
+- Install mac ports from https://www.macports.org/
+- Now from the command line::
+    sudo ports install boost
+    sudo ports install pip
+    INCLUDE_DIRS="/opt/local/include/boost" LIBRARY_DIRS="/opt/local/lib" LIBRARIES="boost_python-mt" pip install geomodelr --user
+
+Mac OS X El Capitan has a binary wheel so you don't need to install boost or anything besides pip and geomodelr. 
 
 Support
 =======

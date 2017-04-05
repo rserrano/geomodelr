@@ -7,8 +7,8 @@ To create a geological model:
 
 - Go to https://www.geomodelr.com.
 - Register.
-- Create your model.
-- Create and download a version of your model as Geological JSON.
+- Create a study and a model.
+- Create and download a model version of your model.
 
 You might want to use the model for calculations, geostatistics, 
 simulations, or simply to know what geological unit is present 
