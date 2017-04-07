@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from shapely.geometry import Polygon, Point, LineString
 import numpy as np
 from numpy import linalg as la
 from scipy.spatial import Delaunay

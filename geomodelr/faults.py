@@ -19,7 +19,7 @@ from scipy.spatial.distance import euclidean as dist
 import math
 import numpy as np
 from numpy import linalg as la
-from shapely.geometry import Polygon, Point, LineString
+from shapely.geometry import Polygon, LineString
 from copy import deepcopy
 
 # Finds the lines that result after intersecting a fault plane with a plane.
