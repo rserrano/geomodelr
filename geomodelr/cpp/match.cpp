@@ -39,10 +39,12 @@ Match::~Match( )
 void Match::set( const vector<std::pair<int, int>>& match ){
 	this->a_to_b.clear();
 	this->b_to_a.clear();
+	
 	for ( size_t i = 0; i < match.size(); i++ ) {
 		a_to_b[match[i].first].push_back(match[i].second);
 		b_to_a[match[i].second].push_back(match[i].first);
 	}
+
 }
 
 pylist Match::get() const {
@@ -102,9 +104,9 @@ void Match::load_polygons_match( const pylist& match ) {
 	this->set(vmatch);
 }
 
-int Match::crosses_triangles(const point2& point, double cut) const {
+std::tuple<int, int, int> Match::crosses_triangles(const point2& point, double cut) const {
 	if ( this->faultidx == nullptr ) {
-		return 0;
+		return std::make_tuple(0, -1, -1);
 	}
 	for ( auto it = this->faultidx->qbegin( geometry::index::contains(point) ); it != this->faultidx->qend(); it++ ) {
 		const auto fl = this->faults.find(g1(*it));
@@ -112,10 +114,11 @@ int Match::crosses_triangles(const point2& point, double cut) const {
 		int side = tr.crosses_triangle(point, cut);
 		if ( side != 0 ) 
 		{
-			return side;
+			const auto lni = this->rel_faults.find(g1(*it));
+			return std::make_tuple(side, g0(lni->second), g1(lni->second));
 		}
 	}
-	return 0;
+	return std::make_tuple(0, -1, -1);
 }
 
 AlignedTriangle::AlignedTriangle(const std::tuple<point3, point3, point3>& triangle) {
@@ -208,6 +211,7 @@ vector<triangle> test_start(const vector<triangle>& tris, const vector<point3>& 
 		}
 		return pa[i];
 	};
+	
 	auto weight = [&] ( const triangle& tri ) {
 		/*
 		Minimum angle in triangle denotes the weight.
@@ -218,6 +222,7 @@ vector<triangle> test_start(const vector<triangle>& tris, const vector<point3>& 
 		point3 ang = angles(dt);
 		return std::min(gx(ang), std::min(gy(ang), gz(ang)));
 	};
+	
 	auto weight_comp = [weight] ( const triangle& a, const triangle& b ) {
 		double wa = weight(a);
 		double wb = weight(b);
@@ -229,9 +234,11 @@ vector<triangle> test_start(const vector<triangle>& tris, const vector<point3>& 
 		}
 		return a < b;
 	};
+	
 	auto in_triangle = []( int i, const triangle& tri ) {
 		return (i == g0(tri) or i == g1(tri) or i == g2(tri));
 	};
+	
 	auto has_edge = [in_triangle](const triangle& tri, const edge& edg) {
 		return in_triangle(g0(edg), tri) and in_triangle(g1(edg), tri);
 	};
@@ -273,6 +280,7 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	/*
 	Get the faults plane between lines la, lb.
 	*/
+	
 	int na = l_a.size();
 	int nb = l_b.size();
 	vector<triangle> tris;
@@ -305,7 +313,6 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 		return a < b;
 	};
 	// Order the possible edges by weight. 
-	
 	std::set<edge, decltype(edge_comp)> pos_start( edge_comp );
 	
 	// Obtain the edges count in point distance order.
@@ -323,9 +330,11 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 			}
 		}
 	}
+	
 	if ( pos_start.size() == 0 ) {
 		throw GeomodelrException("Could not find a configuration to start the triangulation.");
 	}
+
 	// Obtain the minimum count for the edges, (hopefully is one, but, well, weird cases).
 	for ( const edge& start: pos_start ) {
 		try {
@@ -371,7 +380,7 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 	Creates the fault planes given the cross sections with faults with the same name.
 	*/
 	// Create map of related faults.
-	map<wstring, std::tuple<int, int>> rel_faults;
+	map<wstring, std::tuple<int, int>>& rel_faults = this->rel_faults;
 	for ( size_t i = 0; i < this->a->lines.size(); i++ )
 	{
 		const wstring& name = this->a->lnames[i];
@@ -379,6 +388,7 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 			rel_faults[name] = std::make_tuple(i, -1);
 		}
 	}
+	
 	for ( size_t i = 0; i < this->b->lines.size(); i++ ) {
 		const wstring& name = this->b->lnames[i];
 		if ( name != L"" and rel_faults.find(name) != rel_faults.end() ) {
@@ -423,7 +433,7 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 				[&] ( const triangle_pt& t ) -> AlignedTriangle {
 					return AlignedTriangle(std::make_tuple(g0(t), g1(t), g2(t))); 
 				} );
-		
+			
 		} catch ( const GeomodelrException& e ) {
 			if ( Model::verbose ) {
 				string aname(this->a->name.begin(), this->a->name.end());
@@ -494,4 +504,5 @@ vector<triangle> Match::triangulate( const vector<point3>& l_a, const vector<poi
 	}
 	return tris;
 }
+
 

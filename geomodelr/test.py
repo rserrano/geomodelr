@@ -395,9 +395,11 @@ class TestGeoModelR(unittest.TestCase):
     # Test that the model interpolates faults and that it takes the unit of the side it falls.
     def test_faults_model(self):
         points_1 = [[0, 0], [1, 0], [3, 0], [0, 0.5], [5.0/6.0, 0.5], [2.0/3.0, 1], [3, 1], [0.0, 1.5], [0.5, 1.5], [1.0/3.0, 2], [3, 2], [0, 2.5], [1.0/6.0, 2.5], [0, 3], [3,3]]
-        points_2 = [[0, 0], [2, 0], [3, 0], [0, 0.5], [2, 0.5], [2, 1], [3, 1], [0, 1.5], [2, 1.5], [2, 2], [3, 2], [0, 2.5], [2, 2.5], [0, 3], [2, 3], [3, 3]]
+        points_2 = [[0, 0], [2, 0], [3, 0], [0, 0.5], [2, 0.5],       [2, 1],       [3, 1], [0, 1.5],   [2, 1.5],   [2, 2],       [3, 2], [0, 2.5], [2, 2.5],       [0, 3], [2, 3], [3, 3]]
+        
         pols_1 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 14, 13, 12]], [[11, 12, 13]]]
         pols_2 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 15, 14, 12]], [[11, 12, 14, 13]]]
+        
         units = ["unit1", "unit1", "unit2", "unit2", "unit3", "unit3", "unit4"]
         
         model = cpp.Model([0,0,3,3],[0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, [], []), ("s2", 2, points_2, pols_2, units, [], [])])
@@ -417,10 +419,15 @@ class TestGeoModelR(unittest.TestCase):
         fname = ["F1"]
         model = cpp.Model([0,0,2,2],[0, 0], [1, 0], {}, {}, [("s1", 1, points_1, pols_1, units, faults_1, fname), ("s2", 2, points_2, pols_2, units, faults_2, fname)])
         model.make_matches()
+        
+        # print [points_1[n] for n in faults_1[0]]
+        # print [points_2[n] for n in faults_2[0]]
+
         # It should have the unit of the side of the fault.
         cls = model.closest([7.0/6.0, 1.4, 1.9])
         self.assertEqual(cls[0], 'unit2')
         self.assertAlmostEqual(cls[1], 0.0)
+        
         cls = model.closest([7.0/6.0, 1.6, 1.9])
         self.assertEqual(cls[0], 'unit3')
         self.assertAlmostEqual(cls[1], 0.0)

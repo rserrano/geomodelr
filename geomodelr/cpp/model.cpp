@@ -212,32 +212,35 @@ double Model::Possible::distance(double c) const {
 	return this->a_dist*c + this->b_dist*(1.0-c);
 }
 
-vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt ) const {
+vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
 	using geometry::index::satisfies;
 	const Section& s_a = *(this->sections[a_idx]);
 	const Section& s_b = *(this->sections[a_idx+1]);
 	
 	double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
 	
-	// Simple lambda for obtaining the match as a Possible.
+	// Given a match in section a, find a match in section b
 	double inf = std::numeric_limits<double>::infinity();
 	auto a_possible = [&](const std::pair<int, double>& cls) { 
+		// If it didn't find a match, just return no match.
 		if ( cls.first == -1 ) {
 			return Model::Possible(-1, -1, inf, inf);
 		}
-		std::pair<int, double> match = this->closest_match( true,  a_idx, cls.first, pt );
+		// Find the closest match in the oposite cross section.
+		std::pair<int, double> match = this->closest_match( true,  a_idx, cls.first, pt_b );
 		if ( match.first != -1 ) {
 			return Model::Possible(cls.first, match.first, cls.second, match.second);
 		} else {
 			return Model::Possible(cls.first, -1, cls.second, cls.second+s_dist);
 		}
 	};
-	
+	// Given a match in section b, find a match in section b.
 	auto b_possible = [&](const std::pair<int, double>& cls) { 
 		if ( cls.first == -1 ) {
 			return Model::Possible(-1, -1, inf, inf);
 		}
-		std::pair<int, double> match = this->closest_match( false,  a_idx, cls.first, pt );
+		// Find the match in section a.
+		std::pair<int, double> match = this->closest_match( false,  a_idx, cls.first, pt_a );
 		if ( match.first != -1 ) {
 			return Model::Possible(match.first, cls.first, match.second, cls.second);
 		} else {
@@ -246,15 +249,18 @@ vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt ) c
 	};
 	
 	std::set<Model::Possible> possible;
-	
+	// Find the closest polygon to a.
+	auto closest_in_a = s_a.closest_to(pt_a, satisfies(always_true));
 	// Find the closest polygon in s_a => clst_a.
-	Model::Possible clst_a = a_possible(s_a.closest_to(pt, satisfies(always_true)));
+	Model::Possible clst_a = a_possible(closest_in_a);
 	
+	// Find all polygons closer than the one we just found.
 	if ( clst_a.a_match != -1 ) {
 		possible.insert(clst_a);
 		auto not_first = [&](const value& v) { return v.second != clst_a.b_match; };
-		// Find the pols in s_b that are closer mindist => all_cls_a
-		vector<std::pair<int, double>> clsr_b = s_b.closer_than( pt, clst_a.b_dist, satisfies(not_first) );
+		// Find the pols in s_b that are closer mindist => all_cls_a.
+
+		vector<std::pair<int, double>> clsr_b = s_b.closer_than( pt_b, clst_a.b_dist, satisfies(not_first) );
 		if ( not clsr_b.size() ) 
 		{
 			return vector<Model::Possible>{ clst_a };
@@ -265,13 +271,14 @@ vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt ) c
 	}
 	
 	// Repeat the operation from s_b to s_a.
-	Model::Possible clst_b = b_possible(s_b.closest_to(pt, satisfies(always_true)));
+	auto closest_in_b = s_b.closest_to(pt_b, satisfies(always_true));
+	Model::Possible clst_b = b_possible(closest_in_b);
 	
 	if ( clst_b.b_match != -1 ) {
 		possible.insert(clst_b);
 		auto not_first = [&](const value& v) { return v.second != clst_b.b_match; };
 		// Find the pols in s_b that are closer mindist => all_cls_a.
-		vector<std::pair<int, double>> clsr_a = s_a.closer_than( pt, clst_b.a_dist, satisfies(not_first) );
+		vector<std::pair<int, double>> clsr_a = s_a.closer_than( pt_b, clst_b.a_dist, satisfies(not_first) );
 		for ( const auto& c: clsr_a ){
 			possible.insert(a_possible(c));
 		}
@@ -280,11 +287,12 @@ vector<Model::Possible> Model::get_candidates(size_t a_idx, const point2& pt ) c
 	return vector<Model::Possible>(possible.begin(), possible.end());
 }
 
-vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) const {
-	vector<Model::Possible> possible = this->get_candidates(a_idx, pt);
+vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
+	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b);
 	// First drop the non possible.
 	std::set<double> intersections;
 	vector<bool> drop(possible.size(), false);
+	
 	for ( size_t idx = 0; idx < possible.size(); idx++ ) {
 		if ( drop[idx] ) {
 			continue;
@@ -308,6 +316,7 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 			}
 		}
 	}
+	
 	// Then get the intersections for the possible.
 	for ( size_t idx = 0; idx < possible.size(); idx++ ) {
 		if ( drop[idx] ) {
@@ -368,14 +377,14 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt ) con
 	return ret;
 }
 
-std::tuple<int, int, double> Model::closest_to( size_t a_idx, const point2& pt, double cut ) const {
+std::tuple<int, int, double> Model::closest_to( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut ) const {
 	/* Returns the closest formation to a model. */
 	double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
 	double cut_rem = cut - this->cuts[a_idx];
 	double mult_b = cut_rem/s_dist;
 	double mult_a = 1.0-mult_b;
 	
-	vector<Model::Possible> possible = this->get_candidates(a_idx, pt);
+	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b);
 	double mindist = std::numeric_limits<double>::infinity();
 	double minidx = -1;
 	
@@ -480,7 +489,7 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	
 	a_idx--;
 	
-	vector<Model::Possible> ap = this->all_closest(a_idx, mp.first);
+	vector<Model::Possible> ap = this->all_closest(a_idx, mp.first, mp.first);
 	
 	pylist ret;
 	
@@ -534,7 +543,7 @@ pytuple Model::closest(const pyobject& pypt) const {
 	size_t a_idx = it - this->cuts.begin();
 	// If it's behind the last or above the first, return the closest in the section.
 	
-	auto closest_single =[&](const Section& s) {
+	auto closest_single = [&](const Section& s) {
 		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(always_true));
 		if ( cls.first == -1 ) {
 			return python::make_tuple(wstring(L"NONE", cls.second));
@@ -543,34 +552,46 @@ pytuple Model::closest(const pyobject& pypt) const {
 		return python::make_tuple(unit, cls.second);
 	};
 	
+
 	// For a cut below the lowest or above the highest.
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
 		return closest_single(s);
 	}
-	
-	// Check if it crosses a fault and then only evaluate the cross in the actual site.
+	auto closest_middle = [&]( const point2& pt_a, const point2& pt_b ) {
+		// Finally evaluate the full transition.
+		std::tuple<int, int, double> clst = this->closest_to(a_idx, pt_a, pt_b, mp.second);
+		int a_match = std::get<0>(clst);
+		int b_match = std::get<1>(clst);
+		wstring unit;
+		
+		// Get the closest unit.
+		if ( a_match == -1 and b_match == -1 ) {
+			unit = L"NONE";
+		} else if ( a_match == -1 ) { // If there's no unit located in one cross section. return the other.
+			unit = this->sections[a_idx+1]->units[b_match];
+		} else { // There's either a unit in the cross section or it's the same in both.
+			unit = this->sections[a_idx]->units[a_match];
+		}
+		return python::make_tuple(unit, std::get<2>(clst));
+	};
+
+
+	// Check if it crosses a fault and then, evaluate the cross section in the side normally, but move the point to the fault in the other.
 	a_idx--;
-	int crosses = this->match[a_idx]->crosses_triangles(mp.first, mp.second);
-	if ( crosses < 0 ) {
-		return closest_single(*(this->sections[a_idx]));
-	} else if ( crosses > 0 ) {
-		return closest_single(*(this->sections[a_idx+1]));
+	std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(mp.first, mp.second);
+	if ( g0(crosses) < 0 ) {
+		std::tuple<point2, double> closest = point_line_projection( mp.first, this->sections[a_idx+1]->lines[g2(crosses)] );
+		//double x = gx(g0(closest)), y = gy(g0(closest));
+		//std::cerr << "f_s " << x << " " << y << "\n";
+		return closest_middle( mp.first, g0(closest) );
+	} else if ( g0(crosses) > 0 ) {
+		std::tuple<point2, double> closest = point_line_projection( mp.first, this->sections[a_idx]->lines[g1(crosses)] );
+		//double x = gx(g0(closest)), y = gy(g0(closest));
+		//std::cerr << "s_f " << x << " " << y << "\n";
+		return closest_middle( g0(closest), mp.first );
 	}
-	
-	// Finally evaluate the full transition.
-	std::tuple<int, int, double> clst = this->closest_to(a_idx, mp.first, mp.second);
-	int a_match = std::get<0>(clst);
-	int b_match = std::get<1>(clst);
-	wstring unit;
-	if ( a_match == -1 and b_match == -1 ) {
-		unit = L"NONE";
-	} else if ( a_match == -1 ) {
-		unit = this->sections[a_idx+1]->units[b_match];
-	} else {
-		unit = this->sections[a_idx]->units[a_match];
-	}
-	return python::make_tuple(unit, std::get<2>(clst));
+	return closest_middle( mp.first, mp.first );
 }
 
 double Model::height( const pyobject& pt ) const {
@@ -588,18 +609,18 @@ point(python::extract<double>(point[0]), python::extract<double>(point[1])),
 sample(python::extract<double>(sample[0]), python::extract<double>(sample[1])),
 heights(python::extract<int>(dims[0]) * python::extract<int>(dims[1]))
 {
-	this->dims[0] = python::extract<size_t>(dims[0]);
-	this->dims[1] = python::extract<size_t>(dims[1]);
-	size_t rows = python::len(heights);
+	this->dims[0] = python::extract<int>(dims[0]);
+	this->dims[1] = python::extract<int>(dims[1]);
+	int rows = python::len(heights);
 	if ( rows != this->dims[0] ) {
 		throw GeomodelrException("topography rows does not correspond with dims.");
 	}
-	for ( size_t i = 0; i < rows; i++ ) {
-		size_t cols = python::len(heights[i]);
+	for ( int i = 0; i < rows; i++ ) {
+		int cols = python::len(heights[i]);
 		if ( cols != this->dims[1] ) {
 			throw GeomodelrException("topography columns does not correspond with dims.");
 		}
-		for ( size_t j = 0; j < cols; j++ ) {
+		for ( int j = 0; j < cols; j++ ) {
 			this->heights[i*this->dims[1]+j] = python::extract<double>(heights[i][j]);
 		}
 	}
@@ -625,5 +646,56 @@ double Topography::height(const point2& pt) const {
             y = this->dims[1]-1;
         
 	return this->heights[x*dims[1]+y];
+}
+
+std::tuple<point2, double> point_segment_projection( const point2& pt, const point2& ps, const point2& pe ) 
+{
+	double x  = gx(pt);
+	double y  = gy(pt);
+	double x1 = gx(ps);
+	double y1 = gy(ps);
+	double x2 = gx(pe);
+	double y2 = gy(pe);
+	
+	double A = x - x1;
+	double B = y - y1;
+	double C = x2 - x1;
+	double D = y2 - y1;
+	
+	double dot = A * C + B * D;
+	double len_sq = C * C + D * D;
+	double param = dot / len_sq;
+	
+	double xx, yy;
+	
+	if (param < 0 || (x1 == x2 && y1 == y2)) {
+	  xx = x1;
+	  yy = y1;
+	}
+	else if (param > 1) {
+	  xx = x2;
+	  yy = y2;
+	}
+	else {
+	  xx = x1 + param * C;
+	  yy = y1 + param * D;
+	}
+	
+	double dx = x - xx;
+	double dy = y - yy;
+	double dst = dx * dx + dy * dy;
+	return std::make_tuple( point2( xx, yy ), dst );
+}
+
+std::tuple<point2, double> point_line_projection( const point2& pt, const line& l ) 
+{
+	std::tuple<point2, double> closest = std::make_tuple(l[0], std::numeric_limits<double>::infinity());
+	for ( size_t i = 0; i < l.size()-1; i++ ) {
+		std::tuple<point2, double> cl_segment = point_segment_projection( pt, l[i], l[i+1] );
+		if ( g1(cl_segment) < g1(closest) ) {
+			closest = cl_segment;
+		}
+	}
+	return closest;
 }
 

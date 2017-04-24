@@ -107,10 +107,12 @@ class GeologicalModel(cpp.Model):
                 break
         
         # Calculate direction and base point.
+        
         try:
             base_line = base_section['transform']['line']
         except TypeError:
             raise shared.ModelException("The model needs minimum a base cross section.")
+        
         base_point = np.array(base_line[0][:2])
         direction = np.array(base_line[1][:2])-base_point
         direction = direction/la.norm(direction)
@@ -125,7 +127,6 @@ class GeologicalModel(cpp.Model):
         bbox = self.geojson['bbox']
         all_cuts = [shared.line_side(base_line, [bbox[0:3]]), shared.line_side(base_line, [bbox[3:6]]),
                     shared.line_side(base_line, [[bbox[0], bbox[4], bbox[2]]]), shared.line_side(base_line, [[bbox[3], bbox[1], bbox[5]]])]
-        
         
         cuts = [min(all_cuts), max(all_cuts)]
         
@@ -314,6 +315,7 @@ def model_from_file(filename):
         (GeologicalModel): The output Geological model to query the geological
         units freely.
     """
-    f = open(filename)
-    return GeologicalModel(json.loads(f.read()))
+    with open(filename) as f:
+        m = GeologicalModel(json.load(f))
+        return m
 

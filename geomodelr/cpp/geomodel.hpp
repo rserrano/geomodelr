@@ -128,6 +128,7 @@ class Match {
 	map<int, vector<int>> a_to_b;
 	map<int, vector<int>> b_to_a;
 	map<wstring, vector<AlignedTriangle>> faults;
+	map<wstring, std::tuple<int, int>> rel_faults;
 	rtree_f * faultidx;
 	void set( const vector<std::pair<int, int>>& match );
 public:
@@ -139,7 +140,7 @@ public:
 	pylist get() const;
 	static void load_triangulate();
 	static vector<triangle> triangulate(const vector<point3>& pa, const vector<point3>& pb);
-	int crosses_triangles(const point2& pt, double cut) const;
+	std::tuple<int, int, int> crosses_triangles(const point2& pt, double cut) const;
 };
 
 class Model {
@@ -165,9 +166,9 @@ class Model {
 	// Returns all the possible matches of this 2d point, given the distance is unknown.
 	std::pair<point2, double> to_model_point(const point3& pt) const;
 	point3 to_inverse_point(const point2& p, double cut) const;
-	vector<Possible> get_candidates(size_t a_idx, const point2& pt) const;
-	vector<Possible> all_closest(size_t a_idx, const point2& pt) const;
-	std::tuple<int, int, double> closest_to( size_t a_idx, const point2& pt, double cut ) const;
+	vector<Possible> get_candidates(size_t a_idx, const point2& pt_a, const point2& pt_b ) const;
+	vector<Possible> all_closest(size_t a_idx, const point2& pt_a, const point2& pt_b) const;
+	std::tuple<int, int, double> closest_to( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut ) const;
 public:
 	static bool verbose;
 	Model(const pyobject& cuts_range,
@@ -193,7 +194,7 @@ public:
 class Topography {
 	point2 point;
 	point2 sample;
-	size_t dims[2];
+	int dims[2];
 	vector<double> heights;
 public:
 	Topography( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights );
@@ -293,4 +294,7 @@ public:
 };
 
 pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
+
+
+std::tuple<point2, double> point_line_projection( const point2& p, const line& l );
 
