@@ -202,148 +202,86 @@ std::tuple<edge, edge> next_and_check(const triangle& tri, const edge& edg, size
 	}
 }
 
-vector<triangle> test_start(const vector<triangle>& tris, const vector<point3>& pa, const vector<point3>& pb, const edge& start)
+vector<triangle> test_start( const vector<point3>& pa, const vector<point3>& pb, bool binv )
 {
-	int na = pa.size();
-	auto pt = [&] ( int i ) -> const point3& {
-		if ( i >= na ) {
-			return pb[i-na];
+	auto next_a = [&] ( int i ) -> int {
+		return size_t(i+1) < pa.size() ? i+1:-1;
+	};
+	auto next_b = [&] ( int i ) -> int {
+		if ( binv ) {
+			return i-1;
+		} else {
+			return size_t(i+1) < pb.size() ? i+1:-1;
 		}
-		return pa[i];
 	};
-	
-	auto weight = [&] ( const triangle& tri ) {
-		/*
-		Minimum angle in triangle denotes the weight.
-		*/
-		point3 dt(geometry::distance(pt(g0(tri)), pt(g1(tri))), 
-			  geometry::distance(pt(g1(tri)), pt(g2(tri))), 
-			  geometry::distance(pt(g2(tri)), pt(g0(tri))));
-		point3 ang = angles(dt);
-		return std::min(gx(ang), std::min(gy(ang), gz(ang)));
+	auto b_idx = [&] ( int i ) -> int {
+		return pa.size() + i;
 	};
-	
-	auto weight_comp = [weight] ( const triangle& a, const triangle& b ) {
-		double wa = weight(a);
-		double wb = weight(b);
-		if ( wa < wb ) {
-			return true;
+
+	vector<triangle> result;
+	int n_a, n_b;
+	int c_a = 0;
+	int c_b = binv ? pb.size()-1 : 0;
+	n_a = next_a(c_a);
+	n_b = next_b(c_b);
+	while ( n_a != -1 || n_b != -1 ) { // Get next points if advance a, and if advance b, and check if they are not -1 both.
+		// Get triangle if advance a, centered in b.
+		point3 v = pa[c_a];
+		geometry::subtract_point( v, pb[c_b] );
+		geometry::divide_value( v, std::sqrt( geometry::dot_product( v, v ) ) );
+		
+		double angle_a = 0;
+		double angle_b = 0;
+		if ( n_a != -1 ) {
+			// Get vector if advance a.
+			point3 vn = pa[n_a];
+			geometry::subtract_point( vn, pb[c_b] );
+			geometry::divide_value( vn, std::sqrt( geometry::dot_product( vn, vn ) ) );
+			
+			// Get angle if advance a.
+			angle_a = std::acos(geometry::dot_product( v, vn ));
 		}
-		if ( wa > wb ) {
-			return false;
+		if ( n_b != -1 ) {
+			// Get vector if advance b.
+			point3 vn = pb[n_b];
+			geometry::subtract_point( vn, pa[c_a] );
+			geometry::divide_value( vn, std::sqrt( geometry::dot_product( vn, vn ) ) );
+			// Get angle if advance b.
+			angle_b = std::acos(-geometry::dot_product( v, vn ));
 		}
-		return a < b;
-	};
-	
-	auto in_triangle = []( int i, const triangle& tri ) {
-		return (i == g0(tri) or i == g1(tri) or i == g2(tri));
-	};
-	
-	auto has_edge = [in_triangle](const triangle& tri, const edge& edg) {
-		return in_triangle(g0(edg), tri) and in_triangle(g1(edg), tri);
-	};
-	
-	std::list<triangle> sorted_triangles( tris.begin(), tris.end() );
-	sorted_triangles.sort( weight_comp );
-	
-	edge nxtedg = start;
-	bool has_next;
-	vector<triangle> output_triangles;
-	
-	do {
-		has_next = false;
-		for ( auto it = sorted_triangles.begin(); it != sorted_triangles.end(); it++ ) {
-			if ( has_edge(*it, nxtedg) ) {
-				output_triangles.push_back(*it);
-				sorted_triangles.erase(it);
-				std::tuple<edge, edge> edgs = next_and_check(*it, nxtedg, na);
-				edge burnedg = g1(edgs);
-				auto to_burn = [&](const triangle& trr) {
-					return (has_edge(trr, burnedg) or has_edge(trr, nxtedg));
-				};
-				sorted_triangles.remove_if(to_burn);
-				nxtedg = g0(edgs);
-				has_next = true;
-				break;
-			}
+		std::cerr << "angles " << angle_a << " " << angle_b << "\n"; 
+		// Check angle if advance b.
+		if ( angle_a < angle_b ) {
+			result.push_back( triangle( c_a, b_idx(c_b), b_idx(n_b) ) );
+			c_b = n_b;
+		} else {
+			result.push_back( triangle( c_a, n_a, b_idx(c_b) ) );
+			c_a = n_a;
 		}
-	} while ( has_next );
-	if ( sorted_triangles.size() != 0 ) {
-		throw GeomodelrException("The faults were not completely triangulated");
+		n_a = next_a(c_a);
+		n_b = next_b(c_b);
 	}
-	return output_triangles;
+	return result;
 }
 
- 
 vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<point3>& l_b)
 {
-	/*
-	Get the faults plane between lines la, lb.
-	*/
+	// Get the faults plane between lines la, lb.
 	
-	int na = l_a.size();
-	int nb = l_b.size();
-	vector<triangle> tris;
+	point3 va = l_a.back();
+	geometry::subtract_point(va, l_a[0]);
+	geometry::divide_value( va, std::sqrt( geometry::dot_product( va, va ) ) );
 	
-	// Triangulate.
-	tris = Match::triangulate(l_a, l_b);
+	point3 vb = l_b.back();
+	geometry::subtract_point(vb, l_b[0]);
+	geometry::divide_value( vb, std::sqrt( geometry::dot_product( vb, vb ) ) );
 	
-	// pt is the point depending on the index.
-	auto pt = [&](int i) -> point3 {
-		if ( i >= na ) {
-			return l_b[i-na];
-		} else {
-			return l_a[i];
-		}
-	};
-	
-	auto pt_dist = [pt]( const edge& e ) -> double {
-		return geometry::distance(pt(g0(e)), pt(g1(e)));
-	};
-	
-	auto edge_comp = [pt_dist]( const edge& a, const edge& b ) -> bool {
-		double da = pt_dist(a);
-		double db = pt_dist(b);
-		if ( da < db ) {
-			return true;
-		}
-		if ( da > db ) {
-			return false;
-		}
-		return a < b;
-	};
-	// Order the possible edges by weight. 
-	std::set<edge, decltype(edge_comp)> pos_start( edge_comp );
-	
-	// Obtain the edges count in point distance order.
-	for ( const triangle& tri:  tris ) {
-		vector<edge> edgs;
-		edgs.push_back(std::make_tuple(g0(tri), g2(tri)));
-		if ( g1(tri) < na ) {
-			edgs.push_back(std::make_tuple(g1(tri), g2(tri)));
-		} else {
-			edgs.push_back(std::make_tuple(g0(tri), g1(tri)));
-		}
-		for ( const edge& edg: edgs ) {
-			if ( ( g0(edg) == 0 or g0(edg) == na-1) and (g1(edg) == na or g1(edg) == na+nb-1) ) {
-        			pos_start.insert(edg);
-			}
-		}
+	double angle = std::acos(geometry::dot_product( va, vb ));
+	//std::cerr << "angle " << angle << "\n";
+	if ( angle <= M_PI/2.0 ) {
+		return test_start( l_a, l_b, false );
 	}
-	
-	if ( pos_start.size() == 0 ) {
-		throw GeomodelrException("Could not find a configuration to start the triangulation.");
-	}
-
-	// Obtain the minimum count for the edges, (hopefully is one, but, well, weird cases).
-	for ( const edge& start: pos_start ) {
-		try {
-			return test_start(tris, l_a, l_b, start);
-		} catch ( const GeomodelrException& e ) {
-		
-		}
-	}
-	throw GeomodelrException("The faults were not completely triangulated");
+	return test_start( l_a, l_b, true  );
 }
 
 pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb) {
