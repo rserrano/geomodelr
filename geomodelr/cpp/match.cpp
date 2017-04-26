@@ -207,6 +207,7 @@ vector<triangle> test_start( const vector<point3>& pa, const vector<point3>& pb,
 	auto next_a = [&] ( int i ) -> int {
 		return size_t(i+1) < pa.size() ? i+1:-1;
 	};
+	
 	auto next_b = [&] ( int i ) -> int {
 		if ( binv ) {
 			return i-1;
@@ -214,50 +215,71 @@ vector<triangle> test_start( const vector<point3>& pa, const vector<point3>& pb,
 			return size_t(i+1) < pb.size() ? i+1:-1;
 		}
 	};
+	
 	auto b_idx = [&] ( int i ) -> int {
 		return pa.size() + i;
 	};
+	
+	auto norm = [] ( const point3& v ) {
+		return std::sqrt( geometry::dot_product( v, v ) );
+	};
 
+	auto normalize = [norm] ( point3& v ) {
+		geometry::divide_value( v, norm( v ) );
+	};
+	
+	auto vector_between = [normalize] ( const point3& pn, const point3& p ) {
+		point3 v = pn;
+		geometry::subtract_point( v, p );
+		normalize(v);
+		return v;
+	};
+	
+	double length_a = 0.0;
+	double length_b = 0.0;
+	
+	for ( size_t i = 0; i < pa.size()-1; i++ ) {
+		length_a += geometry::distance(pa[i], pa[i+1]);
+	}
+	
+	for ( size_t i = 0; i < pb.size()-1; i++ ) {
+		length_b += geometry::distance(pb[i], pb[i+1]);
+	}
+	
 	vector<triangle> result;
+	
 	int n_a, n_b;
 	int c_a = 0;
 	int c_b = binv ? pb.size()-1 : 0;
 	n_a = next_a(c_a);
 	n_b = next_b(c_b);
+	
+	double prop_a = 0.0;
+	double prop_b = 0.0;
+	
 	while ( n_a != -1 || n_b != -1 ) { // Get next points if advance a, and if advance b, and check if they are not -1 both.
-		// Get triangle if advance a, centered in b.
-		point3 v = pa[c_a];
-		geometry::subtract_point( v, pb[c_b] );
-		geometry::divide_value( v, std::sqrt( geometry::dot_product( v, v ) ) );
+		double next_prop_a = std::numeric_limits<double>::infinity();
+		double next_prop_b = std::numeric_limits<double>::infinity();
 		
-		double angle_a = 0;
-		double angle_b = 0;
 		if ( n_a != -1 ) {
-			// Get vector if advance a.
-			point3 vn = pa[n_a];
-			geometry::subtract_point( vn, pb[c_b] );
-			geometry::divide_value( vn, std::sqrt( geometry::dot_product( vn, vn ) ) );
-			
-			// Get angle if advance a.
-			angle_a = std::acos(geometry::dot_product( v, vn ));
+			next_prop_a = prop_a + (geometry::distance( pa[n_a], pa[c_a] )/length_a);
 		}
+		
 		if ( n_b != -1 ) {
-			// Get vector if advance b.
-			point3 vn = pb[n_b];
-			geometry::subtract_point( vn, pa[c_a] );
-			geometry::divide_value( vn, std::sqrt( geometry::dot_product( vn, vn ) ) );
-			// Get angle if advance b.
-			angle_b = std::acos(-geometry::dot_product( v, vn ));
+			next_prop_b = prop_b + (geometry::distance( pb[n_b], pb[c_b] )/length_b);
 		}
-		std::cerr << "angles " << angle_a << " " << angle_b << "\n"; 
+		
 		// Check angle if advance b.
-		if ( angle_a < angle_b ) {
+		if ( next_prop_b < next_prop_a ) {
 			result.push_back( triangle( c_a, b_idx(c_b), b_idx(n_b) ) );
 			c_b = n_b;
+			prop_b = next_prop_b;
 		} else {
 			result.push_back( triangle( c_a, n_a, b_idx(c_b) ) );
 			c_a = n_a;
+			prop_a = next_prop_a;
 		}
+
 		n_a = next_a(c_a);
 		n_b = next_b(c_b);
 	}
