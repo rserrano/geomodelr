@@ -16,16 +16,13 @@
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "geomodel.hpp"
+#include "match.hpp"
 #include <cmath>
 
-
-pyobject Match::pytriangulate = python::object();
 
 Match::Match( const Section * a, const Section * b )
 :a(a), b(b), faultidx(nullptr)
 {
-	Match::load_triangulate();
 }
 
 Match::~Match( )
@@ -44,23 +41,9 @@ void Match::set( const vector<std::pair<int, int>>& match ){
 		a_to_b[match[i].first].push_back(match[i].second);
 		b_to_a[match[i].second].push_back(match[i].first);
 	}
-
 }
 
-pylist Match::get() const {
-	std::set<std::pair<int, int>> ret;
-	for ( auto it = this->a_to_b.begin(); it != this->a_to_b.end(); it++ ) {
-		const vector<int>& m = it->second;
-		for ( size_t j = 0; j < m.size(); j++ ) {
-			ret.insert(std::make_pair(it->first, m[j]));
-		}
-	}
-	pylist tret;
-	for ( auto it = ret.begin(); it != ret.end(); it++ ) {
-		tret.append(python::make_tuple(it->first, it->second));
-	}
-	return tret;
-}
+
 
 void Match::match_polygons() {
 	map<wstring, vector<int>> units_a;
@@ -93,16 +76,7 @@ void Match::match_polygons() {
 	this->set( m );
 }
 
-void Match::load_polygons_match( const pylist& match ) {
-	vector<std::pair<int, int>> vmatch;
-	size_t nmatch = python::len(match);
-	for ( size_t i = 0; i < nmatch; i++ ) {
-		int a = python::extract<int>(match[i][0]);
-		int b = python::extract<int>(match[i][1]);
-		vmatch.push_back(std::make_pair(a, b));
-	}
-	this->set(vmatch);
-}
+
 
 std::tuple<int, int, int> Match::crosses_triangles(const point2& point, double cut) const {
 	if ( this->faultidx == nullptr ) {
@@ -306,33 +280,7 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	return test_start( l_a, l_b, true  );
 }
 
-pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb) {
-	Match::load_triangulate();
-	auto pypoint = []( const pyobject& pt ) {
-		return point3(python::extract<double>(pt[0]), 
-			      python::extract<double>(pt[1]), 
-			      python::extract<double>(pt[2]));
-	};
-	auto pytovct = [pypoint]( const pylist& pyl ) {
-		vector<point3> l;
-		for ( int i = 0; i < python::len(pyl); i++ ) {
-			l.push_back(pypoint(python::extract<pyobject>(pyl[i])));
-		}
-		return l;
-	};
-	auto vcttopy = []( const vector<triangle>& l ) {
-		pylist pyl;
-		for ( size_t i = 0; i < l.size(); i++ ) {
-			pyl.append(python::make_tuple(g0(l[i]),g1(l[i]),g2(l[i])));
-		}
-		return pyl;
-	};
-	vector<point3> la = pytovct(pyla);
-	vector<point3> lb = pytovct(pylb);
-	
-	vector<triangle> res = faultplane_for_lines(la, lb);
-	return vcttopy(res);
-}
+
 
 map<wstring, vector<triangle_pt>> Match::match_lines()
 {
@@ -418,51 +366,55 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 	return retfaults;
 }
 
-
-void Match::load_triangulate() {
-	if ( Match::pytriangulate.is_none() ) {
-		pyobject shared = python::import("geomodelr.shared");
-		Match::pytriangulate = shared.attr("opposite_triangles");
+void MatchPython::set( const pylist& match ) {
+	vector<std::pair<int, int>> vmatch;
+	size_t nmatch = python::len(match);
+	for ( size_t i = 0; i < nmatch; i++ ) {
+		int a = python::extract<int>(match[i][0]);
+		int b = python::extract<int>(match[i][1]);
+		vmatch.push_back(std::make_pair(a, b));
 	}
+	((Match *)this)->set(vmatch);
 }
 
-vector<triangle> Match::triangulate( const vector<point3>& l_a, const vector<point3>& l_b ) {
-	pylist points;
-	for ( const auto& p: l_a ) {
-		points.append(python::make_tuple(gx(p), gy(p), gz(p)));
-	}
-	int na = python::len(points);
-	for ( const auto& p: l_b ) {
-		points.append(python::make_tuple(gx(p), gy(p), gz(p)));
-	}
-	pyobject pytris;
-	try {
-		pytris = Match::pytriangulate(points, na);
-	} catch ( const python::error_already_set& ex ) {
-		PyObject *e, *v, *t;
-		PyErr_Fetch(&e, &v, &t);
-		if (!e) {
-			throw GeomodelrException("There was an error triangulating the faults");
+pylist MatchPython::get() const {
+	std::set<std::pair<int, int>> ret;
+	for ( auto it = this->a_to_b.begin(); it != this->a_to_b.end(); it++ ) {
+		const vector<int>& m = it->second;
+		for ( size_t j = 0; j < m.size(); j++ ) {
+			ret.insert(std::make_pair(it->first, m[j]));
 		}
-		
-		pyobject e_obj(python::handle<>(python::allow_null(e)));
-		pyobject v_obj(python::handle<>(python::allow_null(v)));
-		pyobject t_obj(python::handle<>(python::allow_null(t)));
-		
-		
-		throw GeomodelrException("There was an error triangulating the faults");
 	}
-	vector<triangle> tris;
-	int nt = python::len(pytris);
-	for ( int i = 0; i < nt; i++ ) {
-		const pyobject& t = python::extract<pyobject>(pytris[i]);
-		int t0 = python::extract<int>(t[0]);
-		int t1 = python::extract<int>(t[1]);
-		int t2 = python::extract<int>(t[2]);
-		
-		tris.push_back(std::make_tuple(t0, t1, t2));
+	pylist tret;
+	for ( auto it = ret.begin(); it != ret.end(); it++ ) {
+		tret.append(python::make_tuple(it->first, it->second));
 	}
-	return tris;
+	return tret;
 }
 
-
+pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb) {
+	auto pypoint = []( const pyobject& pt ) {
+		return point3(python::extract<double>(pt[0]), 
+			      python::extract<double>(pt[1]), 
+			      python::extract<double>(pt[2]));
+	};
+	auto pytovct = [pypoint]( const pylist& pyl ) {
+		vector<point3> l;
+		for ( int i = 0; i < python::len(pyl); i++ ) {
+			l.push_back(pypoint(python::extract<pyobject>(pyl[i])));
+		}
+		return l;
+	};
+	auto vcttopy = []( const vector<triangle>& l ) {
+		pylist pyl;
+		for ( size_t i = 0; i < l.size(); i++ ) {
+			pyl.append(python::make_tuple(g0(l[i]),g1(l[i]),g2(l[i])));
+		}
+		return pyl;
+	};
+	vector<point3> la = pytovct(pyla);
+	vector<point3> lb = pytovct(pylb);
+	
+	vector<triangle> res = faultplane_for_lines(la, lb);
+	return vcttopy(res);
+}

@@ -23,9 +23,13 @@ Section::~Section()
 		delete this->polidx;
 	}
 }
-Section::Section(const wstring& name, double cut, const pylist& points, 
+Section::Section( const wstring& name, double cut ): name(name), cut(cut), polidx(nullptr) 
+{
+}
+
+SectionPython::SectionPython(const wstring& name, double cut, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
-	const pylist& lines, const pylist& lnames ): name(name), cut(cut), polidx(nullptr)
+	const pylist& lines, const pylist& lnames ): Section( name, cut )
 {
 	size_t npols = python::len(polygons);
 	vector<value> envelopes;
@@ -103,7 +107,7 @@ Section::Section(const wstring& name, double cut, const pylist& points,
 	}
 }
 
-pydict Section::info() 
+pydict SectionPython::info() 
 const {
 	pydict res;
 	res["polygons"] = this->polygons.size();
@@ -111,18 +115,20 @@ const {
 	return res;
 }
 
-
-pytuple Section::closest( const pyobject& pypt ) 
+pytuple SectionPython::closest( const pyobject& pypt ) 
 const {
 	double x = python::extract<double>(pypt[0]);
 	double y = python::extract<double>(pypt[1]);
 	point2 p(x, y);
-
-	std::pair<int, int> cls = this->closest_to(p, geometry::index::satisfies(always_true));
+	
+	std::pair<int, int> cls = this->closest(p, geometry::index::satisfies(always_true));
+	
 	if ( cls.first == -1 ) {
 		return python::make_tuple(-1, wstring(L"NONE"));
 	}
+	
 	return python::make_tuple(cls.first, this->units[cls.first]);
+
 }
 
 bool always_true( const value& v )

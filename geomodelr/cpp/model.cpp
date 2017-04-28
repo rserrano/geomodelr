@@ -24,10 +24,12 @@
 
 bool Model::verbose = false;
 
-Model::Model( const pyobject& cuts_range, const pyobject& base_point, const pyobject& direction, const pyobject& map, const pyobject& topography, const pylist& sections ):
-base_point(python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
-direction(python::extract<double>(direction[0]), python::extract<double>(direction[1]) ),
-topography(nullptr)
+ModelPython::ModelPython( const pyobject& cuts_range, const pyobject& base_point, 
+		    const pyobject& direction, const pyobject& map, 
+		    const pyobject& topography, const pylist& sections ):
+	base_point(python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
+	direction(python::extract<double>(direction[0]), python::extract<double>(direction[1]) ),
+	topography(nullptr)
 {
 	double c0 = python::extract<double>(cuts_range[0]);
 	double c1 = python::extract<double>(cuts_range[1]);
@@ -38,7 +40,7 @@ topography(nullptr)
 		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
 		const pyobject& dims = python::extract<pyobject>(topography["dims"]);
 		const pylist& heights = python::extract<pylist>(topography["heights"]);
-		this->topography = new Topography(point, sample, dims,heights);
+		this->topography = new Topography(point, sample, dims, heights);
 	}
 	size_t nsects = python::len(sections);
 	for ( size_t i = 0; i < nsects; i++ ) {
@@ -63,7 +65,9 @@ Model::~Model(){
 	if ( this->topography != nullptr ) {
 		delete this->topography;
 	}
+	
 	this->clear_matches();
+	
 	for ( auto it = this->sections.begin(); it != this->sections.end(); it++ ) {
 		delete *it;
 	}
@@ -76,7 +80,7 @@ void Model::clear_matches() {
 	this->match.clear();
 }
 
-pydict Model::make_matches() {
+map<wstring, vector<triangle_pt>> Model::make_matches() {
 	this->clear_matches();
 	
 	map<wstring, vector<triangle_pt>> faults;
@@ -121,6 +125,10 @@ pydict Model::make_matches() {
 		return python::make_tuple(point_coords(g0(tr)), point_coords(g1(tr)), point_coords(g2(tr)));
 	};
 	
+}
+
+pydict ModelPython::make_matches() {
+	(Model *)this->make_matches();
 	// Now convert faults to python and return.
 	pydict ret;
 	for ( auto it = faults.begin(); it != faults.end(); it++ ) {
@@ -136,13 +144,14 @@ pydict Model::make_matches() {
 	return ret;
 }
 
-void Model::set_matches( const pylist& matching ) {
+void Model::set_matches( const vector< std::tuple< std::tuple<wstring, wstring>, vector<int> > >& matching ) 
+{
 	this->clear_matches();
-	size_t nmatch = python::len(matching);
 	map<std::pair<wstring, wstring>, int> match;
-	for ( size_t i = 0; i < nmatch; i++ ) {
-		const wstring& name1 = python::extract<wstring>(matching[i][0][0]);
-		const wstring& name2 = python::extract<wstring>(matching[i][0][1]);
+	
+	for ( size_t i = 0; i < matching.size(); i++ ) {
+		const wstring& name1 = g0(g0(matching[i]));
+		const wstring& name2 = g1(g0(matching[i]));
 		auto key = std::make_pair(name1,name2);
 		match[key] = i;
 	}
@@ -158,13 +167,34 @@ void Model::set_matches( const pylist& matching ) {
 			error += sname2;
 			throw GeomodelrException(error.c_str());
 		}
-		const pylist& m = python::extract<pylist>(matching[match[std::make_pair(name1, name2)]][1]);
+		const vector<int>& m = g1(matching[match[std::make_pair(name1, name2)]]);
 		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
-		this->match.back()->load_polygons_match(m);
+		this->match.back()->set(m);
 	}
 }
 
-pylist Model::get_matches( ) const {
+void ModelPython::set_matches( const pylist& matching ) {
+	this->clear_matches();
+	size_t nmatch = python::len(matching);
+	vector< std::tuple< std::tuple<wstring, wstring>, vector<int> > > cppmatching;
+	for ( size_t i = 0; i < nmatch; i++ ) {
+		const wstring& name1 = python::extract<wstring>(matching[i][0][0]);
+		const wstring& name2 = python::extract<wstring>(matching[i][0][1]);
+		vector<std::pair<int, int>> vmatch;
+		
+		size_t pmatch = python::len(matching[i][1]);
+		for ( size_t j = 0; j < mmatch; j++ ) {
+			int a = python::extract<int>(matching[i][1][j][0]);
+			int b = python::extract<int>(matching[i][1][j][1]);
+			
+			vmatch.push_back(std::make_pair(a, b));
+		}
+		cppmatching.push_back(std::make_tuple( make_tuple(name1, name2), vmatch ));
+	}
+	((Match *)this)->set_matches( cppmatching )
+}
+
+pylist ModelPython::get_matches( ) const {
 	pylist ret;
 	for ( size_t i = 0; i < this->match.size(); i++ ) {
 		const wstring& name1 = this->sections[i]->name;
@@ -402,7 +432,7 @@ std::tuple<int, int, double> Model::closest_to( size_t a_idx, const point2& pt_a
 }
 
 
-std::pair<point2, double> Model::to_model_point( const point3& pt ) const {
+std::pair<point2, double> Model::model_point( const point3& pt ) const {
 
 	point2 ppoint(gx(pt), gy(pt));
 	const double& z = gz(pt);
@@ -424,7 +454,7 @@ std::pair<point2, double> Model::to_model_point( const point3& pt ) const {
 	return std::make_pair(point2(d*norm, z), c*norm);
 }
 
-point3 Model::to_inverse_point( const point2& pt, double cut ) const {
+point3 Model::inverse_point( const point2& pt, double cut ) const {
 	const double& d0 = gx(this->direction);
 	const double& d1 = gy(this->direction);
 	
@@ -439,41 +469,15 @@ point3 Model::to_inverse_point( const point2& pt, double cut ) const {
 	return point3(gx(this->base_point) + v0, gy(this->base_point) + v1, p1);
 }
 
-pytuple Model::model_point( const pyobject& pypt ) const {
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& p2 = python::extract<double>(pypt[2]);
-	point3 pt(p0, p1, p2);
-	std::pair<point2, double> mp = this->to_model_point( pt );
-	const double& m0 = gx(mp.first);
-	const double& m1 = gy(mp.first);
-	return python::make_tuple(m0, m1, mp.second);
-}
-
-pytuple Model::inverse_point( const pyobject& pypt ) const {
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& cut = python::extract<double>(pypt[2]);
-	point2 pt(p0, p1);
-	point3 mp = this->to_inverse_point( pt, cut );
-	const double& m0 = gx(mp);
-	const double& m1 = gy(mp);
-	const double& m2 = gz(mp);
-	return python::make_tuple(m0, m1, m2);
-}
-
-pylist Model::possible_closest(const pyobject& pypt) const {
+vector<std::tuple<wstring, double, double>> possible_closest( const point3& pt ) {
 	if ( not this->sections.size() ) {
 		return pylist();
 	}
 	if ( this->match.size()+1 != this->sections.size() ) {
 		throw GeomodelrException("You need to call make_matches before using this function.");
 	}
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& p2 = python::extract<double>(pypt[2]);
-	point3 pt(p0, p1, p2);
-	std::pair<point2, double> mp = this->to_model_point(pt);
+	std::pair<point2, double> mp = this->model_point(pt);
+
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 	size_t a_idx = it - this->cuts.begin();
 	// If it's behind the last or above the first, return the closest in the section.
@@ -491,53 +495,53 @@ pylist Model::possible_closest(const pyobject& pypt) const {
 	
 	vector<Model::Possible> ap = this->all_closest(a_idx, mp.first, mp.first);
 	
-	pylist ret;
+	vector<std::tuple<wstring, double, double>> ret;
 	
 	for ( size_t i = 0; i < ap.size(); i++ ) {
 		int a_match = ap[i].a_match;
 		int b_match = ap[i].b_match;
 		wstring unit = ( a_match != -1 ) ? this->sections[a_idx]->units[a_match] : this->sections[a_idx+1]->units[b_match];
-		ret.append(python::make_tuple(unit, ap[i].a_dist, ap[i].b_dist));
+		ret.push_back(std::make_tuple(unit, ap[i].a_dist, ap[i].b_dist));
 	}
 	
 	return ret;
+
 }
 
-pydict Model::info() const {
-	pydict ret;
-	for ( const Section * s: this->sections ) {
-		ret[s->name] = s->info();
-	}
-	return ret;
-}
-
-pytuple Model::closest_topo( const pyobject& pypt ) const {
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& p2 = python::extract<double>(pypt[2]);
-	if ( this->topography != nullptr ) {
-		if ( this->topography->height(point2(p0, p1)) < p2 ) {
-			return python::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
-		}
-	}
-	return this->closest(pypt);
-}
-
-pytuple Model::closest(const pyobject& pypt) const {
-	/* python exposed functions to search for the closest formation */
+pylist ModelPython::possible_closest(const pyobject& pypt) const {
 	const double& p0 = python::extract<double>(pypt[0]);
 	const double& p1 = python::extract<double>(pypt[1]);
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
+	vector<std::tuple<wstring, double, double>> possible = ((Model *)this)->possible_closest(pt);
+	pylist ret;
+	for ( size_t i = 0; i < possible.size(); i++ ) {
+		ret.append(python::make_tuple(g0(possible[i]), g1(possible[i]), g2(possible[i])));
+	}
+	return ret;
+}
+
+std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
+	if ( this->topography != nullptr ) {
+		if ( this->height(point2(g0(pt), g1(pt))) < g2(pt) ) {
+			return std::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
+		}
+	}
+	return this->closest(pt);
+}
+
+std::tuple<wstring, double> Model::closest( const point3& pt ) {
+
 	if ( not this->sections.size() ) {
-		return python::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
+		return std::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
 	}
 	
 	if ( this->match.size()+1 != this->sections.size() ) {
 		throw GeomodelrException("You need to call make_matches before using this function.");
 	}
 	
-	std::pair<point2, double> mp = this->to_model_point(pt);
+	std::pair<point2, double> mp = this->model_point(pt);
+	
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 	
 	size_t a_idx = it - this->cuts.begin();
@@ -546,18 +550,18 @@ pytuple Model::closest(const pyobject& pypt) const {
 	auto closest_single = [&](const Section& s) {
 		std::pair<int, double> cls = s.closest_to(mp.first, geometry::index::satisfies(always_true));
 		if ( cls.first == -1 ) {
-			return python::make_tuple(wstring(L"NONE", cls.second));
+			return std::make_tuple(wstring(L"NONE", cls.second));
 		}
 		wstring unit = s.units[cls.first];
-		return python::make_tuple(unit, cls.second);
+		return std::make_tuple(unit, cls.second);
 	};
 	
-
 	// For a cut below the lowest or above the highest.
 	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
 		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
 		return closest_single(s);
 	}
+
 	auto closest_middle = [&]( const point2& pt_a, const point2& pt_b ) {
 		// Finally evaluate the full transition.
 		std::tuple<int, int, double> clst = this->closest_to(a_idx, pt_a, pt_b, mp.second);
@@ -573,7 +577,7 @@ pytuple Model::closest(const pyobject& pypt) const {
 		} else { // There's either a unit in the cross section or it's the same in both.
 			unit = this->sections[a_idx]->units[a_match];
 		}
-		return python::make_tuple(unit, std::get<2>(clst));
+		return std::make_tuple(unit, std::get<2>(clst));
 	};
 
 
@@ -582,48 +586,82 @@ pytuple Model::closest(const pyobject& pypt) const {
 	std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(mp.first, mp.second);
 	if ( g0(crosses) < 0 ) {
 		std::tuple<point2, double> closest = point_line_projection( mp.first, this->sections[a_idx+1]->lines[g2(crosses)] );
-		//double x = gx(g0(closest)), y = gy(g0(closest));
-		//std::cerr << "f_s " << x << " " << y << "\n";
 		return closest_middle( mp.first, g0(closest) );
 	} else if ( g0(crosses) > 0 ) {
 		std::tuple<point2, double> closest = point_line_projection( mp.first, this->sections[a_idx]->lines[g1(crosses)] );
-		//double x = gx(g0(closest)), y = gy(g0(closest));
-		//std::cerr << "s_f " << x << " " << y << "\n";
 		return closest_middle( g0(closest), mp.first );
 	}
 	return closest_middle( mp.first, mp.first );
 }
 
-double Model::height( const pyobject& pt ) const {
+double Model::height( const point2& pt ) const {
 	if ( this->topography != nullptr ) {
-		double d0 = python::extract<double>(pt[0]);
-		double d1 = python::extract<double>(pt[1]);
-		point2 cpt(d0, d1);
-		return this->topography->height(cpt);
+		return this->topography->height(pt);
 	}
 	return std::numeric_limits<double>::infinity();
 }
 
-Topography::Topography( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights ):
-point(python::extract<double>(point[0]), python::extract<double>(point[1])),
-sample(python::extract<double>(sample[0]), python::extract<double>(sample[1])),
-heights(python::extract<int>(dims[0]) * python::extract<int>(dims[1]))
+pytuple ModelPython::closest_topo( const pyobject& pypt ) const {
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
+	return ((Model *)this)->closest_topo( point3( p0, p1, p2 ) );
+}
+
+pytuple ModelPython::model_point( const pyobject& pypt ) const {
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
+	
+	point3 pt(p0, p1, p2);
+	std::pair<point2, double> mp = ((Model *)this)->model_point( pt );
+	
+	double m0 = gx(mp.first);
+	double m1 = gy(mp.first);
+	return python::make_tuple(m0, m1, mp.second);
+}
+
+pytuple ModelPython::inverse_point( const pyobject& pypt ) const {
+	const double& p0 = python::extract<double>(pypt[0]);
+	const double& p1 = python::extract<double>(pypt[1]);
+	const double& cut = python::extract<double>(pypt[2]);
+	point2 pt(p0, p1);
+	point3 mp = ((Model *)this)->inverse_point( pt, cut );
+	const double& m0 = gx(mp);
+	const double& m1 = gy(mp);
+	const double& m2 = gz(mp);
+	return python::make_tuple(m0, m1, m2);
+}
+
+pydict ModelPython::info() const {
+	pydict ret;
+	for ( const Section * s: this->sections ) {
+		ret[s->name] = s->info();
+	}
+	return ret;
+}
+
+pytuple ModelPython::closest(const pyobject& pypt) const {
+	/* python exposed functions to search for the closest formation */
+	const double& p0 = python::extract<double>(pypt[0]);
+	const double& p1 = python::extract<double>(pypt[1]);
+	const double& p2 = python::extract<double>(pypt[2]);
+	point3 pt(p0, p1, p2);
+	std::tuple<wstring, double> res = ((Model *)this)->closest( pt );
+	return python::make_tuple(g0(res), g1(res));
+}
+
+double ModelPython::height( const pyobject& pt ) const {
+	double d0 = python::extract<double>(pt[0]);
+	double d1 = python::extract<double>(pt[1]);
+	return ((Model *)this)->height( point2( d0, d1 ) );
+}
+
+Topography::Topography( const point2& point, const poin2& sample, const dims[2] ):
+point(point), sample(sample), height(dims[0]*dims[1])
 {
 	this->dims[0] = python::extract<int>(dims[0]);
 	this->dims[1] = python::extract<int>(dims[1]);
-	int rows = python::len(heights);
-	if ( rows != this->dims[0] ) {
-		throw GeomodelrException("topography rows does not correspond with dims.");
-	}
-	for ( int i = 0; i < rows; i++ ) {
-		int cols = python::len(heights[i]);
-		if ( cols != this->dims[1] ) {
-			throw GeomodelrException("topography columns does not correspond with dims.");
-		}
-		for ( int j = 0; j < cols; j++ ) {
-			this->heights[i*this->dims[1]+j] = python::extract<double>(heights[i][j]);
-		}
-	}
 }
 
 double Topography::height(const point2& pt) const {
@@ -648,54 +686,41 @@ double Topography::height(const point2& pt) const {
 	return this->heights[x*dims[1]+y];
 }
 
-std::tuple<point2, double> point_segment_projection( const point2& pt, const point2& ps, const point2& pe ) 
-{
-	double x  = gx(pt);
-	double y  = gy(pt);
-	double x1 = gx(ps);
-	double y1 = gy(ps);
-	double x2 = gx(pe);
-	double y2 = gy(pe);
-	
-	double A = x - x1;
-	double B = y - y1;
-	double C = x2 - x1;
-	double D = y2 - y1;
-	
-	double dot = A * C + B * D;
-	double len_sq = C * C + D * D;
-	double param = dot / len_sq;
-	
-	double xx, yy;
-	
-	if (param < 0 || (x1 == x2 && y1 == y2)) {
-	  xx = x1;
-	  yy = y1;
-	}
-	else if (param > 1) {
-	  xx = x2;
-	  yy = y2;
-	}
-	else {
-	  xx = x1 + param * C;
-	  yy = y1 + param * D;
-	}
-	
-	double dx = x - xx;
-	double dy = y - yy;
-	double dst = dx * dx + dy * dy;
-	return std::make_tuple( point2( xx, yy ), dst );
-}
 
-std::tuple<point2, double> point_line_projection( const point2& pt, const line& l ) 
-{
-	std::tuple<point2, double> closest = std::make_tuple(l[0], std::numeric_limits<double>::infinity());
-	for ( size_t i = 0; i < l.size()-1; i++ ) {
-		std::tuple<point2, double> cl_segment = point_segment_projection( pt, l[i], l[i+1] );
-		if ( g1(cl_segment) < g1(closest) ) {
-			closest = cl_segment;
+Topography::Topography( const point2& point, const point2& sample, const dims[2], const vector<double>& heights ):
+Topography( point, sample, dims ) {
+	int rows = dims[0];
+	int cols = dims[1];
+	for ( int i = 0; i < rows; i++ ) {
+		for ( int j = 0; j < cols; j++ ) {
+			this->heights[i*this->dims[1]+j] = heights[i*this->dims[1]+j];
 		}
 	}
-	return closest;
 }
+
+TopographyPython::TopographyPython( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights ):
+Topography(point2(python::extract<double>(point[0]), python::extract<double>(point[1])),
+	   point2(python::extract<double>(sample[0]), python::extract<double>(sample[1])),
+           {python::extract<int>(dims[0]) * python::extract<int>(dims[1])})
+{
+	int rows = python::len(heights);
+	if ( rows != this->dims[0] ) {
+		throw GeomodelrException("topography rows does not correspond with dims.");
+	}
+	for ( int i = 0; i < rows; i++ ) {
+		int cols = python::len(heights[i]);
+		if ( cols != this->dims[1] ) {
+			throw GeomodelrException("topography columns does not correspond with dims.");
+		}
+		for ( int j = 0; j < cols; j++ ) {
+			this->heights[i*this->dims[1]+j] = python::extract<double>(heights[i][j]);
+		}
+	}
+}
+
+TopographyPython::height( const pyobject& pypt ) {
+	return ((Topography *)this)->height( point3(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]), python::extract<double>(pypt[2])) );
+}
+
+
 
