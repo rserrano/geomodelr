@@ -194,21 +194,6 @@ vector<triangle> test_start( const vector<point3>& pa, const vector<point3>& pb,
 		return pa.size() + i;
 	};
 	
-	auto norm = [] ( const point3& v ) {
-		return std::sqrt( geometry::dot_product( v, v ) );
-	};
-
-	auto normalize = [norm] ( point3& v ) {
-		geometry::divide_value( v, norm( v ) );
-	};
-	
-	auto vector_between = [normalize] ( const point3& pn, const point3& p ) {
-		point3 v = pn;
-		geometry::subtract_point( v, p );
-		normalize(v);
-		return v;
-	};
-	
 	double length_a = 0.0;
 	double length_b = 0.0;
 	

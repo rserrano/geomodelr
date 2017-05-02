@@ -15,6 +15,10 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#ifndef GEOMODELR_SECTION_HPP
+#define GEOMODELR_SECTION_HPP
+#include "basic.hpp"
+
 class Model;
 class Match;
 
@@ -113,4 +117,7 @@ class SectionPython : Section {
 	pydict info() const;
 	pytuple closest( const pyobject& pypt ) const;
 
-}
+};
+
+#endif
+

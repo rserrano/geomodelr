@@ -16,13 +16,15 @@
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "geomodel.hpp"
+#include "section.hpp"
+
 Section::~Section()
 {
 	if ( this->polidx != nullptr ) {
 		delete this->polidx;
 	}
 }
+
 Section::Section( const wstring& name, double cut ): name(name), cut(cut), polidx(nullptr) 
 {
 }
@@ -67,11 +69,11 @@ SectionPython::SectionPython(const wstring& name, double cut, const pylist& poin
 		if ( not geometry::is_valid(pol, failure) ) {
 			geometry::correct(pol);
 			string reason;
-			if ( not geometry::is_valid(pol, reason) ) {
+			if ( not geometry::is_valid(pol, reason) ) {/*
 				if ( Model::verbose ) {
 					std::wcerr << L"non valid polygon in section " << name << L" from with unit " << unit << L" valid: " << (geometry::is_valid(pol)?L"true":L"false")
 						   << L" simple: " << (geometry::is_simple(pol)?L"true":L"false") << "\n";
-				}
+				}*/
 				// continue; not avoiding non valid polygons, as they have been validated by shapely. Somehow these polygons get wronget.
 			}
 		}
@@ -121,7 +123,7 @@ const {
 	double y = python::extract<double>(pypt[1]);
 	point2 p(x, y);
 	
-	std::pair<int, int> cls = this->closest(p, geometry::index::satisfies(always_true));
+	std::pair<int, int> cls = Section::closest(p, geometry::index::satisfies(always_true));
 	
 	if ( cls.first == -1 ) {
 		return python::make_tuple(-1, wstring(L"NONE"));

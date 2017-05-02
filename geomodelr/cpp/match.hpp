@@ -19,6 +19,8 @@
 #define GEOMODELR_MATCH_HPP
 
 #include "basic.hpp"
+#include "section.hpp"
+
 // Included for friend of match.
 class Model;
 
@@ -34,6 +36,7 @@ public:
 
 class Match {
 	friend class Model;
+protected:
 	const Section * a;
 	const Section * b;
 	map<int, vector<int>> a_to_b;
