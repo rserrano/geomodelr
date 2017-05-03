@@ -53,10 +53,11 @@ public:
 	void set( const vector<std::pair<int, int>>& match );
 };
 
-class MatchPython : Match {
+class MatchPython : public Match {
 public:
 	pylist get() const;
 	void set( const pylist& match );
 };
 
+pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
 #endif

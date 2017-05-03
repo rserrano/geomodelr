@@ -21,11 +21,17 @@
 
 class Model;
 class Match;
+class ModelPython;
+class MatchPython;
+
 
 /* C++ section that queries points to polygons so much faster. */
 class Section {
 	friend Match;
 	friend Model;
+	friend ModelPython;
+	friend MatchPython;
+
 protected:
 	wstring name;
 	double cut;
@@ -109,7 +115,8 @@ public:
 	virtual ~Section();
 };
 
-class SectionPython : Section {
+class SectionPython : public Section {
+public:
 	SectionPython(const wstring& name, double cut, const pylist& points, 
 		      const pylist& polygons, const pylist& units, 
 		      const pylist& lines, const pylist& lnames );

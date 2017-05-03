@@ -17,6 +17,9 @@
 */
 #include "basic.hpp"
 
+// Is geomodelr verbose.
+bool geomodelr_verbose = false;
+
 std::tuple<point2, double> point_segment_projection( const point2& pt, const point2& ps, const point2& pe ) 
 {
 	double x  = gx(pt);

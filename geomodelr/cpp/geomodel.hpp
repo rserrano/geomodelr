@@ -15,19 +15,12 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+#ifndef GEOMODELR_GEOMODEL_HPP
+#define GEOMODELR_GEOMODEL_HPP
 
-class Section;
-class Model;
-class Topography;
+#include "basic.hpp"
+#include "section.hpp"
+#include "match.hpp"
+#include "model.hpp"
 
-struct GeomodelrException : std::runtime_error
-{
-	GeomodelrException(const string&);
-};
-
-bool always_true( const value& v ); 
-
-
-pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
-std::tuple<point2, double> point_line_projection( const point2& p, const line& l );
-
+#endif

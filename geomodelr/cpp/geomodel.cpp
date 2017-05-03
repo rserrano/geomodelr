@@ -49,7 +49,7 @@ void translate(GeomodelrException const& e)
 }
 
 void set_verbose( bool verbose ) {
-	Model::verbose = verbose;
+	geomodelr_verbose = verbose;
 }
 
 BOOST_PYTHON_MODULE(cpp)
@@ -130,22 +130,22 @@ BOOST_PYTHON_MODULE(cpp)
 	python::register_exception_translator<GeomodelrException>(&translate);
 	python::def("faultplane_for_lines", test_faultplane_for_lines);
 	python::def("set_verbose", set_verbose, python::args("verbose"), doc_verb);
-	python::class_<Section>("Section", python::init<const wstring&, double, const pylist&, 
-							const pylist&, const pylist&, 
-							const pylist&, const pylist&>())
-							.def("info", &Section::info)
-							.def("closest", &Section::closest);
-	python::class_<Model>("Model", python::init<const pylist&, const pylist&, const pylist&, const pyobject&,
-						    const pyobject&, const pylist&>())
-						    .def("make_matches", &Model::make_matches)
-						    .def("possible_closest", &Model::possible_closest, python::args("point"), doc_possible_closest)
-						    .def("model_point", &Model::model_point, python::args("point"), doc_model_point)
-						    .def("inverse_point", &Model::inverse_point, python::args("internal_point"), doc_inverse_point)
-						    .def("closest", &Model::closest, python::args("point"), doc_closest)
-						    .def("closest_topo", &Model::closest_topo, python::args("point"), doc_closest_topo)
-						    .def("height", &Model::height, python::args("point"), doc_height)
-						    .def("info", &Model::info)
-						    .add_property("matches", &Model::get_matches, &Model::set_matches);
+	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pylist&, 
+							      const pylist&, const pylist&, 
+							      const pylist&, const pylist&>())
+							      .def("info", &SectionPython::info)
+							      .def("closest", &SectionPython::closest);
+	python::class_<ModelPython>("Model", python::init<const pylist&, const pylist&, const pylist&, const pyobject&,
+							  const pyobject&, const pylist&>())
+							  .def("make_matches", &ModelPython::make_matches)
+							  .def("possible_closest", &ModelPython::possible_closest, python::args("point"), doc_possible_closest)
+							  .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
+							  .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)
+							  .def("closest", &ModelPython::closest, python::args("point"), doc_closest)
+							  .def("closest_topo", &ModelPython::closest_topo, python::args("point"), doc_closest_topo)
+							  .def("height", &ModelPython::height, python::args("point"), doc_height)
+							  .def("info", &ModelPython::info)
+							  .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches);
 }
 
 

@@ -69,11 +69,11 @@ SectionPython::SectionPython(const wstring& name, double cut, const pylist& poin
 		if ( not geometry::is_valid(pol, failure) ) {
 			geometry::correct(pol);
 			string reason;
-			if ( not geometry::is_valid(pol, reason) ) {/*
-				if ( Model::verbose ) {
+			if ( not geometry::is_valid(pol, reason) ) {
+				if ( geomodelr_verbose ) {
 					std::wcerr << L"non valid polygon in section " << name << L" from with unit " << unit << L" valid: " << (geometry::is_valid(pol)?L"true":L"false")
 						   << L" simple: " << (geometry::is_simple(pol)?L"true":L"false") << "\n";
-				}*/
+				}
 				// continue; not avoiding non valid polygons, as they have been validated by shapely. Somehow these polygons get wronget.
 			}
 		}

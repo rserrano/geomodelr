@@ -111,5 +111,8 @@ bool always_true( const value& v );
 
 std::tuple<point2, double> point_line_projection( const point2& p, const line& l );
 
+// Is geomodelr verbose.
+extern bool geomodelr_verbose;
+
 #endif
 

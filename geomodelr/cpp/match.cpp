@@ -328,7 +328,7 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 				} );
 			
 		} catch ( const GeomodelrException& e ) {
-			if ( Model::verbose ) {
+			if ( geomodelr_verbose ) {
 				string aname(this->a->name.begin(), this->a->name.end());
 				string bname(this->b->name.begin(), this->b->name.end());
 				string sname(name.begin(), name.end());
