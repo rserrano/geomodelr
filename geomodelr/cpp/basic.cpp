@@ -70,3 +70,8 @@ std::tuple<point2, double> point_line_projection( const point2& pt, const line& 
 	}
 	return closest;
 }
+
+bool always_true( const value_f& v )
+{
+	return true;
+}

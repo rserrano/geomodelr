@@ -48,9 +48,9 @@ typedef geometry::model::box<point2> box;
 typedef geometry::model::polygon<point2, false, false> polygon;
 typedef polygon::ring_type ring;
 typedef geometry::model::linestring<point2> line;
-typedef std::pair<box, int> value;
+//typedef std::pair<box, int> value;
 typedef std::tuple<box, wstring, int> value_f;
-typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
+//typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
 typedef geometry::index::rtree<value_f, geometry::index::quadratic<16>> rtree_f;
 typedef std::tuple<int, int, int> triangle;
 typedef std::tuple<int, int> edge;
@@ -107,12 +107,26 @@ struct GeomodelrException : std::runtime_error
 	GeomodelrException(const string&);
 };
 
-bool always_true( const value& v ); 
+bool always_true( const value_f& v ); 
 
 std::tuple<point2, double> point_line_projection( const point2& p, const line& l );
 
 // Is geomodelr verbose.
 extern bool geomodelr_verbose;
+
+template<typename FA, typename FB>
+class add_funcs {
+public:
+	FA fa;
+	FB fb;
+	add_funcs( const FA& fa, const FB& fb ) : fa(fa), fb(fb) {
+	}
+	
+	bool operator() ( const value_f& v ) const {
+		return this->fa(v) and this->fb(v);
+	}
+
+};
 
 #endif
 

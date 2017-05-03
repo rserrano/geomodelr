@@ -39,7 +39,7 @@ protected:
 	vector<wstring> units;
 	vector<line> lines;
 	vector<wstring> lnames;
-	rtree * polidx; // To be initialized after polygons and lines.
+	rtree_f * polidx; // To be initialized after polygons and lines.
 	
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
@@ -48,10 +48,10 @@ protected:
 		box bx(mn, mx);
 		vector<std::pair<int, double>> ret;
 		if ( this->polidx != nullptr ) {
-			for ( auto it = this->polidx->qbegin( geometry::index::intersects(bx) and predicates );
+			for ( auto it = this->polidx->qbegin( geometry::index::intersects(bx) and geometry::index::satisfies(predicates) );
 				it != this->polidx->qend(); it++ ) {
 				// Check the actual distance to a polygon.
-				int idx = it->second;
+				int idx = g2(*it);
 				double poldist = geometry::distance(this->polygons[idx], pt);
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
@@ -60,6 +60,7 @@ protected:
 		}
 		return ret;
 	}
+public:
 	template<typename Predicates>
 	std::pair<int, double> closest( const point2& p, const Predicates& predicates ) const {
 		if ( this->polidx == nullptr )
@@ -75,8 +76,7 @@ protected:
 		do {
 			int n = 0; 
 			new_to_check = false;
-			for ( auto it = this->polidx->qbegin( geometry::index::nearest(p, knear) and
-							      predicates );
+			for ( auto it = this->polidx->qbegin( geometry::index::nearest(p, knear) and geometry::index::satisfies(predicates) );
 				it != this->polidx->qend(); it++ ) {
 				// Skip already checked.
 				if ( n < knear/2 ) 
@@ -90,11 +90,11 @@ protected:
 				
 				// Check the maximum distance from the box to the point.
 				// That distance is always lower than the distance to the polygon.
-				double boxdist = geometry::distance(p, it->first);
+				double boxdist = geometry::distance(p, g0(*it));
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
-				int idx = it->second;
+				int idx = g2(*it);
 				double dist = geometry::distance(p, this->polygons[idx]);
 				
 				if ( dist < mindist ) {
@@ -109,8 +109,8 @@ protected:
 		
 		return std::make_pair(minidx, mindist); 
 	}
+	std::pair<int, double> closest( const point2& ) const;
 	map<wstring, vector<triangle_pt>> last_lines(bool is_back, double end);
-public:
 	Section(const wstring& name, double cut );
 	virtual ~Section();
 };

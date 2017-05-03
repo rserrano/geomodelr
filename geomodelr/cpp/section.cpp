@@ -29,12 +29,17 @@ Section::Section( const wstring& name, double cut ): name(name), cut(cut), polid
 {
 }
 
+std::pair<int, double> Section::closest( const point2& pt ) const {
+	return this->closest(pt, always_true);
+}
+	
+
 SectionPython::SectionPython(const wstring& name, double cut, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
 	const pylist& lines, const pylist& lnames ): Section( name, cut )
 {
 	size_t npols = python::len(polygons);
-	vector<value> envelopes;
+	vector<value_f> envelopes;
 	for ( size_t i = 0; i < npols; i++ ) {
 		polygon pol;
 		wstring unit = python::extract<wstring>( units[i] );
@@ -83,7 +88,7 @@ SectionPython::SectionPython(const wstring& name, double cut, const pylist& poin
 		// Calculate the envelope and add it to build the rtree layer.
 		box env;
 		geometry::envelope(pol, env);
-		envelopes.push_back(std::make_pair(env, this->polygons.size()));
+		envelopes.push_back(std::make_tuple(env, unit, this->polygons.size()));
 		
 		// Now add the actual polygon and its unit.
 		this->polygons.push_back(pol);
@@ -91,7 +96,7 @@ SectionPython::SectionPython(const wstring& name, double cut, const pylist& poin
 	}
 	// Build the rtree.
 	if ( envelopes.size() > 0 ) {
-		this->polidx = new rtree( envelopes );
+		this->polidx = new rtree_f( envelopes );
 	}
 	size_t nlines = python::len(lines);
 	for ( size_t i = 0; i < nlines; i++ ) {
@@ -123,7 +128,7 @@ const {
 	double y = python::extract<double>(pypt[1]);
 	point2 p(x, y);
 	
-	std::pair<int, int> cls = Section::closest(p, geometry::index::satisfies(always_true));
+	std::pair<int, int> cls = Section::closest(p);
 	
 	if ( cls.first == -1 ) {
 		return python::make_tuple(-1, wstring(L"NONE"));
@@ -133,10 +138,7 @@ const {
 
 }
 
-bool always_true( const value& v )
-{
-	return true;
-}
+
 
 map<wstring, vector<triangle_pt>> Section::last_lines( bool is_back, double end ) {
 	map<wstring, vector<triangle_pt>> ret;
