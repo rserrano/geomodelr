@@ -66,6 +66,7 @@ BOOST_PYTHON_MODULE(cpp)
 						"    a list with all the possible units, each unit with the distance to the previous\n"
 						"    and next cross sections.\n";
 	
+	
 	const char* doc_closest = 	"Given a point, it finds the geological unit that's defined as the closest to\n"
 					"that point.\n\n"
 					"The basic definition of the algorithm is that, given a match between geological units,\n"
@@ -124,6 +125,33 @@ BOOST_PYTHON_MODULE(cpp)
 				"    (boolean) verbose:\n"
 				"    if geomodelr should be verbose when creating the model.\n";
 	
+	const char* doc_signed_distance = "Given unit U and a point P, it finds the geomodelr distance to U minus\n"
+					  "the geomodelr distance to the closest unit different to U\n\n"
+					  "It returns a signed distance that's zero at the boundary of the unit,\n"
+					  "negative inside the unit and possitive outside the unit\n"
+					  "Args:\n"
+					  "    (string) unit:\n"
+					  "    The unit to measure the signed distance to\n"
+					  "    (tuple) point:\n"
+					  "    The three coordinates (esting, norting, altitute a.s.l) of the point in the given coordinate system.\n"
+					  "Returns:\n"
+					  "    (double)\n"
+					  "    The signed distance from the unit to the point.\n";
+	
+	const char* doc_signed_distance_bounded = "Given unit U and a point P, it finds the geomodelr distance to U minus\n"
+					  	  "the geomodelr distance to the closest unit different to U\n\n"
+					          "It returns a signed distance that's zero at the boundary of the unit,\n"
+					          "negative inside the unit and possitive outside the unit\n\n"
+                                                  "unlike signed_distance, when the point is outside the bounds of the model,\n"
+						  "or above the topography, it returns +Inf\n\n"
+					          "Args:\n"
+					          "    (string) unit:\n"
+					          "    The unit to measure the signed distance to\n"
+					          "    (tuple) point:\n"
+					          "    The three coordinates (esting, norting, altitute a.s.l) of the point in the given coordinate system.\n"
+					          "Returns:\n"
+					          "    (double)\n"
+					          "    The signed distance from the unit to the point.\n";
 	// Register exception.
 	python::class_<GeomodelrException> GeomodelrExceptionClass("GeomodelrException", boost::python::init<std::string>());
 	GeomodelrExceptionType = createExceptionClass("GeomodelrException");
@@ -143,6 +171,8 @@ BOOST_PYTHON_MODULE(cpp)
 							  .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)
 							  .def("closest", &ModelPython::closest, python::args("point"), doc_closest)
 							  .def("closest_topo", &ModelPython::closest_topo, python::args("point"), doc_closest_topo)
+							  .def("signed_distance", &ModelPython::signed_distance, python::args("unit", "point"), doc_signed_distance)
+							  .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
 							  .def("height", &ModelPython::height, python::args("point"), doc_height)
 							  .def("info", &ModelPython::info)
 							  .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches);

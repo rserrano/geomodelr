@@ -23,7 +23,63 @@ import random
 import numpy as np
 import itertools
 import gc
+import numpy as np
+from skimage import measure
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import gts
 
+def triangulate_unit(model, unit, grid_divisions):
+    
+    bbox = list(model.geojson['bbox']) # Copy so original is not modified.
+    
+
+    dx = (bbox[3]-bbox[0])/grid_divisions
+    dy = (bbox[4]-bbox[1])/grid_divisions
+    dz = (bbox[5]-bbox[2])/grid_divisions
+    
+    bbox[0] -= 2*dx
+    bbox[1] -= 2*dy
+    bbox[2] -= 2*dz
+    
+    bbox[3] += 2*dx
+    bbox[4] += 2*dy
+    bbox[5] += 2*dz
+    
+    X,Y,Z = np.mgrid[bbox[0]:bbox[3]:dx, bbox[1]:bbox[4]:dy, bbox[2]:bbox[5]:dz]
+    signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
+    vsigned_distance = np.vectorize(signed_distance, otypes=[np.float])
+    sd = vsigned_distance( X, Y, Z )
+    vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
+    
+    def real_pt( pt ):
+        gr = map( lambda c: ( int(c), c-int(c) ), pt )
+        outp = []
+        for i in range(3):
+            assert gr[i][0] < len(ranges[i])
+            if gr[i][0]+1 == len(ranges[i]):
+                c = ranges[i][gr[i][0]]
+            else:
+                c = ranges[i][gr[i][0]]*(1-gr[i][1]) + ranges[i][gr[i][0]+1]*gr[i][1]
+            outp.append( c )
+        return outp
+    
+    vertices = map(real_pt, vertices)
+    
+    return vertices, simplices
+
+def plot_unit( model, unit, grid_divisions ):
+    vertices, simplices = triangulate_unit(model, unit, grid_divisions)
+    x,y,z = zip(*vertices)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_trisurf(x, y, z, triangles=simplices)
+    
+    fig.show()
+    raw_input("Enter to close...")
+    
+    
 def generate_simple_grid(query_func, bbox, grid_divisions):
     """
     Returns a uniform grid of sizes grid_divisions x grid_divisions x grid_divisions 
@@ -68,7 +124,7 @@ def ts(a, b):
 def generate_fdm_grid(query_func, bbox, grid_divisions, max_refinements):
     """
     Generates a grid of points with a FDM like
-	refinment method. It first generates a simple grid.
+    refinment method. It first generates a simple grid.
     then it checks if a cell needs refinement. If it does,
     it marks it as a cell to refine.
     Then it goes through every axis, creating planes where the

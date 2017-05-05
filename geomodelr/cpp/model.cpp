@@ -23,10 +23,29 @@
 #include <iostream>
 #include <array>
 
-Model::Model( const std::pair<double, double>& cuts_range, const point2& base_point, const point2& direction ) 
-: cuts_range(cuts_range), base_point(base_point), direction(direction), topography(nullptr)
+Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, const point2& base_point, const point2& direction ) 
+: bbox(bbox), base_point(base_point), direction(direction), topography(nullptr)
 {
-}	
+	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
+	point2 b1(g0(g1(bbox)), g1(g1(bbox)));
+	point2 b2(g0(g0(bbox)), g1(g1(bbox)));
+	point2 b3(g1(g1(bbox)), g1(g0(bbox)));
+	
+	auto cut = [base_point, direction]( point2& v ) {
+		geometry::subtract_point(v, base_point);
+		double norm = std::sqrt(gx(v)*gx(v) + gy(v)*gy(v));
+		if ( norm < tolerance ) {
+			return 0.0;
+		}
+		geometry::divide_value(v, norm);
+		double s = gx(direction)*gy(v) - gy(direction)*gx(v);
+		return norm*s;
+	};
+	
+	vector<double> cuts = { cut(b0), cut(b1), cut(b2), cut(b3) };
+	std::sort(cuts.begin(), cuts.end());
+	this->cuts_range = std::make_pair(cuts[0], cuts[3]);
+}
 
 Model::~Model(){
 	/* clears matches and sections from memory */
@@ -174,6 +193,40 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	}
 	return g1(inside) - g1(outside);
 }
+
+double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) const {
+
+	double sdist = this->signed_distance( unit, pt );
+	bool outside = false;
+	double odist = 0.0;
+	double idist = -std::numeric_limits<double>::infinity();
+	
+	double x = gx(pt);
+	double y = gy(pt);
+	double z = gz(pt);
+	
+	double minx = g0(g0(this->bbox));
+	double miny = g1(g0(this->bbox));
+	double minz = g2(g0(this->bbox));
+	
+	double maxx = g0(g1(this->bbox));
+	double maxy = g1(g1(this->bbox));
+	double maxz = this->height( point2( x, y ) );
+	
+	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
+	
+	for ( size_t i = 0; i < 6; i++ ) {
+		if ( dists[i] >= 0 ) {
+			outside = true;
+			odist += dists[i]*dists[i];
+		}
+	}
+	if ( outside ) {
+		return std::max(sdist, std::sqrt(odist));
+	}
+	return sdist;
+}
+	
 
 vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
 	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, always_true);
@@ -498,10 +551,11 @@ double TopographyPython::height( const pyobject& pypt ) const {
 	return ((Topography *)this)->height( point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])) );
 }
 
-ModelPython::ModelPython( const pyobject& cuts_range, const pyobject& base_point, 
+ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point, 
 		    const pyobject& direction, const pyobject& map, 
 		    const pyobject& topography, const pylist& sections ): 
-	Model(	std::pair<double, double>(python::extract<double>(cuts_range[0]), python::extract<double>(cuts_range[1])),
+	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
+			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 		point2(python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
 		point2(python::extract<double>(direction[0]), python::extract<double>(direction[1]) ) )
 {
@@ -590,3 +644,10 @@ pylist ModelPython::get_matches( ) const {
 	return ret;
 }
 
+double ModelPython::signed_distance( const pystr& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance(python::extract<wstring>(unit), point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+	
+double ModelPython::signed_distance_bounded( const pystr& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance_bounded(python::extract<wstring>(unit), point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}

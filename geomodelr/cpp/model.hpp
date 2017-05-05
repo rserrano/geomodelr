@@ -43,6 +43,7 @@ public:
 class Model {
 protected:
 	std::pair<double, double> cuts_range;
+	std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>> bbox;
 	point2 base_point;
 	point2 direction;
 	vector<Section *> sections;
@@ -170,11 +171,12 @@ protected:
 	std::tuple<int, int, double> closest_between( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut ) const;
 public:
 	
-	Model(const std::pair<double, double>& cuts_range, const point2& basepoint, const point2& direction);
+	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox, const point2& basepoint, const point2& direction);
 	virtual ~Model();
 	
 	double signed_distance( const wstring& unit, const point3& pt ) const;
-	
+	double signed_distance_bounded( const wstring& unit, const point3& pt ) const;
+
 	// Methods to create matches or load them from files.
 	map<wstring, vector<triangle_pt>> make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const vector< std::tuple< std::tuple<wstring, wstring>, vector<std::pair<int, int>> > >& matching);
@@ -255,12 +257,12 @@ public:
 
 class ModelPython : public Model {
 public:
-	ModelPython(const pyobject& cuts_range,
-	      const pyobject& basepoint, 
-	      const pyobject& direction, 
-	      const pyobject& map, 
-	      const pyobject& topography,
-	      const pylist& sections);
+	ModelPython(const pyobject& bbox,
+	            const pyobject& basepoint, 
+	            const pyobject& direction, 
+	            const pyobject& map, 
+	            const pyobject& topography,
+	            const pylist& sections);
 	
 	// Methods to create matches or load them from files.
 	pydict make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -272,6 +274,8 @@ public:
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
 	pytuple closest_topo(const pyobject& pt) const;
+	double signed_distance( const pystr& unit, const pyobject& pt ) const;
+	double signed_distance_bounded( const pystr& unit, const pyobject& pt ) const;
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };
