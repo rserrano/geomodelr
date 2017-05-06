@@ -106,6 +106,10 @@ def intersect_plane( geojson, verbose=False ):
             raise
         line = sys.stdin.readline()
 
+def unit_wireframe( geojson, params, verbose=False ):
+    model = prep_model(geojson)
+    utils.save_unit(params[0], model, params[1], params[2])
+
 def calculate_volumes( geojson, params, verbose=False ):
     model = prep_model(geojson)
     t = {}
@@ -159,11 +163,32 @@ def main(args=None):
                                   the number of points to query in each direction. 
                                   Returns a line with nx*ny*nz values in the following order: 
                                   f(mnx,mny,mnz) f(mnx+dx,mny,mnz) f(mnx+2*dx,mny,mnz) ... f(mxx,mny,mnz) f(mnx,mny+dy,mnz) ... f(mxx,mxy,mnz) f(mnx,mny,mnz+dz) ... f(mxx,mxy,mxz)
-                                  where and dx=(mxx-mnx)/(nx-1), ... and f is the formation at that spatial point """)
+                                  where and dx=(mxx-mnx)/(nx-1), ... and f is the formation at that spatial point.""")
     
     group.add_argument("-i", "--info", const=get_information, action='store_const',  
                        help = """ gets information from the geological 
-                                  model and presents it to the user. """)
+                                  model and presents it to the user.""")
+    
+    class validate_wireframe(object):
+        def __init__(self):
+            self.narg = 0
+        
+        def __call__(self, wparam):
+            if self.narg == 0:
+                self.narg += 1
+                return wparam
+            elif self.narg == 1:
+                self.narg += 1
+                return wparam
+            else:
+                if int(wparam) < 1:
+                    raise argparse.ArgumentTypeError("An integer is required")
+                return int(wparam)
+    
+    group.add_argument("-w", "--unit-wireframe", nargs=3, metavar=("STL_FILE", "UNIT", "GRID_DIVISION"), type=validate_wireframe(),
+                        help = """ saves a geological unit as an Stereo Litography (.STL) 
+                                   file by using a marching cubes approach.""")
+    
     
     group.add_argument("-ip", "--intersect_plane", const=intersect_plane, action="store_const",
                        help = """ intersects a plane with the faults of the model and 
@@ -204,6 +229,8 @@ def main(args=None):
         args.intersect_plane(args.model, args.verbose)
     elif args.volume:
         calculate_volumes(args.model, args.volume)
+    elif args.unit_wireframe:
+        unit_wireframe(args.model, args.unit_wireframe)
     else:
         parser.print_help()
     

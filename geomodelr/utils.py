@@ -27,6 +27,7 @@ import numpy as np
 from skimage import measure
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from stl import mesh
 import gts
 
 def triangulate_unit(model, unit, grid_divisions):
@@ -78,8 +79,15 @@ def plot_unit( model, unit, grid_divisions ):
     
     fig.show()
     raw_input("Enter to close...")
-    
-    
+
+def save_unit( name, model, unit, grid_divisions ):
+    vertices, simplices = triangulate_unit(model, unit, grid_divisions)
+    m = mesh.Mesh(np.zeros(len(simplices), dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(simplices):
+        for j in range(3):
+            m.vectors[i][j] = vertices[f[j]]
+    m.save(name)
+
 def generate_simple_grid(query_func, bbox, grid_divisions):
     """
     Returns a uniform grid of sizes grid_divisions x grid_divisions x grid_divisions 
