@@ -73,7 +73,6 @@ inline typename geometry::coordinate_type<Point>::type gz(const Point& p){
 typedef python::list pylist;
 typedef python::dict pydict;
 typedef python::object pyobject;
-typedef python::str pystr;
 typedef python::tuple pytuple;
 
 typedef std::tuple<point3, point3, point3> triangle_pt;

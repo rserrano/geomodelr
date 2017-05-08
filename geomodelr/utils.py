@@ -28,7 +28,6 @@ from skimage import measure
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from stl import mesh
-import gts
 
 def triangulate_unit(model, unit, grid_divisions):
     
@@ -68,7 +67,7 @@ def triangulate_unit(model, unit, grid_divisions):
     
     vertices = map(real_pt, vertices)
     
-    return vertices, simplices
+    return vertices, simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions ):
     vertices, simplices = triangulate_unit(model, unit, grid_divisions)

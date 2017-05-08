@@ -274,8 +274,8 @@ public:
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
 	pytuple closest_topo(const pyobject& pt) const;
-	double signed_distance( const pystr& unit, const pyobject& pt ) const;
-	double signed_distance_bounded( const pystr& unit, const pyobject& pt ) const;
+	double signed_distance( const wstring& unit, const pyobject& pt ) const;
+	double signed_distance_bounded( const wstring& unit, const pyobject& pt ) const;
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };

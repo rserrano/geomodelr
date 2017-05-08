@@ -48,7 +48,7 @@ setup(name='geomodelr',
     license='AGPL',
     packages=['geomodelr'],
     ext_modules=[cppextension],
-    install_requires=['numpy', 'scipy', 'shapely'],
+    install_requires=['numpy', 'scipy', 'shapely', 'scikit-image', 'numpy-stl'],
     keywords=['geology', 'geological modelling', 'cross sections', 'geomodelr'],
     entry_points = {
         'console_scripts': [

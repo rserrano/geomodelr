@@ -199,7 +199,7 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 	double sdist = this->signed_distance( unit, pt );
 	bool outside = false;
 	double odist = 0.0;
-	double idist = -std::numeric_limits<double>::infinity();
+	// double idist = -std::numeric_limits<double>::infinity(); In the future, fix distance below too.
 	
 	double x = gx(pt);
 	double y = gy(pt);
@@ -644,10 +644,10 @@ pylist ModelPython::get_matches( ) const {
 	return ret;
 }
 
-double ModelPython::signed_distance( const pystr& unit, const pyobject& pt ) const {
-	return ((Model *)this)->signed_distance(python::extract<wstring>(unit), point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+double ModelPython::signed_distance( const wstring& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 	
-double ModelPython::signed_distance_bounded( const pystr& unit, const pyobject& pt ) const {
-	return ((Model *)this)->signed_distance_bounded(python::extract<wstring>(unit), point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+double ModelPython::signed_distance_bounded( const wstring& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance_bounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
