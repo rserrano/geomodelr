@@ -21,6 +21,7 @@ from model import GeologicalModel
 from shared import ModelException
 import random
 import numpy as np
+from scipy.spatial import cKDTree
 import itertools
 import gc
 import numpy as np
@@ -29,11 +30,85 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from stl import mesh
 
+def srttri( t ):
+    t = sorted(t)
+    return tuple(t)
+
+def srtedg( e ):
+    e0, e1 = e[0], e[1]
+    if e0 > e1:
+        e1, e0 = e0, e1
+    return (e0, e1)
+
+def edges_triangles( triangles ):
+    edgs_tris = {}
+    for i, t in enumerate(triangles):
+        for j in range(3):
+            e = srtedg( ( t[j], t[(j+1)%3] ) )
+            if e in edgs_tris:
+                edgs_tris[e].append( i )
+            else:
+                edgs_tris[e] = [i]
+    return edgs_tris
+
+def fix_step( vertices, triangles ):
+    tree = cKDTree(vertices)
+    pairs = tree.query_pairs(1e-9)
+    
+    edgs_tris = edges_triangles( triangles )
+    
+    to_remove = []
+    to_join_nodes = set()
+    renum = {}
+    for p in pairs:
+        if p in edgs_tris:
+            if p[0] in to_join_nodes or p[1] in to_join_nodes:
+                continue
+            to_remove += edgs_tris[p]
+            to_join_nodes.add(p[0])
+            to_join_nodes.add(p[1])
+            if p[0] < p[1]:
+                renum[p[1]] = p[0]
+            else:
+                renum[p[0]] = p[1]
+    
+    if len(to_remove) == 0:
+        check_things_out( vertices, triangles, pairs )
+        return None
+    
+    to_remove = set(to_remove)
+    triangles = [ tuple([ n if not n in renum else renum[n] for n in t ]) for i, t in enumerate(triangles) if not i in to_remove ]
+    
+    edgs_tris = edges_triangles( triangles )
+    bedgs = [ (e, v) for e, v in edgs_tris.iteritems() if len(v) != 2 ]
+    
+    assert len(bedgs) == 0
+
+    idx = 0
+    newverts = []
+    erenum = {}
+    for i in xrange(len(vertices)):
+        if not i in renum:
+            newverts.append(vertices[i])
+            erenum[i] = idx
+            idx += 1
+    
+    triangles = [ [ erenum[i] for i in t ] for t in triangles ]
+    return newverts, triangles
+
+def fix_solid( vertices, triangles ):
+    while True:
+        res = fix_step( vertices, triangles )
+        if res is None:
+            break
+        vertices, triangles = res[0], res[1]
+    return vertices, triangles
+
+
 def triangulate_unit(model, unit, grid_divisions):
     
     bbox = list(model.geojson['bbox']) # Copy so original is not modified.
     
-
     dx = (bbox[3]-bbox[0])/grid_divisions
     dy = (bbox[4]-bbox[1])/grid_divisions
     dz = (bbox[5]-bbox[2])/grid_divisions
@@ -81,6 +156,7 @@ def plot_unit( model, unit, grid_divisions ):
 
 def save_unit( name, model, unit, grid_divisions ):
     vertices, simplices = triangulate_unit(model, unit, grid_divisions)
+    fix_solid(vertices, simplices)
     m = mesh.Mesh(np.zeros(len(simplices), dtype=mesh.Mesh.dtype))
     for i, f in enumerate(simplices):
         for j in range(3):
