@@ -211,12 +211,22 @@ public:
 			wstring unit = s.units[cls.first];
 			return std::make_tuple(unit, cls.second);
 		};
-		
+		static int side = -1;
 		// For a cut below the lowest or above the highest.
 		if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
+			if ( side != 1 ) {
+				side = 1;
+				std::cerr << "It's in a side, idx: " << a_idx << "\n";
+			}
 			const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
 			return closest_single(s);
+		} else {
+			if ( side != 2 ) {
+				side = 2;
+				std::cerr << "Not in a side, idx: " << a_idx << "\n";
+			}
 		}
+
 	
 		auto closest_middle = [&]( const point2& pt_a, const point2& pt_b ) {
 			// Finally evaluate the full transition.

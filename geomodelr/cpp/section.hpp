@@ -79,7 +79,7 @@ public:
 			for ( auto it = this->polidx->qbegin( geometry::index::nearest(p, knear) and geometry::index::satisfies(predicates) );
 				it != this->polidx->qend(); it++ ) {
 				// Skip already checked.
-				if ( n < knear/2 ) 
+				if ( n < knear/2 )
 				{
 					n++;
 					continue;
