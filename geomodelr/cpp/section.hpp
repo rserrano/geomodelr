@@ -18,6 +18,7 @@
 #ifndef GEOMODELR_SECTION_HPP
 #define GEOMODELR_SECTION_HPP
 #include "basic.hpp"
+#include<set>
 
 class Model;
 class Match;
@@ -73,19 +74,20 @@ public:
 		int knear = 1;
 		
 		bool new_to_check;
+		std::set<int> checked;
+		
 		do {
-			int n = 0; 
 			new_to_check = false;
 			for ( auto it = this->polidx->qbegin( geometry::index::nearest(p, knear) and geometry::index::satisfies(predicates) );
 				it != this->polidx->qend(); it++ ) {
 				// Skip already checked.
-				if ( n < knear/2 )
+				int idx = g2(*it);
+				if ( checked.find( idx ) != checked.end() )
 				{
-					n++;
 					continue;
 				}
+				checked.insert(idx);
 				// Check if new polygons where checked.
-				
 				new_to_check = true;
 				
 				// Check the maximum distance from the box to the point.
@@ -94,9 +96,7 @@ public:
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
-				int idx = g2(*it);
 				double dist = geometry::distance(p, this->polygons[idx]);
-				
 				if ( dist < mindist ) {
 					mindist = dist;
 					minidx = idx;

@@ -16,20 +16,24 @@
 
 # The utils file contains scripts that can be used by users to 
 # make calculations of their models.
-
 from model import GeologicalModel
 from shared import ModelException
 import random
 import numpy as np
-from scipy.spatial import cKDTree
+from skimage import measure
+try:
+    from scipy.spatial import cKDTree
+    from stl import mesh
+except ImportError:
+    pass
+try:
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+except ImportError:
+    pass
+     
 import itertools
 import gc
-import numpy as np
-from skimage import measure
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from stl import mesh
-
 def srttri( t ):
     t = sorted(t)
     return tuple(t)
