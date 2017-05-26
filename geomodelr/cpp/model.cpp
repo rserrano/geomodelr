@@ -29,7 +29,7 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
 	point2 b1(g0(g1(bbox)), g1(g1(bbox)));
 	point2 b2(g0(g0(bbox)), g1(g1(bbox)));
-	point2 b3(g1(g1(bbox)), g1(g0(bbox)));
+	point2 b3(g0(g1(bbox)), g1(g0(bbox)));
 	
 	auto cut = [base_point, direction]( point2& v ) {
 		geometry::subtract_point(v, base_point);
@@ -44,6 +44,7 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 	
 	vector<double> cuts = { cut(b0), cut(b1), cut(b2), cut(b3) };
 	std::sort(cuts.begin(), cuts.end());
+	
 	this->cuts_range = std::make_pair(cuts[0], cuts[3]);
 }
 
