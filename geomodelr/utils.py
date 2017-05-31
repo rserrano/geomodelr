@@ -114,7 +114,7 @@ def fix_solid( vertices, triangles ):
     return vertices, triangles
 
 
-def triangulate_unit(model, unit, grid_divisions):
+def calculate_isosurface(model, unit, grid_divisions):
     
     bbox = list(model.geojson['bbox']) # Copy so original is not modified.
     
@@ -154,7 +154,7 @@ def triangulate_unit(model, unit, grid_divisions):
     return vertices, simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions ):
-    vertices, simplices = triangulate_unit(model, unit, grid_divisions)
+    vertices, simplices = calculate_isosurface(model, unit, grid_divisions)
     x,y,z = zip(*vertices)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -163,15 +163,38 @@ def plot_unit( model, unit, grid_divisions ):
     fig.show()
     raw_input("Enter to close...")
 
-def save_unit( name, model, unit, grid_divisions ):
-    vertices, simplices = triangulate_unit(model, unit, grid_divisions)
-    fix_solid(vertices, simplices)
+def stl_mesh( vertices, simplices ):
+    # fix_solid(vertices, simplices)
     m = mesh.Mesh(np.zeros(len(simplices), dtype=mesh.Mesh.dtype))
     for i, f in enumerate(simplices):
         for j in range(3):
             m.vectors[i][j] = vertices[f[j]]
-    
+    return m
+
+def save_unit( name, model, unit, grid_divisions ):
+    v, s = calculate_isosurface( model, unit, grid_divisions )
+    m = stl_mesh( v, s )
+    del v
+    del s
     m.save(name)
+
+def triangulate_unit(model, unit, grid_divisions):
+    vertices, triangles = calculate_isosurface( model, unit, grid_divisions )
+    m = stl_mesh( vertices, triangles )
+    volume, cog, inertia = m.get_mass_properties()
+    del m
+    
+    mins = [float('inf')] * 3
+    maxs = [-float('inf')] * 3
+    
+    for v in vertices:
+        for i in range(3):
+            mins[i] = min( mins[i], v[i] )
+            maxs[i] = max( maxs[i], v[i] )
+    
+    area = measure.mesh_surface_area( np.array(vertices), triangles )
+    return { 'properties': { 'volume': volume, 'center_of_gravity': cog.tolist(), 'bbox': mins + maxs, 'surface_area': area }, 
+             'mesh': { 'vertices': vertices, 'triangles': triangles } }
 
 def generate_simple_grid(query_func, bbox, grid_divisions):
     """
