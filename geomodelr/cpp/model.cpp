@@ -200,7 +200,7 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 	double sdist = this->signed_distance( unit, pt );
 	bool outside = false;
 	double odist = 0.0;
-	// double idist = -std::numeric_limits<double>::infinity(); In the future, fix distance below too.
+	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
 	
 	double x = gx(pt);
 	double y = gy(pt);
@@ -220,14 +220,16 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 		if ( dists[i] >= 0 ) {
 			outside = true;
 			odist += dists[i]*dists[i];
+		} else {
+			idist = std::max(idist, dists[i]);
 		}
 	}
+	
 	if ( outside ) {
 		return std::max(sdist, std::sqrt(odist));
 	}
-	return sdist;
+	return std::max(sdist, idist);
 }
-	
 
 vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
 	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, always_true);

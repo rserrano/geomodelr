@@ -55,6 +55,11 @@ def edges_triangles( triangles ):
                 edgs_tris[e] = [i]
     return edgs_tris
 
+def check_edges( triangles ):
+    edgs_tris = edges_triangles( triangles )
+    bedgs = [ (e, v) for e, v in edgs_tris.iteritems() if len(v) != 2 ]
+    return bedgs
+
 def fix_step( vertices, triangles ):
     tree = cKDTree(vertices)
     pairs = tree.query_pairs(1e-9)
@@ -77,16 +82,13 @@ def fix_step( vertices, triangles ):
                 renum[p[0]] = p[1]
     
     if len(to_remove) == 0:
-        check_things_out( vertices, triangles, pairs )
+        assert len(check_edges( triangles )) == 0
         return None
     
     to_remove = set(to_remove)
     triangles = [ tuple([ n if not n in renum else renum[n] for n in t ]) for i, t in enumerate(triangles) if not i in to_remove ]
     
-    edgs_tris = edges_triangles( triangles )
-    bedgs = [ (e, v) for e, v in edgs_tris.iteritems() if len(v) != 2 ]
-    
-    assert len(bedgs) == 0
+    assert len(check_edges(triangles)) == 0
 
     idx = 0
     newverts = []
@@ -101,6 +103,9 @@ def fix_step( vertices, triangles ):
     return newverts, triangles
 
 def fix_solid( vertices, triangles ):
+    bedgs = check_edges(triangles)
+    
+    assert len(check_edges(triangles)) == 0
     while True:
         res = fix_step( vertices, triangles )
         if res is None:
@@ -165,6 +170,7 @@ def save_unit( name, model, unit, grid_divisions ):
     for i, f in enumerate(simplices):
         for j in range(3):
             m.vectors[i][j] = vertices[f[j]]
+    
     m.save(name)
 
 def generate_simple_grid(query_func, bbox, grid_divisions):
