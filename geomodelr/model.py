@@ -66,7 +66,7 @@ class GeologicalModel(cpp.Model):
     with a transformation. Go to Geomodelr.com, create a new model and use it with this 
     tool.
     """
-    def __init__( self, geolojson ):
+    def __init__( self, geolojson, delete=True ):
         """ 
         Initializes the geological model from a Geological JSON 
         file created in www.geomodelr.com.
@@ -127,7 +127,12 @@ class GeologicalModel(cpp.Model):
         bbox = self.geojson['bbox']
         super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections)
         self.make_matches()
+
+        # Save space.
+        if delete:
+            del self.geojson
         
+
     def make_matches(self):
         """ Prepares the model to query by matching polygons and lines.
             It finds which polygons, when projected to the next cross section,

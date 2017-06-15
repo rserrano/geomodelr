@@ -647,6 +647,17 @@ pylist ModelPython::get_matches( ) const {
 	return ret;
 }
 
+pylist ModelPython::pybbox( ) const {
+	pylist p;
+	p.append( g0( g0( this->bbox ) ) );
+	p.append( g1( g0( this->bbox ) ) );
+	p.append( g2( g0( this->bbox ) ) );
+	p.append( g0( g1( this->bbox ) ) );
+	p.append( g1( g1( this->bbox ) ) );
+	p.append( g2( g1( this->bbox ) ) );
+	return p;
+}
+
 double ModelPython::signed_distance( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }

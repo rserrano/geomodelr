@@ -43,7 +43,9 @@ public:
 class Model {
 protected:
 	std::pair<double, double> cuts_range;
-	std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>> bbox;
+	std::tuple<std::tuple<double, double, double>, 
+		   std::tuple<double, double, double>> bbox;
+	
 	point2 base_point;
 	point2 direction;
 	vector<Section *> sections;
@@ -87,6 +89,7 @@ protected:
 				return Possible(cls.first, -1, cls.second, cls.second+s_dist);
 			}
 		};
+		
 		// Given a match in section b, find a match in section b.
 		auto b_possible = [&](const std::pair<int, double>& cls) { 
 			if ( cls.first == -1 ) {
@@ -270,6 +273,7 @@ public:
 	pylist get_matches() const;
 	// Methods to query matches.
 	pylist possible_closest(const pyobject& pt) const;
+	pylist pybbox() const;
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;

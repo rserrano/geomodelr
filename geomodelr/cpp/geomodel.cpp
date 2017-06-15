@@ -175,6 +175,7 @@ BOOST_PYTHON_MODULE(cpp)
 							  .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
 							  .def("height", &ModelPython::height, python::args("point"), doc_height)
 							  .def("info", &ModelPython::info)
+							  .add_property("bbox", &ModelPython::pybbox)
 							  .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches);
 }
 

@@ -116,7 +116,7 @@ def fix_solid( vertices, triangles ):
 
 def calculate_isosurface(model, unit, grid_divisions):
     
-    bbox = list(model.geojson['bbox']) # Copy so original is not modified.
+    bbox = list(model.bbox) # Copy so original is not modified.
     
     dx = (bbox[3]-bbox[0])/grid_divisions
     dy = (bbox[4]-bbox[1])/grid_divisions

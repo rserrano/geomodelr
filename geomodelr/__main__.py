@@ -31,7 +31,7 @@ class ParametersException(Exception):
     pass
 
 def prep_model(geojson):
-    model = GeologicalModel(json.loads(geojson.read()))
+    model = GeologicalModel(json.loads(geojson.read()), delete=False)
     return model
 
 def query_coordinates(geojson, verbose=False):
@@ -134,7 +134,7 @@ def calculate_volumes( geojson, params, verbose=False ):
 
 def get_information(geojson, verbose):
     # Show map, cross sections, polygons, etc.
-    model = GeologicalModel(json.loads(geojson.read()))
+    model = GeologicalModel(json.loads(geojson.read()), delete=False)
     model.print_information(verbose)
 
 def main(args=None):
