@@ -17,7 +17,7 @@
 # The utils file contains scripts that can be used by users to 
 # make calculations of their models.
 from model import GeologicalModel
-from shared import ModelException
+from shared import ModelException, TaskException
 import random
 import numpy as np
 from skimage import measure
@@ -79,7 +79,7 @@ def fix_step( vertices, triangles ):
             if p[0] < p[1]:
                 renum[p[1]] = p[0]
             else:
-                renum[p[0]] = p[1]
+                renum[p[0]] = p[0]
     
     if len(to_remove) == 0:
         assert len(check_edges( triangles )) == 0
@@ -134,7 +134,11 @@ def calculate_isosurface(model, unit, grid_divisions):
     signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
     vsigned_distance = np.vectorize(signed_distance, otypes=[np.float])
     sd = vsigned_distance( X, Y, Z )
-    vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+    try:
+        vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+    except ValueError:
+        raise TaskException("This model does not contain the unit or the sample is too coarse")
+    
     ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
     
     def real_pt( pt ):
@@ -164,7 +168,7 @@ def plot_unit( model, unit, grid_divisions ):
     raw_input("Enter to close...")
 
 def stl_mesh( vertices, simplices ):
-    # fix_solid(vertices, simplices)
+    fix_solid(vertices, simplices)
     m = mesh.Mesh(np.zeros(len(simplices), dtype=mesh.Mesh.dtype))
     for i, f in enumerate(simplices):
         for j in range(3):

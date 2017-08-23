@@ -27,6 +27,9 @@ class GeometryException(Exception):
 class ModelException(Exception):
     pass
 
+class TaskException(Exception):
+    pass
+
 # Method converts a set of shapes, (MultiGeometry, MultiPolygon, etc.), into a list of simpler shapes.
 def shape_list(shape, sh_type):
    try:
