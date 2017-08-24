@@ -20,11 +20,13 @@ from model import GeologicalModel
 from shared import ModelException, TaskException
 import random
 import numpy as np
-from skimage import measure
+
 try:
     from scipy.spatial import cKDTree
     from stl import mesh
+    from skimage import measure
 except ImportError:
+    print "Creating solids not supported"
     pass
 try:
     import matplotlib.pyplot as plt
@@ -34,84 +36,6 @@ except ImportError:
      
 import itertools
 import gc
-def srttri( t ):
-    t = sorted(t)
-    return tuple(t)
-
-def srtedg( e ):
-    e0, e1 = e[0], e[1]
-    if e0 > e1:
-        e1, e0 = e0, e1
-    return (e0, e1)
-
-def edges_triangles( triangles ):
-    edgs_tris = {}
-    for i, t in enumerate(triangles):
-        for j in range(3):
-            e = srtedg( ( t[j], t[(j+1)%3] ) )
-            if e in edgs_tris:
-                edgs_tris[e].append( i )
-            else:
-                edgs_tris[e] = [i]
-    return edgs_tris
-
-def check_edges( triangles ):
-    edgs_tris = edges_triangles( triangles )
-    bedgs = [ (e, v) for e, v in edgs_tris.iteritems() if len(v) != 2 ]
-    return bedgs
-
-def fix_step( vertices, triangles ):
-    tree = cKDTree(vertices)
-    pairs = tree.query_pairs(1e-9)
-    
-    edgs_tris = edges_triangles( triangles )
-    
-    to_remove = []
-    to_join_nodes = set()
-    renum = {}
-    for p in pairs:
-        if p in edgs_tris:
-            if p[0] in to_join_nodes or p[1] in to_join_nodes:
-                continue
-            to_remove += edgs_tris[p]
-            to_join_nodes.add(p[0])
-            to_join_nodes.add(p[1])
-            if p[0] < p[1]:
-                renum[p[1]] = p[0]
-            else:
-                renum[p[0]] = p[0]
-    
-    if len(to_remove) == 0:
-        assert len(check_edges( triangles )) == 0
-        return None
-    
-    to_remove = set(to_remove)
-    triangles = [ tuple([ n if not n in renum else renum[n] for n in t ]) for i, t in enumerate(triangles) if not i in to_remove ]
-    
-    assert len(check_edges(triangles)) == 0
-
-    idx = 0
-    newverts = []
-    erenum = {}
-    for i in xrange(len(vertices)):
-        if not i in renum:
-            newverts.append(vertices[i])
-            erenum[i] = idx
-            idx += 1
-    
-    triangles = [ [ erenum[i] for i in t ] for t in triangles ]
-    return newverts, triangles
-
-def fix_solid( vertices, triangles ):
-    bedgs = check_edges(triangles)
-    
-    assert len(check_edges(triangles)) == 0
-    while True:
-        res = fix_step( vertices, triangles )
-        if res is None:
-            break
-        vertices, triangles = res[0], res[1]
-    return vertices, triangles
 
 
 def calculate_isosurface(model, unit, grid_divisions):
@@ -168,7 +92,7 @@ def plot_unit( model, unit, grid_divisions ):
     raw_input("Enter to close...")
 
 def stl_mesh( vertices, simplices ):
-    fix_solid(vertices, simplices)
+    # fix_solid(vertices, simplices)
     m = mesh.Mesh(np.zeros(len(simplices), dtype=mesh.Mesh.dtype))
     for i, f in enumerate(simplices):
         for j in range(3):
