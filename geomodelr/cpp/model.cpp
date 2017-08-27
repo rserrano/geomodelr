@@ -138,13 +138,18 @@ void Model::set_matches( const vector< std::tuple< std::tuple<wstring, wstring>,
 }
 
 std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, const point2& pt ) const {
+	// Reference to match.
 	const Match& m = *(this->match[a_idx]);
+	// Reference to section s.
 	const Section& s = (a) ? *(this->sections[a_idx+1]) : *(this->sections[a_idx]);
+	// Get match depending on the direction.
 	const map<int, vector<int>>& mp = (a) ? m.a_to_b : m.b_to_a;
-	auto it = (a) ? mp.find(pol_idx): mp.find(pol_idx);
+	auto it = mp.find(pol_idx);
+	// This polygon does not have matches.
 	if ( it == mp.end() ) {
 		return std::make_pair(-1, std::numeric_limits<double>::infinity());
 	}
+	// In all the matches of this polygon, check the minimum distance.
 	const vector<int>& op = it->second;
 	double mindist = std::numeric_limits<double>::infinity();
 	int minidx = -1;
@@ -156,6 +161,7 @@ std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, con
 			minidx = pl;
 		}
 	}
+	// Return minimum distance and index of match.
 	return std::make_pair( minidx, mindist );
 }
 

@@ -16,6 +16,7 @@
 
 # The utils file contains scripts that can be used by users to 
 # make calculations of their models.
+
 from model import GeologicalModel
 from shared import ModelException, TaskException
 import random
@@ -32,16 +33,13 @@ try:
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 except ImportError:
+    print "Plotting solids is not supported"
     pass
      
 import itertools
 import gc
 
-
-def calculate_isosurface(model, unit, grid_divisions):
-    
-    bbox = list(model.bbox) # Copy so original is not modified.
-    
+def calculate_isovalues(model, unit, grid_divisions, bbox):
     dx = (bbox[3]-bbox[0])/grid_divisions
     dy = (bbox[4]-bbox[1])/grid_divisions
     dz = (bbox[5]-bbox[2])/grid_divisions
@@ -58,6 +56,47 @@ def calculate_isosurface(model, unit, grid_divisions):
     signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
     vsigned_distance = np.vectorize(signed_distance, otypes=[np.float])
     sd = vsigned_distance( X, Y, Z )
+    return (X, Y, Z, sd)
+
+def check_bbox_surface( sd ):
+    """
+    Checks the bbox of the object.
+    """
+    mn = [ float("inf"),  float("inf"),  float("inf")]
+    mx = [-float("inf"), -float("inf"), -float("inf")]
+    
+    for i in xrange(sd.shape[0]):
+        for j in xrange(sd.shape[1]):
+            for k in xrange(sd.shape[2]):
+                if sd[i,j,k] < 0:
+                    mn[0] = min( i, mn[0] )
+                    mn[1] = min( j, mn[1] )
+                    mn[2] = min( k, mn[2] )
+                    
+                    mx[0] = max( i, mx[0] )
+                    mx[1] = max( j, mx[1] )
+                    mx[2] = max( k, mx[2] )
+    
+    if mn[0] > mx[0]:
+        raise TaskException("This model does not contain the unit or the sample is too coarse")
+    # The bbox is the first possitive.
+    mn = [ max(mn[i]-1, 0) for i in xrange(3) ]
+    mx = [ min(mx[i]+1, sd.shape[i]-1) for i in xrange(3) ]
+    return mn + mx
+
+def calculate_isosurface(model, unit, grid_divisions):
+    
+    bbox = list(model.bbox) # Copy so original is not modified.
+    X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox )
+    
+    # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
+    bb = check_bbox_surface( sd )
+    total_cells = grid_divisions ** 3
+    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
+    # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
+    if ( float(total_cells) / float(obj_cells) ) > 8.0:
+        bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
+        X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox )
     try:
         vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
     except ValueError:

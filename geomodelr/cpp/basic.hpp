@@ -123,7 +123,7 @@ public:
 	}
 	
 	bool operator() ( const value_f& v ) const {
-		return this->fa(v) and this->fb(v);
+		return (this->fa(v) and this->fb(v));
 	}
 
 };

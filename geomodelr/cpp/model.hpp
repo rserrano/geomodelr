@@ -57,11 +57,17 @@ protected:
 	
 	struct Possible {
 		Possible(int a_match, int b_match, double a_dist, double b_dist);
+		// The match in the section a.
 		int a_match;
+		// The match in the section b.
 		int b_match;
+		// The polygon distance in section a.
 		double a_dist;
+		// The polygon distance in section b.
 		double b_dist;
+		// Order to be able to put in a map.
 		bool operator<( const Possible& other ) const;
+		// The given distance, at the given c.
 		double distance( double c ) const;
 	};
 	
@@ -76,7 +82,7 @@ protected:
 		
 		// Given a match in section a, find a match in section b
 		double inf = std::numeric_limits<double>::infinity();
-		auto a_possible = [&](const std::pair<int, double>& cls) { 
+		auto a_possible = [&](const std::pair<int, double>& cls) {
 			// If it didn't find a match, just return no match.
 			if ( cls.first == -1 ) {
 				return Possible(-1, -1, inf, inf);
@@ -90,7 +96,7 @@ protected:
 			}
 		};
 		
-		// Given a match in section b, find a match in section b.
+		// Given a match in section b, find a match in section a.
 		auto b_possible = [&](const std::pair<int, double>& cls) { 
 			if ( cls.first == -1 ) {
 				return Possible(-1, -1, inf, inf);
@@ -107,13 +113,14 @@ protected:
 		std::set<Possible> possible;
 		// Find the closest polygon to a.
 		auto closest_in_a = s_a.closest(pt_a, predicates);
+		
 		// Find the closest polygon in s_a => clst_a.
 		Possible clst_a = a_possible(closest_in_a);
 		
 		// Find all polygons closer than the one we just found.
 		if ( clst_a.a_match != -1 ) {
 			possible.insert(clst_a);
-			auto not_first = [&](const value_f& v) { return g2(v) != clst_a.b_match; };
+			auto not_first = [&](const value_f& v) { return g2(v) != clst_a.b_match; }; 
 			// Find the pols in s_b that are closer mindist => all_cls_a.
 			vector<std::pair<int, double>> clsr_b = s_b.closer_than( pt_b, clst_a.b_dist, add_funcs<decltype(not_first), decltype(predicates)>(not_first, predicates) );
 			if ( not clsr_b.size() ) 
@@ -131,9 +138,9 @@ protected:
 		
 		if ( clst_b.b_match != -1 ) {
 			possible.insert(clst_b);
-			auto not_first = [&](const value_f& v) { return g2(v) != clst_b.b_match; };
+			auto not_first = [&](const value_f& v) { return g2(v) != clst_b.a_match; }; // CHECK it's b_match.
 			// Find the pols in s_b that are closer mindist => all_cls_a.
-			vector<std::pair<int, double>> clsr_a = s_a.closer_than( pt_b, clst_b.a_dist, add_funcs<decltype(not_first), decltype(predicates)>(not_first, predicates) );
+			vector<std::pair<int, double>> clsr_a = s_a.closer_than( pt_a, clst_b.a_dist, add_funcs<decltype(not_first), decltype(predicates)>(not_first, predicates) ); // CHECK it's pt_b
 			for ( const auto& c: clsr_a ){
 				possible.insert(a_possible(c));
 			}
@@ -141,8 +148,6 @@ protected:
 	
 		return vector<Possible>(possible.begin(), possible.end());
 	}
-	
-	
 	
 	
 	vector<Possible> all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const;
@@ -153,6 +158,7 @@ protected:
 		double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
 		double cut_rem = cut - this->cuts[a_idx];
 		double mult_b = cut_rem/s_dist;
+		// assert 0.0 <= mult_b <= 1.0
 		double mult_a = 1.0-mult_b;
 		
 		vector<Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, predicates);

@@ -437,7 +437,7 @@ class TestGeoModelR(unittest.TestCase):
         m = model.GeologicalModel(json.loads(f.read()))
         m.height([813487.938015, 1164500.0])
         m.height([80000, 1100000])
-        bbox = m.geojson['bbox']
+        bbox = m.bbox
         t = {}
         def query_func(p):
             q = m.closest(p)[0]
