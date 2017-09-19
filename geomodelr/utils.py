@@ -17,7 +17,6 @@
 # The utils file contains scripts that can be used by users to 
 # make calculations of their models.
 
-from model import GeologicalModel
 from shared import ModelException, TaskException
 import random
 import numpy as np
