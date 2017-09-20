@@ -23,7 +23,7 @@ def create_modflow_inputs( outname, model, grid_divisions, properties):
 
 	# model es un model_from_file de geomodelr
 	# propierties deberia ser diccionario
-
+    
 	# model = geomodelr.model_from_file('./modelo.json')
 	# model.closest([1,1,1]) -> unidad geologica a la que eprtenece
 	# model.height([1,1]) -> altura del punto ingresado
