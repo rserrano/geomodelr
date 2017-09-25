@@ -127,6 +127,9 @@ class GeologicalModel(cpp.Model):
         bbox = self.geojson['bbox']
         super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections)
         self.make_matches()
+        # Add units to model before deleting geojson.
+        units = self.geojson['properties']['units'].keys()
+        self.units = units
 
         # Save space.
         if delete:
