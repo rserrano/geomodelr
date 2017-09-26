@@ -22,7 +22,8 @@ import flopy as fp
 import os
 from sys import exit
 
-def create_modflow_inputs( model_name='x', model=None, N_row=10, N_col=10,
+# Creates the data from Geomodelr to ModFlow
+def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	N_layers=5, properties=None):
 	
 	try:
@@ -73,17 +74,41 @@ def create_modflow_inputs( model_name='x', model=None, N_row=10, N_col=10,
 
 	dz = (z_max_min - model.bbox[2])/N_layers
 
+	# Define Layers
 	Z_bottoms = np.zeros((N_layers,N_row,N_col))
 
-	for k in np.arange(N_layers):
-		Z_bottoms[k,:,:] = z_max_min - dz*(k+1)
+	for i in np.arange(N_row):
+		for j in np.arange(N_col):
+
+			# First layer
+			xp = X_vec[j] + dX_vec[j]/2.0
+			yp = Y_vec[i] + dY_vec[i]/2.0
+			zp = (Z_max[i,j] + Z_bottoms[0,i,j])/2.0
+
+			Unit = model.closest([xp,yp,zp])[0]
+			Data = K_data[Unit]
+			K_hor[0,i,j] = Data[0]; K_ratio_hor[0,i,j] = Data[1]
+			K_ver[0,i,j] = Data[2]
+
+			# Other layers
+			for L in np.arange(N_layers-1):
+				zp = (Z_bottoms[L,i,j] + Z_bottoms[L+1,i,j])/2.0
+
+				Unit = model.closest([xp,yp,zp])[0]
+				Data = K_data[Unit]
+				K_hor[L+1,i,j] = Data[0]; K_ratio_hor[L+1,i,j] = Data[1]
+				K_ver[L+1,i,j] = Data[2]
+
+	# Default
+	# for k in np.arange(N_layers):
+	# 	Z_bottoms[k,:,:] = z_max_min - dz*(k+1)
 
 
 	K_hor = np.zeros((N_layers,N_row,N_col))
 	K_ratio_hor = np.zeros((N_layers,N_row,N_col))
 	K_ver = np.zeros((N_layers,N_row,N_col))
 
-	# Hydraulic Conductivity   
+	# Hydraulic Conductivity 
 	for i in np.arange(N_row):
 		for j in np.arange(N_col):
 
@@ -137,15 +162,41 @@ def create_modflow_inputs( model_name='x', model=None, N_row=10, N_col=10,
 	mv_comand = 'mv ' + model_name + '* /media/sf_CompartidaVB/'
 	os.system(mv_comand)
 
-	#return((K_hor,K_data,Unit_layer))
+	#return(dis)
 
 
-	# model es un model_from_file de geomodelr
-	# propierties deberia ser diccionario
-    
+def find_unit_boundary(model, xp, yp, z_max,z_min, eps):
 
-    # import geomodelr
-	# model = geomodelr.model_from_file('./modelo.json')
+		Unit_max = model.closest([xp,yp,z_max])[0]
+		Unit_min = model.closest([xp,yp,z_min])[0]
+
+		z_mean = (z_max+z_min)/2.0
+		Unit_mean = model.closest([xp, yp, z_mean])[0]
+
+		while (z_max-z_min)>eps:
+
+			if (Unit_max == Unit_mean):
+				z_max = z_mean
+			elif (Unit_min == Unit_mean):
+				z_min = z_mean
+			else:
+				z_min = z_mean
+				Unit_min == Unit_mean
+
+			z_mean = (z_max+z_min)/2.0
+			Unit_mean = model.closest([xp, yp, z_mean])[0]
+
+		return(z_mean)
+	
+
+
+
+
+def define_bottoms(model, X_vec, Y_vec, dX, dY, N_row, N_col, N_layers,
+	model_top, Z_bottoms):
+	pass
+
+
 
 	
 	# model.closest([1,1,1]) -> unidad geologica a la que eprtenece
