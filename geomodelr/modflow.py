@@ -19,62 +19,126 @@
 
 import numpy as np
 import flopy as fp
+import os
+from sys import exit
 
-def create_modflow_inputs( outname, model, grid_divisions, properties):
+def create_modflow_inputs( model_name='x', model=None, N_row=10, N_col=10,
+	N_layers=5, properties=None):
 	
-	num_units = 3
+	try:
+		num_unit = len(model.units)
+	except:
+		exit('You have not defined the Geomodelr model')
+
+	try:
+		num_properties = (np.shape(properties))[1]
+		if (not( num_unit==num_properties )):
+			exit('The Geomodelr model has ' + str(num_unit) +
+				'units. Your properties array has ' + str(num_propierties) +
+				'units.')
+	except:
+		exit('You have not defined the properties array.')
+
+
+	del(num_properties)
+
+	#properties[1,:] /= properties[0,:]
+
+	K_data = { (model.units)[k]: properties[:,k] for k in range(num_unit) }
+
 	X_inf = model.bbox[0]
 	X_sup = model.bbox[3]
 
 	Y_inf = model.bbox[1]
 	Y_sup = model.bbox[4]
 
-	N_row = grid_divisions[0] + 1
-	N_col = grid_divisions[1] + 1
+	X_vec = np.linspace(X_inf,X_sup,N_col + 1)
+	Y_vec = np.linspace(Y_inf,Y_sup,N_row + 1)
 
-	X_vec = np.linspace(X_inf,X_sup,N_col)
-	Y_vec = np.linspace(Y_inf,Y_sup,N_row)
+	dX_vec = np.diff(X_vec)
+	dY_vec = np.diff(Y_vec)
  
  	Z_max = np.zeros((N_row,N_col))
+ 	chani_var = -np.ones(N_layers, dtype=np.int32)
+
 
 	for i in np.arange(N_row):
 		for j in np.arange(N_col):
-			Z_max[i,j] = model.height([X_vec[j],Y_vec[i]])
 
-	dz = 0.5*( (X_sup-X_inf)/(N_col-1) + (Y_sup-Y_inf)/(N_row-1)) 
+			xp = X_vec[j] + dX_vec[j]/2.0
+			yp = Y_vec[i] + dY_vec[i]/2.0
+			Z_max[i,j] = model.height([xp, yp])
 
-	Z_bottoms = np.zeros((num_units,N_row,N_col))
+	z_max_min = np.min(Z_max)
 
-	for k in np.arange(num_units):
-		Z_bottoms[k,:,:] = Z_max - dz*(k+1)
+	dz = (z_max_min - model.bbox[2])/N_layers
+
+	Z_bottoms = np.zeros((N_layers,N_row,N_col))
+
+	for k in np.arange(N_layers):
+		Z_bottoms[k,:,:] = z_max_min - dz*(k+1)
 
 
+	K_hor = np.zeros((N_layers,N_row,N_col))
+	K_ratio_hor = np.zeros((N_layers,N_row,N_col))
+	K_ver = np.zeros((N_layers,N_row,N_col))
+
+	# Hydraulic Conductivity
+	for i in np.arange(N_row):
+		for j in np.arange(N_col):
+
+			# First layer
+			xp = X_vec[j] + dX_vec[j]/2.0
+			yp = Y_vec[i] + dY_vec[i]/2.0
+			zp = (Z_max[i,j] + Z_bottoms[0,i,j])/2.0
+
+			Unit = model.closest([xp,yp,zp])[0]
+			Data = K_data[Unit]
+			K_hor[0,i,j] = Data[0]; K_ratio_hor[0,i,j] = Data[1]
+			K_ver[0,i,j] = Data[2]
+
+			# Other layers
+			for L in np.arange(N_layers-1):
+				zp = (Z_bottoms[L,i,j] + Z_bottoms[L+1,i,j])/2.0
+
+				Unit = model.closest([xp,yp,zp])[0]
+				Data = K_data[Unit]
+				K_hor[L+1,i,j] = Data[0]; K_ratio_hor[L+1,i,j] = Data[1]
+				K_ver[L+1,i,j] = Data[2]
 
 	#  ------- Flopy Package ----
 	# Grid
-	
-	modelname = '/media/sf_CompartidaVB/Proof_Mesh'
-	mf_handle = fp.modflow.Modflow(modelname, exe_name='mf2005',verbose=True)
-	dis = fp.modflow.ModflowDis(mf_handle,nlay=num_units, nrow=N_row, ncol=N_col,top=Z_max, botm=Z_bottoms)
+
+	mf_handle = fp.modflow.Modflow(model_name, exe_name='mf2005',verbose=False)
+	dis = fp.modflow.ModflowDis(mf_handle,nlay=N_layers, nrow=N_row, ncol=N_col,
+		top=Z_max, botm=Z_bottoms, delc=dY_vec, delr=dX_vec)
+
 
 	# Variables for the BAS package
-	ibound = np.ones((num_units, N_row, N_col), dtype=np.int32)
-	ibound[:, :, 0] = -1
-	ibound[:, :, -1] = -1
-	strt = np.ones((num_units, N_row, N_col), dtype=np.float32)
-	strt[:, :, 0] = 10.
-	strt[:, :, -1] = 0.
-	bas = fp.modflow.ModflowBas(mf_handle, ibound=ibound, strt=strt)
+	# ibound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
+	# ibound[:, :, 0] = -1
+	# ibound[:, :, 1] = -2
+	# ibound[:, :, 2] = -3
+	# strt = np.ones((N_layers, N_row, N_col), dtype=np.float32)
+	# strt[:, :, 0] = 10.5
+	# strt[:, :, 1] = 5.5
+	# strt[:, :, 2] = 1.5
+	bas = fp.modflow.ModflowBas(mf_handle)
 
 	# Add LPF package to the MODFLOW model
-	lpf = fp.modflow.ModflowLpf(mf_handle, hk=10., vka=10.)
-	oc = fp.modflow.ModflowOc(mf_handle)
-	pcg = fp.modflow.ModflowPcg(mf_handle)
-
-	#lst=fp.modflow.mf.ModflowList(mf_handle,extension='list',unitnumber=2)
+	lpf = fp.modflow.ModflowLpf(mf_handle, chani=chani_var, hk=K_hor,
+		vka=K_ver, hani=K_ratio_hor)
+	
+	# oc = fp.modflow.ModflowOc(mf_handle)
+	# pcg = fp.modflow.ModflowPcg(mf_handle)
 
 	mf_handle.write_input()
-	return(dis)
+	
+	mv_comand = 'mv ' + model_name + '* /media/sf_CompartidaVB/'
+	os.system(mv_comand)
+
+	#return((K_hor,K_data,Unit_layer))
+
 
 	# model es un model_from_file de geomodelr
 	# propierties deberia ser diccionario
