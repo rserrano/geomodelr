@@ -83,7 +83,7 @@ def create_modflow_inputs( model_name='x', model=None, N_row=10, N_col=10,
 	K_ratio_hor = np.zeros((N_layers,N_row,N_col))
 	K_ver = np.zeros((N_layers,N_row,N_col))
 
-	# Hydraulic Conductivity
+	# Hydraulic Conductivity   
 	for i in np.arange(N_row):
 		for j in np.arange(N_col):
 
