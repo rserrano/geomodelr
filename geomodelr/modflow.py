@@ -165,7 +165,7 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	#return(dis)
 
 
-def find_unit_boundary(model, xp, yp, z_max,z_min, eps):
+def find_unit_boundary(model, xp, yp, z_max, z_min, eps):
 
 		Unit_max = model.closest([xp,yp,z_max])[0]
 		Unit_min = model.closest([xp,yp,z_min])[0]
@@ -173,28 +173,58 @@ def find_unit_boundary(model, xp, yp, z_max,z_min, eps):
 		z_mean = (z_max+z_min)/2.0
 		Unit_mean = model.closest([xp, yp, z_mean])[0]
 
-		while (z_max-z_min)>eps:
+		if (Unit_max == Unit_mean) & (Unit_min == Unit_mean):
+			change = False
+			z_mean = z_min
+		else:
+			change = True
+			while (z_max-z_min)>eps:
 
-			if (Unit_max == Unit_mean):
-				z_max = z_mean
-			elif (Unit_min == Unit_mean):
-				z_min = z_mean
-			else:
-				z_min = z_mean
-				Unit_min == Unit_mean
+				if (Unit_max == Unit_mean):
+					z_max = z_mean
+				elif (Unit_min == Unit_mean):
+					z_min = z_mean
+				else:
+					z_min = z_mean
+					Unit_min == Unit_mean
 
-			z_mean = (z_max+z_min)/2.0
-			Unit_mean = model.closest([xp, yp, z_mean])[0]
+				z_mean = (z_max+z_min)/2.0
+				Unit_mean = model.closest([xp, yp, z_mean])[0]
 
-		return(z_mean)
+		return((z_min, change))
+
+
+def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 	
+	K_index = 0
+	counter = 0
 
+	#Aux_Bool = np.isfinite(Z_vec)
 
+	for k in np.arange(N_layers-1):
 
+		z_up = Z_vec[k]; z_low = Z_vec[k+1]
+		z_mean,Bool = find_unit_boundary(model, xp, yp, z_up, z_low, 1E-7)
 
-def define_bottoms(model, X_vec, Y_vec, dX, dY, N_row, N_col, N_layers,
-	model_top, Z_bottoms):
-	pass
+		if Bool:
+			Z_vec[k+1] = z_mean
+			if (counter > 0):
+				Aux_vec = np.linspace(Z_vec[K_index], Z_vec[k+1], counter+2)
+				Z_vec[K_index:k+2] = Aux_vec
+				counter = 0
+
+			K_index = k+1
+		else:
+			counter += 1
+			#Aux_Bool[k+1] = False
+
+	if (counter > 0):
+		Aux_vec = np.linspace(Z_vec[K_index], Z_vec[N_layers], counter+2)
+		Z_vec[K_index:N_layers+1] = Aux_vec
+
+	#return(Aux_Bool)
+		
+
 
 
 
