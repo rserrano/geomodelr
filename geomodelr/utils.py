@@ -39,7 +39,7 @@ except ImportError:
 import itertools
 import gc
 
-def calculate_isovalues(model, unit, grid_divisions, bbox):
+def calculate_isovalues(model, unit, grid_divisions, bbox, bounded=True):
     dx = (bbox[3]-bbox[0])/grid_divisions
     dy = (bbox[4]-bbox[1])/grid_divisions
     dz = (bbox[5]-bbox[2])/grid_divisions
@@ -53,7 +53,11 @@ def calculate_isovalues(model, unit, grid_divisions, bbox):
     bbox[5] += 2*dz
     
     X,Y,Z = np.mgrid[bbox[0]:bbox[3]:dx, bbox[1]:bbox[4]:dy, bbox[2]:bbox[5]:dz]
-    signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
+    if bounded:
+        signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
+    else:
+        signed_distance = lambda x,y,z: model.signed_distance_unbounded(unit, (x,y,z))
+
     vsigned_distance = np.vectorize(signed_distance, otypes=[np.float])
     sd = vsigned_distance( X, Y, Z )
     return (X, Y, Z, sd)
@@ -84,23 +88,65 @@ def check_bbox_surface( sd ):
     mx = [ min(mx[i]+1, sd.shape[i]-1) for i in xrange(3) ]
     return mn + mx
 
-def calculate_isosurface(model, unit, grid_divisions):
+def calculate_normals(vertices, simplices):
+    normals = np.zeros(simplices.shape, dtype=float)
+    for i in xrange(simplices.shape[0]):
+        p0 = vertices[simplices[i,0]]
+        p1 = vertices[simplices[i,1]]
+        p2 = vertices[simplices[i,2]]
+        v1 = p1-p0
+        v2 = p2-p0
+        normals[i,:] = np.cross(v1, v2)
+    return normals    
+    
+
+def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True):
     
     bbox = list(model.bbox) # Copy so original is not modified.
-    X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox )
+    X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox, bounded=bounded )
     
     # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
     bb = check_bbox_surface( sd )
     total_cells = grid_divisions ** 3
     obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
+    
     # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
     if ( float(total_cells) / float(obj_cells) ) > 8.0:
         bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
-        X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox )
+        X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox, bounded=bounded )
     try:
         vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+        del normals
     except ValueError:
         raise TaskException("This model does not contain the unit or the sample is too coarse")
+    
+    if filter_by_normal:
+        normals = calculate_normals( vertices, simplices )
+        # First, remove triangles with the normal incorrect.
+        if normal_upwards:
+            fltr = normals[:,2] >= 0
+        else:
+            fltr = normals[:,2] <= 0
+        simplices = simplices[fltr,:]
+        
+        # Remove vertices that don't belong to any triangle.
+        lverts = vertices.shape[0]
+        belongs = np.zeros(lverts, dtype=bool)
+        for i in xrange(3):
+            belongs[simplices[:,i]] = True
+        vertices = vertices[belongs]
+        
+        # Renum
+        idx = 0
+        renum = np.zeros(lverts, dtype=int)
+        for i in xrange(renum.shape[0]):
+            if belongs[i]:
+                renum[i] = idx
+                idx += 1
+        
+        for i in xrange(simplices.shape[0]):
+            for j in xrange(3):
+                simplices[i,j] = renum[simplices[i,j]]
     
     ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
     
@@ -120,8 +166,8 @@ def calculate_isosurface(model, unit, grid_divisions):
     
     return vertices, simplices.tolist()
 
-def plot_unit( model, unit, grid_divisions ):
-    vertices, simplices = calculate_isosurface(model, unit, grid_divisions)
+def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
+    vertices, simplices = calculate_isosurface(model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards)
     x,y,z = zip(*vertices)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -138,20 +184,20 @@ def stl_mesh( vertices, simplices ):
             m.vectors[i][j] = vertices[f[j]]
     return m
 
-def save_unit( name, model, unit, grid_divisions ):
-    v, s = calculate_isosurface( model, unit, grid_divisions )
+def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
+    v, s = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards )
     m = stl_mesh( v, s )
     del v
     del s
     m.save(name)
 
-def triangulate_unit(model, unit, grid_divisions):
-    vertices, triangles = calculate_isosurface( model, unit, grid_divisions )
+def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
+    vertices, triangles = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards )
     m = stl_mesh( vertices, triangles )
     volume, cog, inertia = m.get_mass_properties()
     del m
     
-    mins = [float('inf')] * 3
+    mins = [ float('inf')] * 3
     maxs = [-float('inf')] * 3
     
     for v in vertices:
@@ -160,8 +206,12 @@ def triangulate_unit(model, unit, grid_divisions):
             maxs[i] = max( maxs[i], v[i] )
     
     area = measure.mesh_surface_area( np.array(vertices), triangles )
-    return { 'properties': { 'volume': volume, 'center_of_gravity': cog.tolist(), 'bbox': mins + maxs, 'surface_area': area }, 
-             'mesh': { 'vertices': vertices, 'triangles': triangles } }
+    props = { 'properties': { 'center_of_gravity': cog.tolist(), 'bbox': mins + maxs, 'surface_area': area }, 
+              'mesh': { 'vertices': vertices, 'triangles': triangles } }
+    # Volume is incorrect and misleading when the feature is unbounded.
+    if bounded:
+        props['properties']['volume'] = volume
+    return props
 
 def generate_simple_grid(query_func, bbox, grid_divisions):
     """
@@ -490,7 +540,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
         tot = sum( total_volumes.values() )
         exp = (bbox[3]-bbox[0])*(bbox[4]-bbox[1])*(bbox[5]-bbox[2])
 
-        print "VOLUME AGGREGATED", tot, "VOLUME EXPECTED", exp, "PERCENTAGE %s%%" % (100*tot/exp)
+        # print "VOLUME AGGREGATED", tot, "VOLUME EXPECTED", exp, "PERCENTAGE %s%%" % (100*tot/exp)
     
     # Generate a simple grid.
     simple = generate_simple_grid(query_func, bbox, grid_divisions)
@@ -521,7 +571,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
                             elem.append(pidx+ix*pdims[1]*pdims[2]+jx*pdims[2]+kx)
                 elems[i*mdims[1]*mdims[2] + j*mdims[2] + k,:] = elem
     
-    print "INITIAL", elems.shape[0]
+    # print "INITIAL", elems.shape[0]
     percent_aggregated()
     # Function to check which cells should be refined.
     def should_refine_cell(pts, uns):
@@ -559,7 +609,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
     def cell_size( ):
         pts = points[elems[0,:]]
         dif = pts[7]-pts[0]
-        print "CELL SIZE", dif[0], dif[1], dif[2]
+        # print "CELL SIZE", dif[0], dif[1], dif[2]
 
     # Find which elements should remain, wich should be removed, and reduce points and units accordingly.
     rem_idx = []
@@ -598,11 +648,11 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
                 (26,25,23,19,21,15,11,7)]
     
     
-    print "FILTERED", elems.shape[0]
+    # print "FILTERED", elems.shape[0]
     percent_aggregated()
     cell_size()
     for r in xrange(oct_refine):
-        print "ITERATION", r
+        # print "ITERATION", r
         
         elems_ti = []
         points_ti = []
@@ -680,7 +730,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
         elems = np.array(elems_ti)
         points, units = reduce_points()
         gc.collect()
-        print "ELEMENTS", elems.shape[0]
+        # print "ELEMENTS", elems.shape[0]
         percent_aggregated()
         cell_size()
     
@@ -688,6 +738,6 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
         sm = get_volume(points[elems[i,:]])
         for ie in elems[i,:].tolist():
             add_volume( units[ie], sm / 8.0 )
-    print "APPROXIMATED"
+    # print "APPROXIMATED"
     percent_aggregated()
     return ( total_volumes, { 'points': points, 'units': units, 'elems': elems } )

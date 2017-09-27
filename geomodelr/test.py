@@ -480,7 +480,28 @@ class TestGeoModelR(unittest.TestCase):
         
         grid = utils.generate_octtree_grid(query_func, bbox, 3, 3, 3)
         vols, elems = utils.octtree_volume_calculation(query_func, bbox, 10, 2)
-
+        self.assertAlmostEqual(vols[t["Anfibolitas"]]/1e13, 2.71, 2)
+        
+        # Calculate bounded.
+        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50 )
+        self.assertEqual(len(verts), 11030)
+        self.assertEqual(len(triangs), 22056)
+        
+        # Calculate unbounded
+        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50, False )
+        self.assertEqual(len(verts), 8869)
+        self.assertEqual(len(triangs), 17340)
+        
+        # Filter by normal.
+        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
+        self.assertEqual(len(verts), 4674)
+        self.assertEqual(len(triangs), 8877)
+        
+        # Filter by normal, negative.
+        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
+        self.assertEqual(len(verts), 4483)
+        self.assertEqual(len(triangs), 8463)
+        
 def main(args=None):
     unittest.main()
 
