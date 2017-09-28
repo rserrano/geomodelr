@@ -78,33 +78,16 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 			z_max = model.height([xp, yp])
 			Z_top[i,j] = z_max
 
-			if (j>0):
-				z_vec[0] = z_max
-			elif (i > 0):
-				z_vec = np.insert( Z_bottoms[:,i-1,0] ,0,z_max)
-			else:
-				z_vec = np.linspace(z_max,model.bbox[2],N_layers+1)
+			#if (j>0):
+			#	z_vec[0] = z_max
+			#elif (i > 0):
+			#	z_vec = np.insert( Z_bottoms[:,i-1,0] ,0,z_max)
+			#else:
+			#	z_vec = np.linspace(z_max,model.bbox[2],N_layers+1)
 
 			z_vec = np.linspace(z_max,model.bbox[2],N_layers+1)
 
-			#if (i==10)&(j==36):
-			#	print z_vec[0]
-			#	print xp,yp
-			#	exit(0)
-
 			define_bottoms(model, xp, yp, N_layers,	z_vec)
-
-			#if (i==10)&(j==36):
-			#	print z_vec[:3]
-			#	print xp,yp
-			#	exit(0)
-
-			#Sum = np.sum(np.diff(z_vec)>-1.1)
-			#if (Sum>0):
-			#	print i, j
-			#	exit(0)
-			
-
 
 			Z_bottoms[:,i,j] = z_vec[1:]
 
@@ -151,7 +134,10 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	return(dis)
 
 # ===================== AUXILIAR FUNCTIONS ========================
-def find_unit_boundary(model, xp, yp, Z_top, z_min, eps):
+
+# FIND_UNITS_LIMIT: It finds the limit between two geological units.
+
+def find_units_limit(model, xp, yp, Z_top, z_min, eps):
 
 		Unit_max = model.closest([xp,yp,Z_top])[0]
 		Unit_min = model.closest([xp,yp,z_min])[0]
@@ -180,6 +166,7 @@ def find_unit_boundary(model, xp, yp, Z_top, z_min, eps):
 		return((z_min, change))
 
 
+# DEFINE_BOOTOMS: It finds the layers bottoms
 def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 	
 	K_index = 0
@@ -190,7 +177,7 @@ def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 	for k in np.arange(N_layers-1):
 
 		z_up = Z_vec[k]; z_low = Z_vec[k+1]
-		z_mean,Bool = find_unit_boundary(model, xp, yp, z_up, z_low, 1E-7)
+		z_mean,Bool = find_units_limit(model, xp, yp, z_up, z_low, 1E-7)
 
 		if Bool:
 			aux_val = Z_vec[k]
@@ -210,6 +197,8 @@ def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 		Aux_vec = np.linspace(Z_vec[K_index], Z_vec[N_layers], counter+2)
 		Z_vec[K_index:N_layers+1] = Aux_vec
 
+# DEFINE_BOOTOMS: It finds the layers bottoms
+#def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 	#return(Aux_Bool)
 		
 
