@@ -81,7 +81,7 @@ class GeologicalModel(cpp.Model):
             mfile = open('/path/to/your/version.json')
             geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
 
-        Parameters:
+        Args:
             (dict) geolojson: The Geological JSON.
         """
         self.geojson = geolojson
@@ -153,7 +153,7 @@ class GeologicalModel(cpp.Model):
         Prints the version, coordinate system and valid coordinates 
         that the geological model takes.
         
-        Parameters:
+        Args:
             (boolean) verbose: You can print more information with verbose=True.
         """
         # Get name of the study.

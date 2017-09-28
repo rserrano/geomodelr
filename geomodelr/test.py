@@ -25,6 +25,7 @@ import json
 import faults
 import shared
 import utils
+import isosurfaces
 import cpp
 import numpy as np
 from numpy import linalg as la
@@ -483,22 +484,22 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(vols[t["Anfibolitas"]]/1e13, 2.71, 2)
         
         # Calculate bounded.
-        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50 )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50 )
         self.assertEqual(len(verts), 11030)
         self.assertEqual(len(triangs), 22056)
         
         # Calculate unbounded
-        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50, False )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False )
         self.assertEqual(len(verts), 8869)
         self.assertEqual(len(triangs), 17340)
         
         # Filter by normal.
-        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
         self.assertEqual(len(verts), 4674)
         self.assertEqual(len(triangs), 8877)
         
         # Filter by normal, negative.
-        verts, triangs = utils.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
         self.assertEqual(len(verts), 4483)
         self.assertEqual(len(triangs), 8463)
         

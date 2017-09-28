@@ -128,7 +128,7 @@ BOOST_PYTHON_MODULE(cpp)
 	const char* doc_signed_distance = "Given unit U and a point P, it finds the geomodelr distance to U minus\n"
 					  "the geomodelr distance to the closest unit different to U\n\n"
 					  "It returns a signed distance that's zero at the boundary of the unit,\n"
-					  "negative inside the unit and possitive outside the unit\n"
+					  "negative inside the unit and possitive outside the unit\n\n"
 					  "Args:\n"
 					  "    (string) unit:\n"
 					  "    The unit to measure the signed distance to\n"
