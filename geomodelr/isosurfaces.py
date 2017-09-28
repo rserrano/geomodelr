@@ -34,8 +34,11 @@ def calculate_isovalues(model, unit, grid_divisions, bbox, bounded=True):
     
     Args:
         (geomodelr.model.GeologicalModel) geolojson: The Geological model created form a Geological JSON object.
+
         (int) grid_divisions: The divisions of the grid in the X, Y and Z directions.
+
         (list) bbox: the values of [minx, miny, minz, maxx, maxy, maxz].
+
         (bool) bounded: whether the object will be a solid, (the bounded signed distance will be used), or it will be an open surface.
     """
 
@@ -98,7 +101,9 @@ def calculate_normals(vertices, simplices):
     
     Args:
         (numpy.array) vertices: The vertices returned by the marching cubes algorithm.
+
         (numpy.array) simplices: The simplices (triangles) returned by the marching cubes algorithm.
+
     """
     normals = np.zeros(simplices.shape, dtype=float)
     v1 = vertices[simplices[:,1]] - vertices[simplices[:,0]]
@@ -111,15 +116,21 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     
     Args:
         (geomodelr.model.GeologicalModel) model: The geomodelr geological model.
+
         (unicode) unit: The unit to calculate the isosurface for.
+
         (int) grid_divisions: The number of divisions for all the axes.
+
         (bool) bounded: calculates the surface using the bounding box. This will result in a solid.
+
         (bool) filter_by_normal: filters by the normal of each triangle, depending on the normal_upwards argument.
+
         (bool) normal_upwards: if filter_by_normal is True, filters the triangles depending on its normal. It returns only
         the triangles pointing upwards if it's True, otherwise it returns the triangles pointing downwards.
     
     Returns:
         (list) vertices: The list of vertices.
+
         (list) triangles: The list of triangles indexes to vertexes.
     """
 
@@ -193,11 +204,17 @@ def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False
     
     Args:
         (geomodelr.model.GeologicalModel) model: The geomodelr geological model.
+
         (unicode) unit: The unit to calculate the isosurface for.
+
         (int) grid_divisions: The number of divisions for all the axes.
+
         (bool) bounded: calculates the surface using the bounding box. This will result in a solid.
+
         (bool) filter_by_normal: filters by the normal of each triangle, depending on the normal_upwards argument.
+
         (bool) normal_upwards: if filter_by_normal is True, filters the triangles depending on its normal. It returns only
+
         the triangles pointing upwards if it's True, otherwise it returns the triangles pointing downwards.
     
     """
@@ -219,6 +236,7 @@ def stl_mesh( vertices, simplices ):
 
     Args:
         (list) vertices: vertices of the mesh.
+
         (list) simplices: triangles of the mesh.
     Returns:
         (stl.mesh.Mesh): a numpy-stl mesh.
@@ -237,12 +255,18 @@ def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal
 
     Args:
         (str) name: the name to save the STL file.
+
         (geomodelr.model.GeologicalModel) model: the model to be queried.
+
         (unicode) unit: the unit to be meshed.
+
         (int) grid_divisions: the number of divisions of the grid to mesh the object.
+
         (bool) bounded: whether this surface is bounded by the bbox or only by the topography.
+
         (bool) filter_by_normal: whether to filter this mesh by normal to the surface. Useful 
         if you want to see the top or bottom of your formation.
+
         (bool) normal_upwards: if filter_by_normal is True, whether you want the triangles that look up or
         the triangles that look down.
     """
@@ -260,11 +284,16 @@ def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_norma
 
     Args:
         (geomodelr.model.GeologicalModel) model: the model to be queried.
+
         (unicode) unit: the unit to be meshed.
+
         (int) grid_divisions: the number of divisions of the grid to mesh the object.
+
         (bool) bounded: whether this surface is bounded by the bbox or only by the topography.
+
         (bool) filter_by_normal: whether to filter this mesh by normal to the surface. Useful 
         if you want to see the top or bottom of your formation.
+
         (bool) normal_upwards: if filter_by_normal is True, whether you want the triangles that look up or
         the triangles that look down.
     Returns:

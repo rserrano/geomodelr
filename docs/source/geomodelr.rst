@@ -333,9 +333,14 @@ max_refinements)**
 
    Args:
       (function) query_func: a function of the geological model that
-      returns a unit. (list) bbox: the bounding box to search in.
-      (int) grid_divisions: the number of points for the grid. (int)
-      max_refinements: the number of refinements for this FDM scheme.
+      returns a unit.
+
+      (list) bbox: the bounding box to search in.
+
+      (int) grid_divisions: the number of points for the grid.
+
+      (int) max_refinements: the number of refinements for this FDM
+      scheme.
 
 **geomodelr.utils.generate_octtree_grid(query_func, bbox,
 grid_divisions, fdm_refine, oct_refine)**
@@ -346,10 +351,16 @@ grid_divisions, fdm_refine, oct_refine)**
 
    Args:
       (function) query_func: a function of the geological model that
-      returns a unit. (list) bbox: the bounding box to search in.
-      (int) grid_divisions: the number of points for the grid. (int)
-      fdm_refine: the number of refinements for the fdm scheme. (int)
-      oct_refine: the number of refinements for the octree scheme
+      returns a unit.
+
+      (list) bbox: the bounding box to search in.
+
+      (int) grid_divisions: the number of points for the grid.
+
+      (int) fdm_refine: the number of refinements for the fdm scheme.
+
+      (int) oct_refine: the number of refinements for the octree
+      scheme
 
 **geomodelr.utils.generate_simple_grid(query_func, bbox,
 grid_divisions)**
@@ -360,7 +371,10 @@ grid_divisions)**
 
    Args:
       (function) query_func: a function of the geological model that
-      returns a unit. (list) bbox: the bounding box to search in.
+      returns a unit.
+
+      (list) bbox: the bounding box to search in.
+
       (int) grid_divisions: the number of points for the grid.
 
 **geomodelr.utils.octtree_volume_calculation(query_func, bbox,
@@ -370,9 +384,14 @@ grid_divisions, oct_refine)**
 
    Args:
       (function) query_func: a function of the geological model that
-      returns a unit. (list) bbox: the bounding box to search in.
-      (int) grid_divisions: the number of points for the grid. (int)
-      oct_refine: the number of refinements for the octree scheme
+      returns a unit.
+
+      (list) bbox: the bounding box to search in.
+
+      (int) grid_divisions: the number of points for the grid.
+
+      (int) oct_refine: the number of refinements for the octree
+      scheme
 
 
 geomodelr.isosurfaces module
@@ -387,20 +406,27 @@ normal_upwards=True)**
 
    Args:
       (geomodelr.model.GeologicalModel) model: The geomodelr
-      geological model. (unicode) unit: The unit to calculate the
-      isosurface for. (int) grid_divisions: The number of divisions
-      for all the axes. (bool) bounded: calculates the surface using
-      the bounding box. This will result in a solid. (bool)
-      filter_by_normal: filters by the normal of each triangle,
-      depending on the normal_upwards argument. (bool) normal_upwards:
-      if filter_by_normal is True, filters the triangles depending on
-      its normal. It returns only the triangles pointing upwards if
-      it’s True, otherwise it returns the triangles pointing
-      downwards.
+      geological model.
+
+      (unicode) unit: The unit to calculate the isosurface for.
+
+      (int) grid_divisions: The number of divisions for all the axes.
+
+      (bool) bounded: calculates the surface using the bounding box.
+      This will result in a solid.
+
+      (bool) filter_by_normal: filters by the normal of each triangle,
+      depending on the normal_upwards argument.
+
+      (bool) normal_upwards: if filter_by_normal is True, filters the
+      triangles depending on its normal. It returns only the triangles
+      pointing upwards if it’s True, otherwise it returns the
+      triangles pointing downwards.
 
    Returns:
-      (list) vertices: The list of vertices. (list) triangles: The
-      list of triangles indexes to vertexes.
+      (list) vertices: The list of vertices.
+
+      (list) triangles: The list of triangles indexes to vertexes.
 
 **geomodelr.isosurfaces.calculate_isovalues(model, unit,
 grid_divisions, bbox, bounded=True)**
@@ -410,12 +436,15 @@ grid_divisions, bbox, bounded=True)**
 
    Args:
       (geomodelr.model.GeologicalModel) geolojson: The Geological
-      model created form a Geological JSON object. (int)
-      grid_divisions: The divisions of the grid in the X, Y and Z
-      directions. (list) bbox: the values of [minx, miny, minz, maxx,
-      maxy, maxz]. (bool) bounded: whether the object will be a solid,
-      (the bounded signed distance will be used), or it will be an
-      open surface.
+      model created form a Geological JSON object.
+
+      (int) grid_divisions: The divisions of the grid in the X, Y and
+      Z directions.
+
+      (list) bbox: the values of [minx, miny, minz, maxx, maxy, maxz].
+
+      (bool) bounded: whether the object will be a solid, (the bounded
+      signed distance will be used), or it will be an open surface.
 
 **geomodelr.isosurfaces.calculate_normals(vertices, simplices)**
 
@@ -424,8 +453,10 @@ grid_divisions, bbox, bounded=True)**
 
    Args:
       (numpy.array) vertices: The vertices returned by the marching
-      cubes algorithm. (numpy.array) simplices: The simplices
-      (triangles) returned by the marching cubes algorithm.
+      cubes algorithm.
+
+      (numpy.array) simplices: The simplices (triangles) returned by
+      the marching cubes algorithm.
 
 **geomodelr.isosurfaces.check_bbox_surface(sd)**
 
@@ -444,16 +475,23 @@ bounded=True, filter_by_normal=False, normal_upwards=False)**
 
    Args:
       (geomodelr.model.GeologicalModel) model: The geomodelr
-      geological model. (unicode) unit: The unit to calculate the
-      isosurface for. (int) grid_divisions: The number of divisions
-      for all the axes. (bool) bounded: calculates the surface using
-      the bounding box. This will result in a solid. (bool)
-      filter_by_normal: filters by the normal of each triangle,
-      depending on the normal_upwards argument. (bool) normal_upwards:
-      if filter_by_normal is True, filters the triangles depending on
-      its normal. It returns only the triangles pointing upwards if
-      it’s True, otherwise it returns the triangles pointing
-      downwards.
+      geological model.
+
+      (unicode) unit: The unit to calculate the isosurface for.
+
+      (int) grid_divisions: The number of divisions for all the axes.
+
+      (bool) bounded: calculates the surface using the bounding box.
+      This will result in a solid.
+
+      (bool) filter_by_normal: filters by the normal of each triangle,
+      depending on the normal_upwards argument.
+
+      (bool) normal_upwards: if filter_by_normal is True, filters the
+      triangles depending on its normal. It returns only
+
+      the triangles pointing upwards if it’s True, otherwise it
+      returns the triangles pointing downwards.
 
 **geomodelr.isosurfaces.save_unit(name, model, unit, grid_divisions,
 bounded=True, filter_by_normal=False, normal_upwards=False)**
@@ -463,23 +501,33 @@ bounded=True, filter_by_normal=False, normal_upwards=False)**
 
    Args:
       (str) name: the name to save the STL file.
+
       (geomodelr.model.GeologicalModel) model: the model to be
-      queried. (unicode) unit: the unit to be meshed. (int)
-      grid_divisions: the number of divisions of the grid to mesh the
-      object. (bool) bounded: whether this surface is bounded by the
-      bbox or only by the topography. (bool) filter_by_normal: whether
-      to filter this mesh by normal to the surface. Useful  if you
-      want to see the top or bottom of your formation. (bool)
-      normal_upwards: if filter_by_normal is True, whether you want
-      the triangles that look up or the triangles that look down.
+      queried.
+
+      (unicode) unit: the unit to be meshed.
+
+      (int) grid_divisions: the number of divisions of the grid to
+      mesh the object.
+
+      (bool) bounded: whether this surface is bounded by the bbox or
+      only by the topography.
+
+      (bool) filter_by_normal: whether to filter this mesh by normal
+      to the surface. Useful  if you want to see the top or bottom of
+      your formation.
+
+      (bool) normal_upwards: if filter_by_normal is True, whether you
+      want the triangles that look up or the triangles that look down.
 
 **geomodelr.isosurfaces.stl_mesh(vertices, simplices)**
 
    Creates a numpy-stl mesh from a sets of vertices and triangles.
 
    Args:
-      (list) vertices: vertices of the mesh. (list) simplices:
-      triangles of the mesh.
+      (list) vertices: vertices of the mesh.
+
+      (list) simplices: triangles of the mesh.
 
    Returns:
       (stl.mesh.Mesh): a numpy-stl mesh.
@@ -493,14 +541,22 @@ bounded=True, filter_by_normal=False, normal_upwards=False)**
 
    Args:
       (geomodelr.model.GeologicalModel) model: the model to be
-      queried. (unicode) unit: the unit to be meshed. (int)
-      grid_divisions: the number of divisions of the grid to mesh the
-      object. (bool) bounded: whether this surface is bounded by the
-      bbox or only by the topography. (bool) filter_by_normal: whether
-      to filter this mesh by normal to the surface. Useful  if you
-      want to see the top or bottom of your formation. (bool)
-      normal_upwards: if filter_by_normal is True, whether you want
-      the triangles that look up or the triangles that look down.
+      queried.
+
+      (unicode) unit: the unit to be meshed.
+
+      (int) grid_divisions: the number of divisions of the grid to
+      mesh the object.
+
+      (bool) bounded: whether this surface is bounded by the bbox or
+      only by the topography.
+
+      (bool) filter_by_normal: whether to filter this mesh by normal
+      to the surface. Useful  if you want to see the top or bottom of
+      your formation.
+
+      (bool) normal_upwards: if filter_by_normal is True, whether you
+      want the triangles that look up or the triangles that look down.
 
    Returns:
       (dict): the triangulated unit with a few useful properties.

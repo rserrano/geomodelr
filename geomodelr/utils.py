@@ -34,7 +34,9 @@ def generate_simple_grid(query_func, bbox, grid_divisions):
     
     Args:
         (function) query_func: a function of the geological model that returns a unit.
+
         (list) bbox: the bounding box to search in.
+
         (int) grid_divisions: the number of points for the grid.
     """
     
@@ -85,8 +87,11 @@ def generate_fdm_grid(query_func, bbox, grid_divisions, max_refinements):
     
     Args:
         (function) query_func: a function of the geological model that returns a unit.
+
         (list) bbox: the bounding box to search in.
+
         (int) grid_divisions: the number of points for the grid.
+
         (int) max_refinements: the number of refinements for this FDM scheme.
     """
     
@@ -168,9 +173,13 @@ def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refi
 
     Args:
         (function) query_func: a function of the geological model that returns a unit.
+
         (list) bbox: the bounding box to search in.
+
         (int) grid_divisions: the number of points for the grid.
+
         (int) fdm_refine: the number of refinements for the fdm scheme.
+
         (int) oct_refine: the number of refinements for the octree scheme
     """
     
@@ -276,8 +285,11 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
 
     Args:
         (function) query_func: a function of the geological model that returns a unit.
+
         (list) bbox: the bounding box to search in.
+
         (int) grid_divisions: the number of points for the grid.
+
         (int) oct_refine: the number of refinements for the octree scheme
     """
     

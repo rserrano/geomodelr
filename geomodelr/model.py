@@ -314,6 +314,7 @@ def model_from_file(filename):
     Args:
         (str) filename: The path to the Geological JSON file downloaded from 
         Geomodelr.com.
+
     Returns:
         (GeologicalModel): The output Geological model to query the geological
         units freely.
