@@ -202,7 +202,6 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 }
 
 double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) const {
-
 	double sdist = this->signed_distance( unit, pt );
 	bool outside = false;
 	double odist = 0.0;
@@ -236,6 +235,26 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 	}
 	return std::max(sdist, idist);
 }
+
+double Model::signed_distance_unbounded( const wstring& unit, const point3& pt ) const {
+	double sdist = this->signed_distance( unit, pt );
+	bool outside = false;
+	double odist = 0.0;
+	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
+	
+	double x = gx(pt);
+	double y = gy(pt);
+	double z = gz(pt);
+	
+	double maxz = this->height( point2( x, y ) );
+	double distz = z - maxz;
+	
+	if ( distz >= 0 ) {
+		return std::max(sdist, distz);
+	}
+	return std::max(sdist, distz);
+}
+
 
 vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
 	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, always_true);
@@ -670,4 +689,8 @@ double ModelPython::signed_distance( const wstring& unit, const pyobject& pt ) c
 	
 double ModelPython::signed_distance_bounded( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_bounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
+double ModelPython::signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance_unbounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }

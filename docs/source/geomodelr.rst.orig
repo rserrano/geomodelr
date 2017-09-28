@@ -13,9 +13,25 @@ geomodelr.model module
     :show-inheritance:
 
 geomodelr.cpp module
-----------------------
+--------------------
 
 .. automodule:: geomodelr.cpp
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+geomodelr.utils module
+----------------------
+
+.. automodule:: geomodelr.utils
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+geomodelr.isosurfaces module
+----------------------------
+
+.. automodule:: geomodelr.isosurfaces
     :members:
     :inherited-members:
     :show-inheritance:
