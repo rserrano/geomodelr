@@ -59,84 +59,70 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	dX_vec = np.diff(X_vec)
 	dY_vec = np.diff(Y_vec)
  
- 	Z_max = np.zeros((N_row,N_col))
+ 	Z_top = np.zeros((N_row,N_col))
+ 	Z_bottoms = np.zeros((N_layers,N_row,N_col))
+
  	chani_var = -np.ones(N_layers, dtype=np.int32)
-
-
-	for i in np.arange(N_row):
-		for j in np.arange(N_col):
-
-			xp = X_vec[j] + dX_vec[j]/2.0
-			yp = Y_vec[i] + dY_vec[i]/2.0
-			Z_max[i,j] = model.height([xp, yp])
-
-	z_max_min = np.min(Z_max)
-
-	dz = (z_max_min - model.bbox[2])/N_layers
-
-	# Define Layers
-	Z_bottoms = np.zeros((N_layers,N_row,N_col))
-
-	for i in np.arange(N_row):
-		for j in np.arange(N_col):
-
-			# First layer
-			xp = X_vec[j] + dX_vec[j]/2.0
-			yp = Y_vec[i] + dY_vec[i]/2.0
-			zp = (Z_max[i,j] + Z_bottoms[0,i,j])/2.0
-
-			Unit = model.closest([xp,yp,zp])[0]
-			Data = K_data[Unit]
-			K_hor[0,i,j] = Data[0]; K_ratio_hor[0,i,j] = Data[1]
-			K_ver[0,i,j] = Data[2]
-
-			# Other layers
-			for L in np.arange(N_layers-1):
-				zp = (Z_bottoms[L,i,j] + Z_bottoms[L+1,i,j])/2.0
-
-				Unit = model.closest([xp,yp,zp])[0]
-				Data = K_data[Unit]
-				K_hor[L+1,i,j] = Data[0]; K_ratio_hor[L+1,i,j] = Data[1]
-				K_ver[L+1,i,j] = Data[2]
-
-	# Default
-	# for k in np.arange(N_layers):
-	# 	Z_bottoms[k,:,:] = z_max_min - dz*(k+1)
-
 
 	K_hor = np.zeros((N_layers,N_row,N_col))
 	K_ratio_hor = np.zeros((N_layers,N_row,N_col))
 	K_ver = np.zeros((N_layers,N_row,N_col))
 
-	# Hydraulic Conductivity 
+ 	# ---------- Define Z-top, Z-bottoms and Hydraulic conductivity
+
 	for i in np.arange(N_row):
 		for j in np.arange(N_col):
 
-			# First layer
 			xp = X_vec[j] + dX_vec[j]/2.0
 			yp = Y_vec[i] + dY_vec[i]/2.0
-			zp = (Z_max[i,j] + Z_bottoms[0,i,j])/2.0
+			z_max = model.height([xp, yp])
+			Z_top[i,j] = z_max
 
-			Unit = model.closest([xp,yp,zp])[0]
-			Data = K_data[Unit]
-			K_hor[0,i,j] = Data[0]; K_ratio_hor[0,i,j] = Data[1]
-			K_ver[0,i,j] = Data[2]
+			if (j>0):
+				z_vec[0] = z_max
+			elif (i > 0):
+				z_vec = np.insert( Z_bottoms[:,i-1,0] ,0,z_max)
+			else:
+				z_vec = np.linspace(z_max,model.bbox[2],N_layers+1)
 
-			# Other layers
-			for L in np.arange(N_layers-1):
-				zp = (Z_bottoms[L,i,j] + Z_bottoms[L+1,i,j])/2.0
+			z_vec = np.linspace(z_max,model.bbox[2],N_layers+1)
+
+			#if (i==10)&(j==36):
+			#	print z_vec[0]
+			#	print xp,yp
+			#	exit(0)
+
+			define_bottoms(model, xp, yp, N_layers,	z_vec)
+
+			#if (i==10)&(j==36):
+			#	print z_vec[:3]
+			#	print xp,yp
+			#	exit(0)
+
+			#Sum = np.sum(np.diff(z_vec)>-1.1)
+			#if (Sum>0):
+			#	print i, j
+			#	exit(0)
+			
+
+
+			Z_bottoms[:,i,j] = z_vec[1:]
+
+			for L in np.arange(N_layers):
+				zp = (z_vec[L] + z_vec[L+1])/2.0
 
 				Unit = model.closest([xp,yp,zp])[0]
 				Data = K_data[Unit]
-				K_hor[L+1,i,j] = Data[0]; K_ratio_hor[L+1,i,j] = Data[1]
-				K_ver[L+1,i,j] = Data[2]
+				K_hor[L,i,j] = Data[0]; K_ratio_hor[L,i,j] = Data[1]
+				K_ver[L,i,j] = Data[2]
+
 
 	#  ------- Flopy Package ----
 	# Grid
 
 	mf_handle = fp.modflow.Modflow(model_name, exe_name='mf2005',verbose=False)
 	dis = fp.modflow.ModflowDis(mf_handle,nlay=N_layers, nrow=N_row, ncol=N_col,
-		top=Z_max, botm=Z_bottoms, delc=dY_vec, delr=dX_vec)
+		top=Z_top, botm=Z_bottoms, delc=dY_vec, delr=dX_vec)
 
 
 	# Variables for the BAS package
@@ -162,33 +148,33 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	mv_comand = 'mv ' + model_name + '* /media/sf_CompartidaVB/'
 	os.system(mv_comand)
 
-	#return(dis)
+	return(dis)
 
+# ===================== AUXILIAR FUNCTIONS ========================
+def find_unit_boundary(model, xp, yp, Z_top, z_min, eps):
 
-def find_unit_boundary(model, xp, yp, z_max, z_min, eps):
-
-		Unit_max = model.closest([xp,yp,z_max])[0]
+		Unit_max = model.closest([xp,yp,Z_top])[0]
 		Unit_min = model.closest([xp,yp,z_min])[0]
 
-		z_mean = (z_max+z_min)/2.0
+		z_mean = (Z_top+z_min)/2.0
 		Unit_mean = model.closest([xp, yp, z_mean])[0]
 
 		if (Unit_max == Unit_mean) & (Unit_min == Unit_mean):
 			change = False
-			z_mean = z_min
+			#z_mean = z_min
 		else:
 			change = True
-			while (z_max-z_min)>eps:
+			while (Z_top-z_min)>eps:
 
 				if (Unit_max == Unit_mean):
-					z_max = z_mean
+					Z_top = z_mean
 				elif (Unit_min == Unit_mean):
 					z_min = z_mean
 				else:
 					z_min = z_mean
 					Unit_min == Unit_mean
 
-				z_mean = (z_max+z_min)/2.0
+				z_mean = (Z_top+z_min)/2.0
 				Unit_mean = model.closest([xp, yp, z_mean])[0]
 
 		return((z_min, change))
@@ -207,7 +193,9 @@ def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 		z_mean,Bool = find_unit_boundary(model, xp, yp, z_up, z_low, 1E-7)
 
 		if Bool:
-			Z_vec[k+1] = z_mean
+			aux_val = Z_vec[k]
+			Z_vec[k+1] = min(z_mean - aux_val,-1.01) + aux_val
+			#Z_vec[k+1] = z_mean
 			if (counter > 0):
 				Aux_vec = np.linspace(Z_vec[K_index], Z_vec[k+1], counter+2)
 				Z_vec[K_index:k+2] = Aux_vec
