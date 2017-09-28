@@ -184,7 +184,10 @@ public:
 	virtual ~Model();
 	
 	double signed_distance( const wstring& unit, const point3& pt ) const;
+	// In this case the bounding box bounds all the solids.
 	double signed_distance_bounded( const wstring& unit, const point3& pt ) const;
+	// In this case the solids are not bounded by the bounding box, only by the topography.
+	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
 
 	// Methods to create matches or load them from files.
 	map<wstring, vector<triangle_pt>> make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -286,6 +289,7 @@ public:
 	pytuple closest_topo(const pyobject& pt) const;
 	double signed_distance( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_bounded( const wstring& unit, const pyobject& pt ) const;
+	double signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const;
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };

@@ -20,152 +20,23 @@
 from shared import ModelException, TaskException
 import random
 import numpy as np
-
-try:
-    from scipy.spatial import cKDTree
-    from stl import mesh
-    from skimage import measure
-except ImportError:
-    print "Creating solids not supported"
-    pass
-try:
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-except ImportError:
-    print "Plotting solids is not supported"
-    pass
-     
 import itertools
 import gc
 
-def calculate_isovalues(model, unit, grid_divisions, bbox):
-    dx = (bbox[3]-bbox[0])/grid_divisions
-    dy = (bbox[4]-bbox[1])/grid_divisions
-    dz = (bbox[5]-bbox[2])/grid_divisions
-    
-    bbox[0] -= 2*dx
-    bbox[1] -= 2*dy
-    bbox[2] -= 2*dz
-    
-    bbox[3] += 2*dx
-    bbox[4] += 2*dy
-    bbox[5] += 2*dz
-    
-    X,Y,Z = np.mgrid[bbox[0]:bbox[3]:dx, bbox[1]:bbox[4]:dy, bbox[2]:bbox[5]:dz]
-    signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
-    vsigned_distance = np.vectorize(signed_distance, otypes=[np.float])
-    sd = vsigned_distance( X, Y, Z )
-    return (X, Y, Z, sd)
+from isosurfaces import plot_unit, save_unit, triangulate_unit
 
-def check_bbox_surface( sd ):
-    """
-    Checks the bbox of the object.
-    """
-    mn = [ float("inf"),  float("inf"),  float("inf")]
-    mx = [-float("inf"), -float("inf"), -float("inf")]
-    
-    for i in xrange(sd.shape[0]):
-        for j in xrange(sd.shape[1]):
-            for k in xrange(sd.shape[2]):
-                if sd[i,j,k] < 0:
-                    mn[0] = min( i, mn[0] )
-                    mn[1] = min( j, mn[1] )
-                    mn[2] = min( k, mn[2] )
-                    
-                    mx[0] = max( i, mx[0] )
-                    mx[1] = max( j, mx[1] )
-                    mx[2] = max( k, mx[2] )
-    
-    if mn[0] > mx[0]:
-        raise TaskException("This model does not contain the unit or the sample is too coarse")
-    # The bbox is the first possitive.
-    mn = [ max(mn[i]-1, 0) for i in xrange(3) ]
-    mx = [ min(mx[i]+1, sd.shape[i]-1) for i in xrange(3) ]
-    return mn + mx
-
-def calculate_isosurface(model, unit, grid_divisions):
-    
-    bbox = list(model.bbox) # Copy so original is not modified.
-    X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox )
-    
-    # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
-    bb = check_bbox_surface( sd )
-    total_cells = grid_divisions ** 3
-    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
-    # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
-    if ( float(total_cells) / float(obj_cells) ) > 8.0:
-        bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
-        X, Y, Z, sd = calculate_isovalues( model, unit, grid_divisions, bbox )
-    try:
-        vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
-    except ValueError:
-        raise TaskException("This model does not contain the unit or the sample is too coarse")
-    
-    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
-    
-    def real_pt( pt ):
-        gr = map( lambda c: ( int(c), c-int(c) ), pt )
-        outp = []
-        for i in range(3):
-            assert gr[i][0] < len(ranges[i])
-            if gr[i][0]+1 == len(ranges[i]):
-                c = ranges[i][gr[i][0]]
-            else:
-                c = ranges[i][gr[i][0]]*(1-gr[i][1]) + ranges[i][gr[i][0]+1]*gr[i][1]
-            outp.append( c )
-        return outp
-    
-    vertices = map(real_pt, vertices)
-    
-    return vertices, simplices.tolist()
-
-def plot_unit( model, unit, grid_divisions ):
-    vertices, simplices = calculate_isosurface(model, unit, grid_divisions)
-    x,y,z = zip(*vertices)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot_trisurf(x, y, z, triangles=simplices)
-    
-    fig.show()
-    raw_input("Enter to close...")
-
-def stl_mesh( vertices, simplices ):
-    # fix_solid(vertices, simplices)
-    m = mesh.Mesh(np.zeros(len(simplices), dtype=mesh.Mesh.dtype))
-    for i, f in enumerate(simplices):
-        for j in range(3):
-            m.vectors[i][j] = vertices[f[j]]
-    return m
-
-def save_unit( name, model, unit, grid_divisions ):
-    v, s = calculate_isosurface( model, unit, grid_divisions )
-    m = stl_mesh( v, s )
-    del v
-    del s
-    m.save(name)
-
-def triangulate_unit(model, unit, grid_divisions):
-    vertices, triangles = calculate_isosurface( model, unit, grid_divisions )
-    m = stl_mesh( vertices, triangles )
-    volume, cog, inertia = m.get_mass_properties()
-    del m
-    
-    mins = [float('inf')] * 3
-    maxs = [-float('inf')] * 3
-    
-    for v in vertices:
-        for i in range(3):
-            mins[i] = min( mins[i], v[i] )
-            maxs[i] = max( maxs[i], v[i] )
-    
-    area = measure.mesh_surface_area( np.array(vertices), triangles )
-    return { 'properties': { 'volume': volume, 'center_of_gravity': cog.tolist(), 'bbox': mins + maxs, 'surface_area': area }, 
-             'mesh': { 'vertices': vertices, 'triangles': triangles } }
 
 def generate_simple_grid(query_func, bbox, grid_divisions):
     """
     Returns a uniform grid of sizes grid_divisions x grid_divisions x grid_divisions 
     that covers the given bbox evaluated with the query function.
+    
+    Args:
+        (function) query_func: a function of the geological model that returns a unit.
+
+        (list) bbox: the bounding box to search in.
+
+        (int) grid_divisions: the number of points for the grid.
     """
     
     # Obtain the distance ranges.
@@ -212,6 +83,15 @@ def generate_fdm_grid(query_func, bbox, grid_divisions, max_refinements):
     Then it goes through every axis, creating planes where the
     cell needs refinements, plus marking the cells as not needing
     refinement.
+    
+    Args:
+        (function) query_func: a function of the geological model that returns a unit.
+
+        (list) bbox: the bounding box to search in.
+
+        (int) grid_divisions: the number of points for the grid.
+
+        (int) max_refinements: the number of refinements for this FDM scheme.
     """
     
     # First, get the initial grid.
@@ -285,105 +165,22 @@ def generate_fdm_grid(query_func, bbox, grid_divisions, max_refinements):
     return { 'units': units, 'grid': grid }
 
 def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refine):
-    
-    simple = generate_fdm_grid(query_func, bbox, grid_divisions, fdm_refine)
-    grid  = simple['grid']
-    prev_units = simple['units']
-    # Convert it to mesh.
-    pdims = (grid.shape[0], grid.shape[1], grid.shape[2])
-    points = np.zeros((pdims[0]*pdims[1]*pdims[2], 3))
-    mdims = ts(pdims, (-1,-1,-1))
-    elems = np.zeros((mdims[0]*mdims[1]*mdims[2], 8), dtype=int)
-    units = np.zeros((pdims[0]*pdims[1]*pdims[2],), dtype=object)
-    for i in xrange(pdims[0]):
-        for j in xrange(pdims[1]):
-            for k in xrange(pdims[2]):
-                pidx = i*pdims[1]*pdims[2] + j*pdims[2] + k
-                points[pidx,:] = grid[i,j,k,:]
-                units[pidx] = prev_units[i,j,k]
-    
-    for i in xrange(mdims[0]):
-        for j in xrange(mdims[1]):
-            for k in xrange(mdims[2]):
-                pidx = i*pdims[1]*pdims[2] + j*pdims[2] + k
-                elem = []
-                for ix in range(2):
-                    for jx in range(2):
-                        for kx in range(2):
-                            elem.append(pidx+ix*pdims[1]*pdims[2]+jx*pdims[2]+kx)
-                elems[i*mdims[1]*mdims[2] + j*mdims[2] + k,:] = elem
-    
-    def should_refine_cell(idx):
-        # Check that all the points are equal.
-        u = None
-        for i in elems[idx,:]:
-            if u == None:
-                u = units[i]
-            elif u != units[i]:
-                return True
-        
-        # Find a random point and check if the formation is different to it.
-        a = points[elems[idx][0]]
-        b = points[elems[idx][1]]
-        g = triangular_pt(a, b)
-        ug = query_func(g)
-        if ug != u:
-            return True
-        return False
-    
-    midpairs = [(0,1),(2,3),(4,5),(6,7),(0,2),(1,3),(4,6),(5,7),(0,4),(1,5),(2,6),(3,7),(0,3),(4,7),(0,5),(2,7),(0,6),(1,7),(0,7)]
-    elemsidx = [(0,8,12,20,16,22,24,26),
-                (8,1,20,13,22,17,26,25),
-                (12,20,2,9,24,26,18,23),
-                (20,13,9,3,26,25,23,19),
-                (16,22,24,26,4,10,14,21),
-                (22,17,26,25,10,5,21,15),
-                (24,26,18,23,14,21,6,11),
-                (26,25,23,19,21,15,11,7)]
-    
-    checked = np.zeros((elems.shape[0],), dtype=bool)
-    for r in xrange(oct_refine):
-        
-        elems_ti = []
-        points_ti = []
-        units_ti = []
-        creamids = {}
-        
-        for idx in xrange(elems.shape[0]):
-            if not checked[idx] and should_refine_cell(idx):
-                newelems = []
-                newpoints = []
-                currelem = list(elems[idx,:])
-                for i,j in midpairs:
-                    ie, je = (elems[idx][i],elems[idx][j])
-                    if ( ie,je ) in creamids:
-                        currelem.append(creamids[ie,je])
-                    else:
-                        l = points.shape[0]+len(points_ti)+len(newpoints)
-                        newpoints.append((points[ie]+points[je])/2.0)
-                        currelem.append(l)
-                        creamidx[ie,je] = l
-                for e in elemsidx:
-                    newelems.append([])
-                    for ie in e:
-                        newelems[-1].append(currelem[ie])
-                units_ti += map( query_func, newpoints )
-                elems[idx] = newelems[0]
-                elems_ti += newelems[1:]
-                points_ti += newpoints
-            else:
-                checked[idx] = True
-        
-        units = np.insert(units, units.shape[0], units_ti)
-        points = np.insert(points, points.shape[0], np.array(points_ti), axis=0)
-        elems = np.insert(elems, elems.shape[0], elems_ti, axis=0)
-        ccopy = np.zeros((elems.shape[0],),dtype=bool)
-        ccopy[:checked.shape[0]] = checked
-        checked = ccopy
-    
-    return {'points': points, 'elems': elems, 'units': units}
+    """
+    Generates an octree grid, starting with an FDM refined grid.
+    The octtree grid divides each cell in 8 looking at the differences of material
+    until reaching the number of refinements.
 
-def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refine):
+    Args:
+        (function) query_func: a function of the geological model that returns a unit.
+
+        (list) bbox: the bounding box to search in.
+
+        (int) grid_divisions: the number of points for the grid.
+
+        (int) fdm_refine: the number of refinements for the fdm scheme.
+
+        (int) oct_refine: the number of refinements for the octree scheme
+    """
     
     simple = generate_fdm_grid(query_func, bbox, grid_divisions, fdm_refine)
     grid  = simple['grid']
@@ -482,14 +279,27 @@ def generate_octtree_grid(query_func, bbox, grid_divisions, fdm_refine, oct_refi
     return {'points': points, 'elems': elems, 'units': units}
 
 def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
+    """
+    An example of how to get the volumes of all units. 
+
+    Args:
+        (function) query_func: a function of the geological model that returns a unit.
+
+        (list) bbox: the bounding box to search in.
+
+        (int) grid_divisions: the number of points for the grid.
+
+        (int) oct_refine: the number of refinements for the octree scheme
+    """
     
+
     total_volumes = {}
     
     def percent_aggregated():
         tot = sum( total_volumes.values() )
         exp = (bbox[3]-bbox[0])*(bbox[4]-bbox[1])*(bbox[5]-bbox[2])
 
-        print "VOLUME AGGREGATED", tot, "VOLUME EXPECTED", exp, "PERCENTAGE %s%%" % (100*tot/exp)
+        # print "VOLUME AGGREGATED", tot, "VOLUME EXPECTED", exp, "PERCENTAGE %s%%" % (100*tot/exp)
     
     # Generate a simple grid.
     simple = generate_simple_grid(query_func, bbox, grid_divisions)
@@ -520,7 +330,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
                             elem.append(pidx+ix*pdims[1]*pdims[2]+jx*pdims[2]+kx)
                 elems[i*mdims[1]*mdims[2] + j*mdims[2] + k,:] = elem
     
-    print "INITIAL", elems.shape[0]
+    # print "INITIAL", elems.shape[0]
     percent_aggregated()
     # Function to check which cells should be refined.
     def should_refine_cell(pts, uns):
@@ -558,7 +368,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
     def cell_size( ):
         pts = points[elems[0,:]]
         dif = pts[7]-pts[0]
-        print "CELL SIZE", dif[0], dif[1], dif[2]
+        # print "CELL SIZE", dif[0], dif[1], dif[2]
 
     # Find which elements should remain, wich should be removed, and reduce points and units accordingly.
     rem_idx = []
@@ -597,11 +407,11 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
                 (26,25,23,19,21,15,11,7)]
     
     
-    print "FILTERED", elems.shape[0]
+    # print "FILTERED", elems.shape[0]
     percent_aggregated()
     cell_size()
     for r in xrange(oct_refine):
-        print "ITERATION", r
+        # print "ITERATION", r
         
         elems_ti = []
         points_ti = []
@@ -679,7 +489,7 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
         elems = np.array(elems_ti)
         points, units = reduce_points()
         gc.collect()
-        print "ELEMENTS", elems.shape[0]
+        # print "ELEMENTS", elems.shape[0]
         percent_aggregated()
         cell_size()
     
@@ -687,6 +497,6 @@ def octtree_volume_calculation(query_func, bbox, grid_divisions, oct_refine):
         sm = get_volume(points[elems[i,:]])
         for ie in elems[i,:].tolist():
             add_volume( units[ie], sm / 8.0 )
-    print "APPROXIMATED"
+    # print "APPROXIMATED"
     percent_aggregated()
     return ( total_volumes, { 'points': points, 'units': units, 'elems': elems } )
