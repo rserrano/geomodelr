@@ -27,10 +27,13 @@ import shared
 import utils
 import isosurfaces
 import cpp
+import modflow
 import numpy as np
 from numpy import linalg as la
+from datetime import datetime
 import cProfile, pstats, StringIO
 import sys
+
 
 class TestGeoModelR(unittest.TestCase):
     def setUp(self):
@@ -502,6 +505,36 @@ class TestGeoModelR(unittest.TestCase):
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
         self.assertEqual(len(verts), 4483)
         self.assertEqual(len(triangs), 8463)
+
+    def test_modflow(self):
+
+        this_dir, this_filename = os.path.split(__file__)
+        fn = os.path.join(this_dir, 'test_files', 'cienaga.json')
+        geo_model = model.model_from_file(fn) 
+
+        Kx = np.arange(8) + 1.0
+        Ky = 2*np.ones(8)
+        Kz = Kx/10.
+        Prop =np.array([Kx,Ky,Kz])
+
+        #self.assertEqual( geo_model.closest([100,100,100])[1], u'CO_ConglAren')
+        start_time = datetime.now()
+
+
+        Dis=modflow.create_modflow_inputs('Prueba',geo_model,
+            N_row=100, N_col=80,N_layers=65,properties=Prop,
+            Class=1)
+
+        #Dis=modflow.create_modflow_inputs('Prueba',geo_model,
+        #    N_row=10, N_col=8,N_layers=6,properties=Prop)
+
+        end_time = datetime.now()
+        total_time = end_time - start_time
+        print 'Total time: ', total_time.total_seconds(), ' s'
+        print(Dis.check())
+        print 'Number of Layers: ', Dis.nlay
+        #self.assertGreaterEqual(60.,total_time.total_seconds())
+
         
 def main(args=None):
     unittest.main()
