@@ -33,6 +33,7 @@ from numpy import linalg as la
 from datetime import datetime
 import cProfile, pstats, StringIO
 import sys
+import matplotlib.pyplot as plt
 
 
 class TestGeoModelR(unittest.TestCase):
@@ -510,30 +511,40 @@ class TestGeoModelR(unittest.TestCase):
 
         this_dir, this_filename = os.path.split(__file__)
         fn = os.path.join(this_dir, 'test_files', 'cienaga.json')
-        geo_model = model.model_from_file(fn) 
+        geo_model = model.model_from_file(fn)
 
-        Kx = np.arange(8) + 1.0
-        Ky = 2*np.ones(8)
-        Kz = Kx/10.
+        Geo_Data = True
+        Graph = True
+
+        Rows = 50; Cols = 150; Layers = 100
+
+        plt.close('all')
+
+        Kx = np.arange(1,9)*1E-7
+        Ky = np.ones(8)
+        Kz = Kx*1.0
         Prop =np.array([Kx,Ky,Kz])
+        Act_Uni = np.array([0,0,0,1,0,1,0,0])
 
         #self.assertEqual( geo_model.closest([100,100,100])[1], u'CO_ConglAren')
         start_time = datetime.now()
 
 
-        Dis=modflow.create_modflow_inputs('Prueba',geo_model,
-            N_row=100, N_col=80,N_layers=65,properties=Prop,
-            Class=1)
+        Bounding_Box = geo_model.bbox
+        #Bounding_Box = np.array([831000.0,1450000,-400,833000, 1450600])
 
-        #Dis=modflow.create_modflow_inputs('Prueba',geo_model,
-        #    N_row=10, N_col=8,N_layers=6,properties=Prop)
+        Dis=modflow.create_modflow_inputs('Prueba',geo_model,
+            N_row=Rows, N_col=Cols,N_layers=Layers,properties=Prop,
+            act_uni = Act_Uni, Bbox = Bounding_Box, Class=2)
+
 
         end_time = datetime.now()
         total_time = end_time - start_time
         print 'Total time: ', total_time.total_seconds(), ' s'
         print(Dis.check())
         print 'Number of Layers: ', Dis.nlay
-        #self.assertGreaterEqual(60.,total_time.total_seconds())
+        #self.assertGreaterEqual(60.,total_time.total_seconds
+
 
         
 def main(args=None):
