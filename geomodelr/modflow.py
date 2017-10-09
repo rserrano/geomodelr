@@ -21,10 +21,11 @@ import numpy as np
 import flopy as fp
 import os
 from sys import exit
+from math import ceil, floor
 
 # Creates the data from Geomodelr to ModFlow
-def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
-	N_layers=5, properties=None, Class=1):
+def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
+	N_col=100, N_layers=100, properties=None, act_uni=None ,Bbox=None, Class=1):
 	
 	try:
 		num_unit = len(model.units)
@@ -41,17 +42,22 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 		exit('You have not defined the properties array.')
 
 
+	if (Bbox is None):
+		Bbox = model.bbox
+
 	del(num_properties)
 
 	#properties[1,:] /= properties[0,:]
+	if (act_uni is None):
+		Units_data = { (model.units)[k]: np.append(properties[:,k], 1) for k in range(num_unit) }
+	else:
+		Units_data = { (model.units)[k]: np.append(properties[:,k],act_uni[k]) for k in range(num_unit) }
 
-	K_data = { (model.units)[k]: properties[:,k] for k in range(num_unit) }
+	X_inf = Bbox[0]
+	X_sup = Bbox[3]
 
-	X_inf = model.bbox[0]
-	X_sup = model.bbox[3]
-
-	Y_inf = model.bbox[1]
-	Y_sup = model.bbox[4]
+	Y_inf = Bbox[1]
+	Y_sup = Bbox[4]
 
 	dX = (X_sup - X_inf)/N_col
 	dY = (Y_sup - Y_inf)/N_row
@@ -62,38 +68,39 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
  	Z_top = np.zeros((N_row,N_col))
  	Z_bottoms = np.zeros((N_layers,N_row,N_col))
 
-	Bottom_min = model.bbox[2]
+	Bottom_min = Bbox[2] + 1E-5
+
+	# Define Z-top
+
+	for i in np.arange(N_row):
+		for j in np.arange(N_col):
+
+			xp = X_vec[j]
+			yp = Y_vec[i]
+			Z_top[i,j] = model.height([xp, yp])
 
 
+	Z_top_min = np.min(Z_top)
  	# ---------- Define Z-top, Z-bottoms and Hydraulic conductivity
  	# Class Fine
 	if (Class == 1):
 
-		chani_var = -np.ones(N_layers, dtype=np.int32)
+		ibound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
 
 		K_hor = np.zeros((N_layers,N_row,N_col))
 		K_ratio_hor = np.zeros((N_layers,N_row,N_col))
 		K_ver = np.zeros((N_layers,N_row,N_col))
 
 		for i in np.arange(N_row):
+			yp = Y_vec[i]
+
 			for j in np.arange(N_col):
 
 				xp = X_vec[j]
-				yp = Y_vec[i]
-				z_max = model.height([xp, yp])
-				Z_top[i,j] = z_max
-
-
-
-				#if (j>0):
-				#	z_vec[0] = z_max
-				#elif (i > 0):
-				#	z_vec = np.insert( Z_bottoms[:,i-1,0] ,0,z_max)
-				#else:
-				#	z_vec = np.linspace(z_max,model.bbox[2],N_layers+1)
+				z_max = Z_top[i,j]
 
 				z_vec = np.linspace(z_max, Bottom_min,N_layers+1)
-				define_bottoms(model, xp, yp, N_layers,	z_vec)
+				#define_bottoms(model, xp, yp, N_layers,	z_vec)
 
 				Z_bottoms[:,i,j] = z_vec[1:]
 
@@ -101,24 +108,27 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 					zp = (z_vec[L] + z_vec[L+1])/2.0
 
 					Unit = model.closest([xp,yp,zp])[0]
-					Data = K_data[Unit]
+					Data = Units_data[Unit]
 					K_hor[L,i,j] = Data[0]; K_ratio_hor[L,i,j] = Data[1]
 					K_ver[L,i,j] = Data[2]
+					I_bound[L,i,j] = Data[3]
 	
-	else:
+	elif (Class==2):
 
 	# ---------- Define Z-top, Z-bottoms and Hydraulic conductivity
  	# Class Smart
 
 		Z_Bool_Top = np.isfinite(Z_top)
 
+		Bottom_BOOL = np.isfinite(Z_bottoms)
+
 		for i in np.arange(N_row):
+			yp = Y_vec[i]
+
 			for j in np.arange(N_col):
 
 				xp = X_vec[j]
-				yp = Y_vec[i]
-				z_max = model.height([xp, yp])
-				Z_top[i,j] = z_max
+				z_max = Z_top[i,j]
 
 				dz = (z_max - Bottom_min)/N_layers
 
@@ -132,22 +142,25 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 
 		Z_Bool_Bot = np.isfinite(Z_top)
 		Layers_Bool = np.isfinite(np.arange(N_layers))
+		Bottom_BOOL[0,:,:] = Z_Bool_Top
 
-		for L in np.arange(1,N_layers):
+		Last_Layer = 0
+
+		for L in np.arange(1,N_layers-1):
 
 			for i in np.arange(N_row):
 				for j in np.arange(N_col):
 
 					xp = X_vec[j]
 					yp = Y_vec[i]
-					zp = Z_bottoms[L-1,i,j]
 					
-					dz = (zp- Bottom_min)/(N_layers-L)
+					zp = Z_bottoms[L-1,i,j]					
+					#zl = zp - (zp- Bottom_min)/(N_layers-L)
+					zl = (Z_top[i,j]*(N_layers-(L+1)) + Bottom_min*(L+1))/N_layers
 
-					z_mean,change = find_units_limit(model, xp, yp, zp,
-					zp-dz, 1E-3)
+					z_mean,change = find_units_limit(model, xp, yp, zp, zl,
+						1E-3)
 
-					#print L, '\t', i, '\t', j, '\t',  change, '\n'
 					Z_Bool_Bot[i,j] = change
 					Z_bottoms[L,i,j] = min(z_mean - zp,-1.01) + zp
 
@@ -159,8 +172,19 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 
 			else:
 
-				Layers_Bool[L-1] = True
+				# Correction of FALSE values
+				Aux_Bool=np.logical_not(Z_Bool_Top)
+				Z_bottoms[L-1,Aux_Bool] = Z_bottoms[Last_Layer,Aux_Bool]
+				Last_Layer = L
+
 				Z_Bool_Top = Z_Bool_Bot.copy()
+
+			Bottom_BOOL[L,:,:] = Z_Bool_Top
+
+			# Correction of the layer besfore the last layer
+			Aux_Bool=np.logical_not(Z_Bool_Top)
+			Z_bottoms[L,Aux_Bool] = Z_bottoms[Last_Layer,Aux_Bool]
+
 
 
 		N_layers = np.sum(Layers_Bool)
@@ -171,8 +195,7 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 		K_ratio_hor = np.zeros((N_layers,N_row,N_col))
 		K_ver = np.zeros((N_layers,N_row,N_col))
 
-		chani_var = -np.ones(N_layers, dtype=np.int32)
-
+		I_bound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
 		for L in np.arange(0,N_layers):
 
 			if (L>0):
@@ -181,15 +204,23 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 				mid_points = ( Z_top + Z_bottoms[L,:,:])/2.0
 			
 			for i in np.arange(N_row):
+				yp = Y_vec[i]
 				for j in np.arange(N_col):
 		
 					xp = X_vec[j]
-					yp = Y_vec[i]
 
 					Unit = model.closest([xp,yp,mid_points[i,j]])[0]
-					Data = K_data[Unit]
+					Data = Units_data[Unit]
 					K_hor[L,i,j] = Data[0]; K_ratio_hor[L,i,j] = Data[1]
 					K_ver[L,i,j] = Data[2]
+					I_bound[L,i,j] = Data[3]
+
+	else:
+		pass
+
+	# ---------- Define Z-top, Z-bottoms and Hydraulic conductivity
+ 	# Class Smart Top and Bottom
+
 
 
 	#return((N_layers,Z_bottoms,K_hor))
@@ -197,13 +228,17 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	#  ------- Flopy Package ----
 	# Grid
 
+	print('Meshing processes: Done')
+
+	chani_var = -np.ones(N_layers, dtype=np.int32)
+
 	mf_handle = fp.modflow.Modflow(model_name, exe_name='mf2005',verbose=False)
 	dis = fp.modflow.ModflowDis(mf_handle,nlay=N_layers, nrow=N_row, ncol=N_col,
-		top=Z_top, botm=Z_bottoms, delc=dY, delr=dX)
+		top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup)
 
 
 	# Variables for the BAS package
-	# ibound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
+	# I_bound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
 	# ibound[:, :, 0] = -1
 	# ibound[:, :, 1] = -2
 	# ibound[:, :, 2] = -3
@@ -211,7 +246,7 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	# strt[:, :, 0] = 10.5
 	# strt[:, :, 1] = 5.5
 	# strt[:, :, 2] = 1.5
-	bas = fp.modflow.ModflowBas(mf_handle)
+	bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
 
 	# Add LPF package to the MODFLOW model
 	lpf = fp.modflow.ModflowLpf(mf_handle, chani=chani_var, hk=K_hor,
@@ -225,7 +260,8 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=10, N_col=10,
 	mv_comand = 'mv ' + model_name + '* /media/sf_CompartidaVB/'
 	os.system(mv_comand)
 
-	return(dis)
+	return((dis,Layers_Bool,Bottom_BOOL))
+	#return(dis)
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
@@ -291,9 +327,55 @@ def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 		Aux_vec = np.linspace(Z_vec[K_index], Z_vec[N_layers], counter+2)
 		Z_vec[K_index:N_layers+1] = Aux_vec
 
-# DEFINE_BOOTOMS: It finds the layers bottoms
-#def define_bottoms(model, xp, yp, N_layers,	Z_vec):
-	#return(Aux_Bool)
+# UNIIT_ZTOP_BOT: It finds the layers bottoms
+def units_Ztop_bot(model, Top, Bottom, X_vec, Y_vec,
+	num_unit, N_row, N_col, N_layers, N_div=None):
+	
+	Ztop_bot = { (model.units)[k]: np.array([np.inf,-np.inf,0.,0.]) for k in range(num_unit) }
+	Lay_Range = { (model.units)[k]: np.array([N_layers,1]) for k in range(num_unit) }
+	
+
+	for i in np.arange(N_row):
+		yp = Y_vec[i]
+
+		for j in np.arange(N_col):
+			xp = X_vec[j]
+			z_top = Top[i,j]
+			dz = (z_top-Bottom)/N_div
+			dz_ray = (z_top-Bottom)/N_layers
+
+			for k in np.arange(N_div+1):
+
+				zp = z_top-k*dz
+				Unit = model.closest([xp,yp,zp])[0]
+				data = Ztop_bot[Unit]
+				lay_data = Lay_Range[Unit]
+
+				Bool = False
+				if (zp<data[0]):
+					data[0] = zp
+					Bool = True
+					data[2] = z_top
+
+				if (zp>data[1]):
+					data[1] = zp
+					Bool = True
+					#Lay_up = N_layers+1-ceil((zp - Bottom)/dz_ray)
+					#lay_data[1] = Lay_up
+					data[3] = z_top
+				
+				if Bool:
+					
+					Ztop_bot[Unit] = data
+
+					#Lay_up = lay_data[1]
+					#Lay_low = Lay_up + ceil((data[1]-data[0])/dz_ray)-1
+					#lay_data[0] = Lay_low
+	
+					#Lay_Range[Unit] = lay_data
+
+	return((Lay_Range,Ztop_bot))
+
 		
 
 
