@@ -22,10 +22,12 @@ import flopy as fp
 import os
 from sys import exit
 from math import ceil, floor
+from scipy import interpolate
 
 # Creates the data from Geomodelr to ModFlow
 def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
-	N_col=100, N_layers=100, properties=None, act_uni=None ,Bbox=None, Class=1):
+	N_col=100, N_layers=100, properties=None, act_uni=None ,Bbox=None, angle=20,
+	 Class=1):
 	
 	try:
 		num_unit = len(model.units)
@@ -34,13 +36,13 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 
 	try:
 		num_properties = (np.shape(properties))[1]
-		if (not( num_unit==num_properties )):
-			exit('The Geomodelr model has ' + str(num_unit) +
-				'units. Your properties array has ' + str(num_propierties) +
-				'units.')
+
 	except:
 		exit('You have not defined the properties array.')
 
+	if (not( num_unit==num_properties)):
+		exit('The Geomodelr model has ' + str(num_unit) +
+			' units. Your properties array has ' + str(num_properties) +	' units.')
 
 	if (Bbox is None):
 		Bbox = model.bbox
@@ -66,9 +68,9 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 	Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,N_row)
  
  	Z_top = np.zeros((N_row,N_col))
- 	Z_bottoms = np.zeros((N_layers,N_row,N_col))
 
 	Bottom_min = Bbox[2] + 1E-5
+
 
 	# Define Z-top
 
@@ -81,11 +83,17 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 
 
 	Z_top_min = np.min(Z_top)
+
+	if ((Z_top_min-Bottom_min)/N_layers < 1.01):
+		N_layers = int((Z_top_min-Bottom_min)/1.01)
+		print('Maximum number of initial layers: ' + str(N_layers))
+
+	Z_bottoms = np.zeros((N_layers,N_row,N_col))
  	# ---------- Define Z-top, Z-bottoms and Hydraulic conductivity
  	# Class Fine
 	if (Class == 1):
 
-		ibound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
+		I_bound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
 
 		K_hor = np.zeros((N_layers,N_row,N_col))
 		K_ratio_hor = np.zeros((N_layers,N_row,N_col))
@@ -122,6 +130,16 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 
 		Bottom_BOOL = np.isfinite(Z_bottoms)
 
+		dO = 1./N_layers
+		Index = 1
+
+		Pos_Array = []
+		Mat_Order = np.zeros((N_row, N_col), dtype=np.int16)
+
+		Max_Tan = np.tan(angle*np.pi/180.0)
+
+		Last_Layer = -1
+
 		for i in np.arange(N_row):
 			yp = Y_vec[i]
 
@@ -131,20 +149,27 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 				z_max = Z_top[i,j]
 
 				dz = (z_max - Bottom_min)/N_layers
+				zl = z_max-dz
+				#zl = z_max + ((dO*1.0)**Index)*(Bottom_min-z_max)
 
-				z_mean,change = find_units_limit(model, xp, yp, z_max,
-					z_max-dz, 1E-3)
+				z_mean,change = find_unit_limits(model, xp, yp, z_max,
+					zl, 1E-3)
 
 				Z_Bool_Top[i,j] = change
 
+				if change:
+					Pos_Array.append((i,j))
+
 				Z_bottoms[0,i,j] = min(z_mean - z_max,-1.01) + z_max
 
+		Layer_Correction(Pos_Array,Mat_Order,Z_Bool_Top,Z_top,Z_bottoms,0,Last_Layer,
+			Max_Tan, N_row,N_col,dX,dY)
+		
+		Mat_Order*=0
 
 		Z_Bool_Bot = np.isfinite(Z_top)
 		Layers_Bool = np.isfinite(np.arange(N_layers))
 		Bottom_BOOL[0,:,:] = Z_Bool_Top
-
-		Last_Layer = 0
 
 		for L in np.arange(1,N_layers-1):
 
@@ -154,12 +179,16 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 					xp = X_vec[j]
 					yp = Y_vec[i]
 					
-					zp = Z_bottoms[L-1,i,j]					
-					#zl = zp - (zp- Bottom_min)/(N_layers-L)
-					zl = (Z_top[i,j]*(N_layers-(L+1)) + Bottom_min*(L+1))/N_layers
+					zp = Z_bottoms[L-1,i,j]
+					zl = zp - (zp- Bottom_min)/(N_layers-L)
+					#zl = (Z_top[i,j]*(N_layers-(L+1)) + Bottom_min*(L+1))/N_layers
+					#zl = Z_top[i,j] + ((dO*(L+1))**Index)*(Bottom_min-Z_top[i,j])
 
-					z_mean,change = find_units_limit(model, xp, yp, zp, zl,
+					z_mean,change = find_unit_limits(model, xp, yp, zp, zl,
 						1E-3)
+
+					if (change) & (not(Z_Bool_Top[i,j])):
+						Pos_Array.append((i,j))
 
 					Z_Bool_Bot[i,j] = change
 					Z_bottoms[L,i,j] = min(z_mean - zp,-1.01) + zp
@@ -170,22 +199,28 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 				Z_bottoms[L,Z_Bool_Top] = Z_bottoms[L-1,Z_Bool_Top]
 				Z_Bool_Top = Z_Bool_Top | Z_Bool_Bot
 
+				Layer_Correction(Pos_Array,Mat_Order,Z_Bool_Top,Z_top,Z_bottoms,L,
+					Last_Layer, Max_Tan, N_row,N_col,dX,dY)
+
+
 			else:
 
-				# Correction of FALSE values
-				Aux_Bool=np.logical_not(Z_Bool_Top)
-				Z_bottoms[L-1,Aux_Bool] = Z_bottoms[Last_Layer,Aux_Bool]
+				# Smoother
+				#Aux_Bool=np.logical_not(Z_Bool_Top)
+				#Z_bottoms[L-1,Aux_Bool] = Z_bottoms[Last_Layer,Aux_Bool]
 				Last_Layer = L
 
 				Z_Bool_Top = Z_Bool_Bot.copy()
+				Pos_Array = np.where(Z_Bool_Top)
+				Pos_Array = zip(Pos_Array[0],Pos_Array[1])
+
+			Mat_Order*=0
 
 			Bottom_BOOL[L,:,:] = Z_Bool_Top
 
-			# Correction of the layer besfore the last layer
-			Aux_Bool=np.logical_not(Z_Bool_Top)
-			Z_bottoms[L,Aux_Bool] = Z_bottoms[Last_Layer,Aux_Bool]
-
-
+		# Correction of the layer besfore the last layer
+		#Aux_Bool=np.logical_not(Z_Bool_Top)
+		#Z_bottoms[L,Aux_Bool] = Z_bottoms[Last_Layer,Aux_Bool]
 
 		N_layers = np.sum(Layers_Bool)
 		Z_bottoms = Z_bottoms[Layers_Bool,:,:]
@@ -238,14 +273,6 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 
 
 	# Variables for the BAS package
-	# I_bound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
-	# ibound[:, :, 0] = -1
-	# ibound[:, :, 1] = -2
-	# ibound[:, :, 2] = -3
-	# strt = np.ones((N_layers, N_row, N_col), dtype=np.float32)
-	# strt[:, :, 0] = 10.5
-	# strt[:, :, 1] = 5.5
-	# strt[:, :, 2] = 1.5
 	bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
 
 	# Add LPF package to the MODFLOW model
@@ -265,9 +292,9 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
-# FIND_UNITS_LIMIT: It finds the limit between two geological units.
+# find_unit_limits: It finds the limit between two geological units.
 
-def find_units_limit(model, xp, yp, Z_top, z_min, eps):
+def find_unit_limits(model, xp, yp, Z_top, z_min, eps):
 
 		Unit_max = model.closest([xp,yp,Z_top])[0]
 		Unit_min = model.closest([xp,yp,z_min])[0]
@@ -296,6 +323,120 @@ def find_units_limit(model, xp, yp, Z_top, z_min, eps):
 		return((z_min, change))
 
 
+
+def Layer_Correction(Pos_Array,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Last_Layer,
+	Max_Tan,Rows,Cols,dX,dY):
+	
+	c=0
+
+	z_min = 2.0
+	while c<len(Pos_Array):
+
+		i,j = Pos_Array[c]
+
+		# Down
+		if i>0:
+			I = i-1
+
+			if not(Z_Bool_Top[I,j]) | (Mat_Order[i,j]<Mat_Order[I,j]):
+				
+				dz=Z_Bottoms[Layer,i,j]-Z_Bottoms[Layer,I,j]
+
+				Change,dz = Angle(0.,dY,dz,Max_Tan)
+				if Change:
+
+					if Last_Layer<0:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_top[I,j]-z_min)
+					else:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_Bottoms[Layer,I,j]-z_min)
+
+					Z_Bottoms[Layer,I,j] = Val
+					Mat_Order[I,j] = Mat_Order[i,j] + 1
+					Z_Bool_Top[I,j] = Change
+					Pos_Array.append((I,j))
+
+		# Up
+		if i< (Rows-1):
+			I = i +1
+
+			if not(Z_Bool_Top[I,j]) | (Mat_Order[i,j]<Mat_Order[I,j]):
+
+				dz=Z_Bottoms[Layer,i,j]-Z_Bottoms[Layer,I,j]
+
+				Change,dz = Angle(0.,dY,dz,Max_Tan)
+				if Change:
+					
+					if Last_Layer<0:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_top[I,j]-z_min)
+					else:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_Bottoms[Layer,I,j]-z_min)
+					
+					Z_Bottoms[Layer,I,j] = Val
+					Mat_Order[I,j] = Mat_Order[i,j] + 1
+					Z_Bool_Top[I,j] = Change
+					Pos_Array.append((I,j))
+
+		# Left
+		if j>0:
+			J = j-1
+
+			if not(Z_Bool_Top[i,J]) | (Mat_Order[i,j]<Mat_Order[i,J]):
+
+				dz=Z_Bottoms[Layer,i,j]-Z_Bottoms[Layer,i,J]
+
+				Change,dz = Angle(dX,0.,dz,Max_Tan)
+				if Change:
+
+					if Last_Layer<0:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_top[i,J]-z_min)
+					else:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_Bottoms[Layer,i,J]-z_min)
+
+					Z_Bottoms[Layer,i,J] = Val
+					Mat_Order[i,J] = Mat_Order[i,j] + 1
+					Z_Bool_Top[i,J] = Change
+					Pos_Array.append((i,J))
+
+		# Right
+		if j<Cols-1:
+			J = j+1
+
+			if not(Z_Bool_Top[i,J]) | (Mat_Order[i,j]<Mat_Order[i,J]):
+				
+				dz=Z_Bottoms[Layer,i,j]-Z_Bottoms[Layer,i,J]
+
+				Change,dz = Angle(dX,0.,dz,Max_Tan)
+				if Change:
+
+					if Last_Layer<0:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_top[i,J]-z_min)
+					else:
+						Val = min(Z_Bottoms[Layer,i,j]-dz,Z_Bottoms[Layer,i,J]-z_min)
+
+					Z_Bottoms[Layer,i,J] = Val
+					Mat_Order[i,J] = Mat_Order[i,j] + 1
+					Z_Bool_Top[i,J] = Change
+					Pos_Array.append((i,J))
+
+		c += 1
+
+
+def Angle(x,y,dz,Max_Tan):
+
+	Sin_O = dz/np.sqrt(x**2+y**2)
+
+	if (Sin_O>Max_Tan):
+		dz = Max_Tan*np.sqrt(x**2+y**2)
+		Change = True
+	else:
+		Change = False
+
+	return((Change,dz))
+		
+
+
+
+
 # DEFINE_BOOTOMS: It finds the layers bottoms
 def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 	
@@ -307,7 +448,7 @@ def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 	for k in np.arange(N_layers-1):
 
 		z_up = Z_vec[k]; z_low = Z_vec[k+1]
-		z_mean,Bool = find_units_limit(model, xp, yp, z_up, z_low, 1E-7)
+		z_mean,Bool = find_unit_limits(model, xp, yp, z_up, z_low, 1E-7)
 
 		if Bool:
 			aux_val = Z_vec[k]
@@ -328,54 +469,21 @@ def define_bottoms(model, xp, yp, N_layers,	Z_vec):
 		Z_vec[K_index:N_layers+1] = Aux_vec
 
 # UNIIT_ZTOP_BOT: It finds the layers bottoms
-def units_Ztop_bot(model, Top, Bottom, X_vec, Y_vec,
-	num_unit, N_row, N_col, N_layers, N_div=None):
+def smooth_Layer(X_vec,Y_vec,Z_Bool,Z_values):
+
 	
-	Ztop_bot = { (model.units)[k]: np.array([np.inf,-np.inf,0.,0.]) for k in range(num_unit) }
-	Lay_Range = { (model.units)[k]: np.array([N_layers,1]) for k in range(num_unit) }
+	grid_x, grid_y = np.meshgrid(X_vec,Y_vec)
+
+	points=(np.array([grid_x[Z_Bool],grid_y[Z_Bool]])).transpose()
+	Z_Layer = interpolate.griddata(points,
+		Z_values,(grid_x, grid_y), method='nearest')
+
+	return Z_Layer
+
+
+
+
 	
-
-	for i in np.arange(N_row):
-		yp = Y_vec[i]
-
-		for j in np.arange(N_col):
-			xp = X_vec[j]
-			z_top = Top[i,j]
-			dz = (z_top-Bottom)/N_div
-			dz_ray = (z_top-Bottom)/N_layers
-
-			for k in np.arange(N_div+1):
-
-				zp = z_top-k*dz
-				Unit = model.closest([xp,yp,zp])[0]
-				data = Ztop_bot[Unit]
-				lay_data = Lay_Range[Unit]
-
-				Bool = False
-				if (zp<data[0]):
-					data[0] = zp
-					Bool = True
-					data[2] = z_top
-
-				if (zp>data[1]):
-					data[1] = zp
-					Bool = True
-					#Lay_up = N_layers+1-ceil((zp - Bottom)/dz_ray)
-					#lay_data[1] = Lay_up
-					data[3] = z_top
-				
-				if Bool:
-					
-					Ztop_bot[Unit] = data
-
-					#Lay_up = lay_data[1]
-					#Lay_low = Lay_up + ceil((data[1]-data[0])/dz_ray)-1
-					#lay_data[0] = Lay_low
-	
-					#Lay_Range[Unit] = lay_data
-
-	return((Lay_Range,Ztop_bot))
-
 		
 
 
