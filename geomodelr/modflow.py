@@ -27,7 +27,7 @@ from scipy import interpolate
 # Creates the data from Geomodelr to ModFlow
 def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 	N_col=100, N_layers=100, Units_data=None,Bbox=None, angle=20,
-	 dz_min = 1.0, Class=1):
+	 dz_min = 1.0, time_units=1, length_units=2, Class=1):
 	
 	try:
 		num_unit = len(model.units)
@@ -182,7 +182,7 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 
 			if (np.sum(Z_Bool_Top & Z_Bool_Bot) == 0):
 
-				Layers_Bool[L-1] = False
+				#Layers_Bool[L-1] = False
 				#Z_bottoms[L,Z_Bool_Top] = Z_bottoms[L-1,Z_Bool_Top]
 				#Z_bottoms[Count_Lay][Z_Bool_Bot] = Z_Layer_L[Z_Bool_Bot]
 				Z_bottoms[Count_Lay][Z_Bool_Bot | np.logical_not(Z_Bool_Top)] = Z_Layer_L[Z_Bool_Bot | np.logical_not(Z_Bool_Top)]
@@ -253,7 +253,8 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 
 	mf_handle = fp.modflow.Modflow(model_name, exe_name='mf2005',verbose=False)
 	dis = fp.modflow.ModflowDis(mf_handle,nlay=N_layers, nrow=N_row, ncol=N_col,
-		top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup)
+		top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
+		itmuni=time_units, lenuni=length_units)
 
 
 	# Variables for the BAS package
@@ -272,7 +273,7 @@ def create_modflow_inputs( model_name='no_name', model=None, N_row=100,
 	os.system(mv_comand)
 
 	#return((dis,Layers_Bool))
-	#return(dis)
+	return(dis)
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
