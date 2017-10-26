@@ -168,33 +168,40 @@ BOOST_PYTHON_MODULE(cpp)
 					          "    (double)\n"
 					          "    The signed distance from the unit to the point.\n";
 	
-	
 	// Register exception.
 	python::class_<GeomodelrException> GeomodelrExceptionClass("GeomodelrException", boost::python::init<std::string>());
+	
 	GeomodelrExceptionType = createExceptionClass("GeomodelrException");
+	
 	python::register_exception_translator<GeomodelrException>(&translate);
+	
 	python::def("faultplane_for_lines", test_faultplane_for_lines);
+	
 	python::def("set_verbose", set_verbose, python::args("verbose"), doc_verb);
+	
 	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pylist&, 
 							      const pylist&, const pylist&, 
 							      const pylist&, const pylist&>())
 							      .def("info", &SectionPython::info)
 							      .def("closest", &SectionPython::closest);
-	python::class_<ModelPython>("Model", python::init<const pylist&, const pylist&, const pylist&, const pyobject&,
-							  const pyobject&, const pylist&>())
-							  .def("make_matches", &ModelPython::make_matches)
-							  .def("possible_closest", &ModelPython::possible_closest, python::args("point"), doc_possible_closest)
-							  .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
-							  .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)
-							  .def("closest", &ModelPython::closest, python::args("point"), doc_closest)
-							  .def("closest_topo", &ModelPython::closest_topo, python::args("point"), doc_closest_topo)
-							  .def("signed_distance", &ModelPython::signed_distance, python::args("unit", "point"), doc_signed_distance)
-							  .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
-							  .def("signed_distance_unbounded", &ModelPython::signed_distance_unbounded, python::args("unit", "point"), doc_signed_distance_unbounded)
-							  .def("height", &ModelPython::height, python::args("point"), doc_height)
-							  .def("info", &ModelPython::info)
-							  .add_property("bbox", &ModelPython::pybbox)
-							  .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches);
+	
+	python::class_<ModelPython>("Model", python::init<const pylist&, const pyobject&, const pyobject&, const pyobject&,
+					         const pyobject&, const pylist&>())
+					    .def(python::init<const pylist&, const pyobject&,
+					    	 const pyobject&, const pylist&>())
+					    .def("make_matches", &ModelPython::make_matches)
+					    .def("possible_closest", &ModelPython::possible_closest, python::args("point"), doc_possible_closest)
+					    .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
+					    .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)
+					    .def("closest", &ModelPython::closest, python::args("point"), doc_closest)
+					    .def("closest_topo", &ModelPython::closest_topo, python::args("point"), doc_closest_topo)
+					    .def("signed_distance", &ModelPython::signed_distance, python::args("unit", "point"), doc_signed_distance)
+					    .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
+					    .def("signed_distance_unbounded", &ModelPython::signed_distance_unbounded, python::args("unit", "point"), doc_signed_distance_unbounded)
+					    .def("height", &ModelPython::height, python::args("point"), doc_height)
+					    .def("info", &ModelPython::info)
+					    .add_property("bbox", &ModelPython::pybbox)
+					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches);
 }
 
 wstring human_failure_type( const geometry::validity_failure_type& fail )

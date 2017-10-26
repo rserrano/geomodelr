@@ -52,6 +52,7 @@ protected:
 	vector<Match *> match;
 	vector<double> cuts;
 	Topography * topography;
+	bool horizontal;
 	
 	std::pair<int, double> closest_match(bool a, int a_idx, int pol_idx, const point2& pt) const;
 	
@@ -179,8 +180,8 @@ protected:
 	}
 	std::tuple<int, int, double> closest_between( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut ) const;
 public:
-	
-	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox, const point2& basepoint, const point2& direction);
+	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox, const point2& basepoint, const point2& direction); // Sections perpendicular to surface.
+	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox); // Horizontal sections.
 	virtual ~Model();
 	
 	double signed_distance( const wstring& unit, const point3& pt ) const;
@@ -270,12 +271,20 @@ public:
 class ModelPython : public Model {
 public:
 	ModelPython(const pyobject& bbox,
-	            const pyobject& basepoint, 
-	            const pyobject& direction, 
 	            const pyobject& map, 
 	            const pyobject& topography,
 	            const pylist& sections);
 	
+	ModelPython(const pyobject& bbox,
+	            const pyobject& basepoint,
+	            const pyobject& direction,
+	            const pyobject& map, 
+	            const pyobject& topography,
+	            const pylist& sections);
+
+	// fill geological model.
+	void fill_model( const pyobject& topography, const pylist& sections );
+
 	// Methods to create matches or load them from files.
 	pydict make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const pylist& matching);

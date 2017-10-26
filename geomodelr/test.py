@@ -435,6 +435,107 @@ class TestGeoModelR(unittest.TestCase):
         self.assertEqual(cls[0], 'unit3')
         self.assertAlmostEqual(cls[1], 0.0)
     
+    def test_horizontal_models(self):
+        # Evaluate simple models.
+        # Evaluate a model where a middle square changes between unit2 and unit3
+        points_1   = [[0, 0], [3, 0], [0, 1], [2, 1], [3, 1], [0, 2], [2, 2], [3, 2]]
+        points_2   = [[0, 0], [3, 0], [0, 1], [1, 1], [3, 1], [0, 2], [1, 2], [3, 2]]
+        polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
+        units_1 = ["unit1", "unit2", "unit3"]
+        
+        model = cpp.Model([0,0,0,3,3,3], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_1, [], [])])
+        model.make_matches()
+        self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (1, 1), (2, 2)])])
+        self.assertEqual(model.model_point([1.5, 1.5, 1.5]), (1.5, 1.5, 1.5))
+        pos_cls = model.possible_closest([1.5, 1.6, 1.5])
+        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit2', 'unit3'])
+        self.assertAlmostEqual(pos_cls[0][1], 0.0)
+        self.assertAlmostEqual(pos_cls[0][2], 0.5)
+        self.assertAlmostEqual(pos_cls[1][1], 0.5)
+        self.assertAlmostEqual(pos_cls[1][2], 0.0)
+        
+        pos_cls = model.possible_closest([1.5, 1.4, 1.5])
+        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit2', 'unit3'])
+        self.assertAlmostEqual(pos_cls[0][1], 0.0)
+        self.assertAlmostEqual(pos_cls[0][2], 0.5)
+        self.assertAlmostEqual(pos_cls[1][1], 0.5)
+        self.assertAlmostEqual(pos_cls[1][2], 0.0)
+        
+        pos_cls = model.possible_closest([1.5, 1.2, 1.5])
+        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit1', 'unit2', 'unit3'])
+        self.assertAlmostEqual(pos_cls[0][1], 0.2)
+        self.assertAlmostEqual(pos_cls[0][2], 0.2)
+        self.assertAlmostEqual(pos_cls[1][1], 0.0)
+        self.assertAlmostEqual(pos_cls[1][2], 0.5)
+        self.assertAlmostEqual(pos_cls[2][1], 0.5)
+        self.assertAlmostEqual(pos_cls[2][2], 0.0)
+        
+        cls_1 = model.closest([1.5, 1.2, 1.1])
+        cls_2 = model.closest([1.5, 1.2, 1.5])
+        cls_3 = model.closest([1.5, 1.2, 1.9])
+        
+        self.assertEqual(cls_1[0], "unit2")
+        self.assertEqual(cls_2[0], "unit1")
+        self.assertEqual(cls_3[0], "unit3")
+        
+        self.assertAlmostEqual(cls_1[1], 0.05)
+        self.assertAlmostEqual(cls_2[1], 0.2)
+        self.assertAlmostEqual(cls_3[1], 0.05)
+        
+        # Evaluate all single units in both sides.
+        points_1   = [[0, 0], [3, 0], [0, 1], [2, 1], [3, 1], [0, 2], [2, 2], [3, 2]]
+        points_2   = [[0, 0], [3, 0], [0, 1], [1, 1], [3, 1], [0, 2], [1, 2], [3, 2]]
+        polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
+        units_1 = ["unit1", "unit2", "unit3"]
+        units_2 = ["unit4", "unit5", "unit6"]
+        
+        model = cpp.Model([0,0,0,3,3,3],{}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_2, [], [])])
+        model.make_matches()
+        
+        cls_1 = model.closest([1.5, 1.2, 1.1])
+        cls_2 = model.closest([1.5, 1.2, 1.499999999999])
+        cls_3 = model.closest([1.5, 1.2, 1.9])
+        cls_4 = model.closest([1.5, 1.00000000001, 1.1])
+        cls_5 = model.closest([1.5, 0.9, 1.499999999999])
+        
+        self.assertEqual(cls_1[0], "unit2")
+        self.assertAlmostEqual(cls_1[1], 0.1)
+        self.assertEqual(cls_2[0], "unit2")
+        self.assertAlmostEqual(cls_2[1], 0.5)
+        self.assertEqual(cls_3[0], "unit6")
+        self.assertAlmostEqual(cls_3[1], 0.1)
+        self.assertEqual(cls_4[0], "unit2")
+        self.assertAlmostEqual(cls_3[1], 0.1)
+        self.assertEqual(cls_5[0], "unit1")
+        self.assertAlmostEqual(cls_3[1], 0.1)
+        
+        pos_cls = model.possible_closest([1.5, 1.2, 1.5])
+        self.assertEqual(pos_cls[0][0], 'unit6')
+        self.assertEqual(pos_cls[1][0], 'unit2')
+        self.assertAlmostEqual(pos_cls[0][1], 1.0)
+        self.assertAlmostEqual(pos_cls[1][1], 0.0)
+        self.assertAlmostEqual(pos_cls[0][2], 0.0)
+        self.assertAlmostEqual(pos_cls[1][2], 1.0)
+        
+        # Evaluate a shared unit, and the rest single units.
+        units_1 = ["unit1", "unit2", "unit3"]
+        units_2 = ["unit1", "unit5", "unit6"]
+        
+        model = cpp.Model([0,0,0,3,3,3], {}, {}, [("A-A", 1, points_1, polygons_1, units_1, [], []), ("B-B", 2, points_2, polygons_1, units_2, [], [])])
+        model.make_matches()
+        pos_cls = model.possible_closest([1.5, 1.25, 1.5])
+        
+        self.assertEqual(pos_cls[0][0], 'unit6')
+        self.assertEqual(pos_cls[1][0], 'unit1')
+        self.assertEqual(pos_cls[2][0], 'unit2')
+        self.assertAlmostEqual(pos_cls[0][1], 1.0)
+        self.assertAlmostEqual(pos_cls[1][1], 0.25)
+        self.assertAlmostEqual(pos_cls[2][1], 0.0)
+        
+        self.assertAlmostEqual(pos_cls[0][2], 0.0)
+        self.assertAlmostEqual(pos_cls[1][2], 0.25)
+        self.assertAlmostEqual(pos_cls[2][2], 1.0)
+
     # Test that you can load and test aburra Valley. Test grids and volumes.
     def test_aburra_valley(self):
         this_dir, this_filename = os.path.split(__file__)
