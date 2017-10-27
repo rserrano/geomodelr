@@ -42,36 +42,36 @@ class ALGORITHM:
     REGULAR = 'regular'
     ADAPTIVE = 'adaptive'
 
-def create_modflow_inputs(model_name, model, Units_data,
-    length_units=LENGTH_UNIT.SECONDS, N_row=100, N_col=100, N_layers=100,
-    Bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.METERS, 
-    Class=ALGORITHM.REGULAR):
+def create_modflow_inputs(name, model, units_data,
+    length_units=LENGTH_UNIT.SECONDS, rows=100, cols=100, layers=100,
+    bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.METERS, 
+    algorithm=ALGORITHM.REGULAR):
     """
     Generates the DIS, BAS, LPF and NAM files, which are used by classical
     MODFLOW processors. The user has to import the NAM file from his MODFLOW
     program. 
     
     Args:
-        (string) model_name: name of generated files.
+        (string) name: name of generated files.
 
         (GeologicalModel) model: geomodlr model to work on.
 
-        (dict) Units_data: the dictionary keys correpond to the unit names
-        and the items are tuples with 4 values: (Kx,rate,Kz,i_bound).
-        Kx and Kz are the hydraulic conductivy in the respective axis and
-        rate variable is the rate between Ky and Kx, i.e., rate=Ky/Kx.
-        Finally, i_bound is equal to 1 if the respective unit is active and 0
-        otherwise.
+        (dict) units_data: the dictionary keys correpond to the unit names
+        and the items are tuples with 4 values: (Kh_x,ani,Kv,i_bound).
+        Kh_x and Kv are the horizontal and vertical hydraulic conductivy
+        respectively and ani variable is the horizontal anysotropy (rate between
+        Kh_y and Kh_x, i.e., ani=Kh_y/Kk_x. Finally, i_bound is equal to 1 
+        if the respective unit is active and 0 otherwise.
 
         (int) length_units: length units (see: class LENGTH_UNIT)
 
-        (int) N_row: number of rows in the MODFLOW model.
+        (int) rows: number of rows in the MODFLOW model.
 
-        (int) N_col: number of cols in the MODFLOW model.
+        (int) cols: number of cols in the MODFLOW model.
 
-        (int) N_layers: number of layers in the MODFLOW model.
+        (int) layers: number of layers in the MODFLOW model.
 
-        (list) Bbox: the bounding box to search in.
+        (list) bbox: the bounding box to search in.
 
         (float) angle: this angle (degrees) is used in the adative algorithm.
 
@@ -79,37 +79,32 @@ def create_modflow_inputs(model_name, model, Units_data,
 
         (int) time_units: time units (see: class TIME_UNIT)
 
-        (string) Class: grid generation algorithm (see: class ALGORITHM)
+        (string) algorithm: grid generation algorithm (see: class ALGORITHM)
 
     """
 
-    try:
-        num_unit = len(model.units)
-    except:
-        exit('You have not defined the Geomodelr model')
+    if (bbox is None):
+        bbox = model.bbox
 
-    if (Bbox is None):
-        Bbox = model.bbox
+    X_inf = bbox[0]
+    X_sup = bbox[3]
 
-    X_inf = Bbox[0]
-    X_sup = Bbox[3]
+    Y_inf = bbox[1]
+    Y_sup = bbox[4]
 
-    Y_inf = Bbox[1]
-    Y_sup = Bbox[4]
+    dX = (X_sup - X_inf)/cols
+    dY = (Y_sup - Y_inf)/rows
 
-    dX = (X_sup - X_inf)/N_col
-    dY = (Y_sup - Y_inf)/N_row
-
-    #X_vec = np.linspace(X_inf + dX/2., X_sup - dX/2.,N_col)
-    #Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,N_row)
+    #X_vec = np.linspace(X_inf + dX/2., X_sup - dX/2.,cols)
+    #Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,rows)
  
-    Z_top = np.zeros((N_row,N_col))
+    Z_top = np.zeros((rows,cols))
 
-    Bottom_min = Bbox[2] + 1E-5
+    Bottom_min = bbox[2] + 1E-5
 
     # Define Z-top
-    for i in np.arange(N_row):
-        for j in np.arange(N_col):
+    for i in np.arange(rows):
+        for j in np.arange(cols):
 
             xp = X_inf + (2*j+1)*dX/2.0
             yp = Y_inf + (2*i+1)*dY/2.0
@@ -118,64 +113,60 @@ def create_modflow_inputs(model_name, model, Units_data,
 
     Z_top_min = np.min(Z_top)
 
-    if ((Z_top_min-Bottom_min)/N_layers < dz_min):
-        N_layers = int((Z_top_min-Bottom_min)/dz_min)
-        print('Maximum number of initial layers: ' + str(N_layers))
+    if ((Z_top_min-Bottom_min)/layers < dz_min):
+        layers = int((Z_top_min-Bottom_min)/dz_min)
+        #print('Maximum number of initial layers: ' + str(layers))
 
     
-    # ---------- Define Z-top, Z-bottoms and Hydraulic conductivity
-    # Class Fine
-    if (Class is 'regular'):
+    if (algorithm is 'regular'):
 
         Z_bottoms,K_hor,K_ratio_hor,K_ver,I_bound=regular_grid(model,
-            N_row,N_col,N_layers,Z_top,X_inf,Y_inf,dX,dY,Bottom_min,
-            Units_data)
+            rows,cols,layers,Z_top,X_inf,Y_inf,dX,dY,Bottom_min,
+            units_data)
     
-    elif (Class is 'adaptive'):
+    elif (algorithm is 'adaptive'):
 
-        Z_bottoms,K_hor,K_ratio_hor,K_ver,I_bound,N_layers=adaptive_grid(model,
-            N_row,N_col,N_layers,Z_top,X_inf,Y_inf,dX,dY,Bottom_min,
-            Units_data,angle,dz_min)
+        Z_bottoms,K_hor,K_ratio_hor,K_ver,I_bound,layers=adaptive_grid(model,
+            rows,cols,layers,Z_top,X_inf,Y_inf,dX,dY,Bottom_min,
+            units_data,angle,dz_min)
 
 
     #  ------- Flowpy Package ----
     # Grid
 
-    chani_var = -np.ones(N_layers,dtype=np.int32)
 
-    mf_handle = fp.modflow.Modflow(model_name, exe_name='mf2005',verbose=False)
+    mf_handle = fp.modflow.Modflow(name, exe_name='mf2005',verbose=False)
     # Variables for the Dis package
-    dis = fp.modflow.ModflowDis(mf_handle,nlay=N_layers, nrow=N_row, ncol=N_col,
+    dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
         top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
         itmuni=time_units, lenuni=length_units)
 
     # Variables for the BAS package
     bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
 
+    chani_var = -np.ones(layers,dtype=np.int32)
+
     # Add LPF package to the MODFLOW model
     lpf = fp.modflow.ModflowLpf(mf_handle, chani=chani_var, hk=K_hor,
-        vka=K_ver, hani=K_ratio_hor,laytyp=np.ones(N_layers,dtype=np.int32))
+        vka=K_ver, hani=K_ratio_hor,laytyp=np.ones(layers,dtype=np.int32))
 
     mf_handle.write_input()
-    
-    mv_comand = 'mv ' + model_name + '* /media/sf_CompartidaVB/'
-    os.system(mv_comand)
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
-def regular_grid(model,N_row,N_col,N_layers,Z_top,X_inf,Y_inf,
-    dX,dY,Bottom_min, Units_data):
+def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_inf,
+    dX,dY,Bottom_min, units_data):
     """
-    Generates a regular grid to use in MODFLOW.
+    Generates a regular finite difference grid to use in MODFLOW.
     
     Args:
         (GeologicalModel) model: geomodlr model to work on.
 
-        (int) N_row: number of rows in the MODFLOW model.
+        (int) rows: number of rows in the MODFLOW model.
 
-        (int) N_col: number of cols in the MODFLOW model.
+        (int) cols: number of cols in the MODFLOW model.
 
-        (int) N_layers: number of layers in the MODFLOW model.
+        (int) layers: number of layers in the MODFLOW model.
 
         (numpy.array) Z_top: topogrphy of the grid model.
 
@@ -189,36 +180,36 @@ def regular_grid(model,N_row,N_col,N_layers,Z_top,X_inf,Y_inf,
 
         (float) Bottom_min: model bottom.
 
-        (dic) Units_data: units data.
+        (dic) units_data: units data.
     """
 
 
-    Z_bottoms = np.zeros((N_layers,N_row,N_col))
+    Z_bottoms = np.zeros((layers,rows,cols))
 
-    I_bound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
+    I_bound = np.ones((layers, rows, cols), dtype=np.int32)
 
-    K_hor = np.zeros((N_layers,N_row,N_col))
-    K_ratio_hor = np.zeros((N_layers,N_row,N_col))
-    K_ver = np.zeros((N_layers,N_row,N_col))
+    K_hor = np.zeros((layers,rows,cols))
+    K_ratio_hor = np.zeros((layers,rows,cols))
+    K_ver = np.zeros((layers,rows,cols))
 
-    for i in np.arange(N_row):
+    for i in np.arange(rows):
         
         yp = Y_inf + (2*i+1)*dY/2.0
 
-        for j in np.arange(N_col):
+        for j in np.arange(cols):
 
             xp = X_inf + (2*j+1)*dX/2.0
             z_max = Z_top[i,j]
 
-            z_vec = np.linspace(z_max, Bottom_min,N_layers+1)
+            z_vec = np.linspace(z_max, Bottom_min,layers+1)
 
             Z_bottoms[:,i,j] = z_vec[1:]
 
-            for L in np.arange(N_layers):
+            for L in np.arange(layers):
                 zp = (z_vec[L] + z_vec[L+1])/2.0
 
                 Unit = model.closest([xp,yp,zp])[0]
-                Data = Units_data[Unit]
+                Data = units_data[Unit]
                 K_hor[L,i,j] = Data[0]; K_ratio_hor[L,i,j] = Data[1]
                 K_ver[L,i,j] = Data[2]
                 I_bound[L,i,j] = Data[3]
@@ -226,19 +217,19 @@ def regular_grid(model,N_row,N_col,N_layers,Z_top,X_inf,Y_inf,
     return((Z_bottoms,K_hor, K_ratio_hor, K_ver, I_bound))
 
 
-def adaptive_grid(model,N_row,N_col,N_layers, Z_top,X_inf,Y_inf,
-    dX,dY,Bottom_min,Units_data,angle,dz_min):
+def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
+    dX,dY,Bottom_min,units_data,angle,dz_min):
     """
-    Generates an adaptive grid to use in MODFLOW.
+    Generates an adaptive finite difference grid to use in MODFLOW.
     
     Args:
         (GeologicalModel) model: geomodlr model to work on.
 
-        (int) N_row: number of rows in the MODFLOW model.
+        (int) rows: number of rows in the MODFLOW model.
 
-        (int) N_col: number of cols in the MODFLOW model.
+        (int) cols: number of cols in the MODFLOW model.
 
-        (int) N_layers: number of layers in the MODFLOW model.
+        (int) layers: number of layers in the MODFLOW model.
 
         (numpy.array) Z_top: topogrphy of the grid model.
 
@@ -252,7 +243,7 @@ def adaptive_grid(model,N_row,N_col,N_layers, Z_top,X_inf,Y_inf,
 
         (float) Bottom_min: model bottom.
 
-        (dic) Units_data: units data.
+        (dic) units_data: units data.
 
         (float) angle: maximum angle (degrees) between two consecutive grid
         points in the same layer.
@@ -264,21 +255,21 @@ def adaptive_grid(model,N_row,N_col,N_layers, Z_top,X_inf,Y_inf,
 
     Z_bottoms = []
     Pos_List = []
-    Mat_Order = np.zeros((N_row, N_col), dtype=np.int16)
+    Mat_Order = np.zeros((rows, cols), dtype=np.int16)
 
     Max_Tan = np.tan(angle*np.pi/180.0)
 
-    Z_Layer_L = np.zeros((N_row,N_col))
+    Z_Layer_L = np.zeros((rows,cols))
 
-    for i in np.arange(N_row):
+    for i in np.arange(rows):
         yp = Y_inf + (2*i+1)*dY/2.0
 
-        for j in np.arange(N_col):
+        for j in np.arange(cols):
 
             xp = X_inf + (2*j+1)*dX/2.0
             z_max = Z_top[i,j]
 
-            dz = (z_max - Bottom_min)/N_layers
+            dz = (z_max - Bottom_min)/layers
             
             zl = z_max-dz
 
@@ -295,26 +286,26 @@ def adaptive_grid(model,N_row,N_col,N_layers, Z_top,X_inf,Y_inf,
 
     Z_bottoms.append(Z_Layer_L.copy())
 
-    Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_bottoms,0,True,
-        Max_Tan, N_row,N_col,dX,dY,dz_min)
+    Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_bottoms,0,
+        Max_Tan, rows,cols,dX,dY,dz_min)
     
     Mat_Order*=0
 
     Count_Lay = 0
     Z_Bool_Bot = np.isfinite(Z_top)     
 
-    for L in np.arange(1,N_layers-1):
+    for L in np.arange(1,layers-1):
 
-        for i in np.arange(N_row):
+        for i in np.arange(rows):
             yp = Y_inf + (2*i+1)*dY/2.0
 
-            for j in np.arange(N_col):
+            for j in np.arange(cols):
 
                 xp = X_inf + (2*j+1)*dX/2.0
                 
                 zp = Z_bottoms[Count_Lay][i,j]
-                #zl = zp - (zp- Bottom_min)/(N_layers-L)
-                zl = (Z_top[i,j]*(N_layers-(L+1)) + Bottom_min*(L+1))/N_layers
+                #zl = zp - (zp- Bottom_min)/(layers-L)
+                zl = (Z_top[i,j]*(layers-(L+1)) + Bottom_min*(L+1))/layers
                 
 
                 z_mean,change = find_unit_limits(model, xp, yp, zp, zl,
@@ -324,29 +315,20 @@ def adaptive_grid(model,N_row,N_col,N_layers, Z_top,X_inf,Y_inf,
                     Pos_List.append((i,j))
 
                 Z_Bool_Bot[i,j] = change
-                #Z_bottoms[L,i,j] = min(z_mean - zp,-1.01) + zp
                 Z_Layer_L[i,j] = min(z_mean - zp,-dz_min) + zp
 
 
         if (np.sum(Z_Bool_Top & Z_Bool_Bot) == 0):
 
-            #Layers_Bool[L-1] = False
-            #Z_bottoms[L,Z_Bool_Top] = Z_bottoms[L-1,Z_Bool_Top]
-            #Z_bottoms[Count_Lay][Z_Bool_Bot] = Z_Layer_L[Z_Bool_Bot]
             Z_bottoms[Count_Lay][Z_Bool_Bot | np.logical_not(Z_Bool_Top)] = Z_Layer_L[Z_Bool_Bot | np.logical_not(Z_Bool_Top)]
             Z_Bool_Top = Z_Bool_Top | Z_Bool_Bot
-            #Z_bottoms[Count_Lay][np.logical_not(Z_Bool_Top)] = Z_Layer_L[np.logical_not(Z_Bool_Top)]
 
             Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_bottoms,
-                Count_Lay, False, Max_Tan, N_row,N_col,dX,dY,dz_min)
+                Count_Lay, Max_Tan, rows,cols,dX,dY,dz_min)
 
             Mat_Order*=0
 
-
         else:
-            # Smoother
-
-            #Z_bottoms[L-1,Aux_Bool] = Z_bottoms[Last_Layer,Aux_Bool]
 
             Count_Lay += 1
             Z_Bool_Top = Z_Bool_Bot.copy()
@@ -357,44 +339,43 @@ def adaptive_grid(model,N_row,N_col,N_layers, Z_top,X_inf,Y_inf,
         Mat_Order*=0
 
 
-    Z_bottoms.append(Bottom_min*np.ones((N_row,N_col)))
-    N_layers = len(Z_bottoms)
+    Z_bottoms.append(Bottom_min*np.ones((rows,cols)))
+    layers = len(Z_bottoms)
 
     Z_bottoms= np.array(Z_bottoms)
 
-    K_hor = np.zeros((N_layers,N_row,N_col))
-    K_ratio_hor = np.zeros((N_layers,N_row,N_col))
-    K_ver = np.zeros((N_layers,N_row,N_col))
+    K_hor = np.zeros((layers,rows,cols))
+    K_ratio_hor = np.zeros((layers,rows,cols))
+    K_ver = np.zeros((layers,rows,cols))
 
-    I_bound = np.ones((N_layers, N_row, N_col), dtype=np.int32)
-    for L in np.arange(0,N_layers):
+    I_bound = np.ones((layers, rows, cols), dtype=np.int32)
+    for L in np.arange(0,layers):
 
         if (L>0):
             mid_points = ( Z_bottoms[L-1,:,:] + Z_bottoms[L,:,:])/2.0
         else:
             mid_points = ( Z_top + Z_bottoms[L,:,:])/2.0
         
-        for i in np.arange(N_row):
+        for i in np.arange(rows):
             yp = Y_inf + (2*i+1)*dY/2.0
 
-            for j in np.arange(N_col):
+            for j in np.arange(cols):
     
                 xp = X_inf + (2*j+1)*dX/2.0
 
                 Unit = model.closest([xp,yp,mid_points[i,j]])[0]
-                Data = Units_data[Unit]
+                Data = units_data[Unit]
                 K_hor[L,i,j] = Data[0]; K_ratio_hor[L,i,j] = Data[1]
                 K_ver[L,i,j] = Data[2]
                 I_bound[L,i,j] = Data[3]
 
     return((Z_bottoms,K_hor, K_ratio_hor, K_ver, I_bound,
-        N_layers))
+        layers))
 
-# find_unit_limits: It finds the limit between two geological units.
 def find_unit_limits(model, xp, yp, z_max, z_min, eps):
     """
     Given two points with the same x and y coordinates, and different z
-    coordinates, determines if exist a unit change between these points.
+    coordinates, it determines if exist a unit change between these points.
     If this happens, it return the z coordinate of this change. This algorithm
     is based on the Bisection method.
     
@@ -420,7 +401,6 @@ def find_unit_limits(model, xp, yp, z_max, z_min, eps):
 
     if (Unit_max == Unit_mean) & (Unit_min == Unit_mean):
         change = False
-        #z_mean = z_min
     else:
         change = True
         while (z_max-z_min)>eps:
@@ -438,9 +418,7 @@ def find_unit_limits(model, xp, yp, z_max, z_min, eps):
 
     return((z_min, change))
 
-
-
-def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
+def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
     Max_Tan,Rows,Cols,dX,dY,dz_min):
     """
     Corrects the layers points to guarantee a given maximum angle between
@@ -450,7 +428,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
         (list) Pos_List: list of tuples with the row-col indexes of the points,
         which have been fixed in the layer.
 
-        (numpy.array Mat_Order: integer matrix that shows in which order
+        (numpy.array) Mat_Order: integer matrix that shows in which order
         the points of the layer have been fixed. 
 
         (numpy.array Z_Bool_Top: Boolean matrix that shows which points has
@@ -462,16 +440,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
 
         (int) Layer: layer
 
-        (bool) Code: If it is equal True, it is working at the first layer,
-        and False otherwise.
-
         (float) Max_Tan: numpy.tan(angle)
-
-        (float) dY: spacings along a row.
-
-        (float) Bottom_min: model bottom.
-
-        (dic) Units_data: units data.
 
         (int) Rows: number of rows in the MODFLOW model.
 
@@ -501,10 +470,10 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
                 Change,dz = Angle(0.,dY,dz,Max_Tan)
                 if Change:
 
-                    if Code:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[I,j]-dz_min)
+                    if Layer==0:
+                        Val = min(Z_top[I,j]-dz,Z_top[I,j]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer][I,j]-dz_min)
+                        Val = min(Z_Bottoms[Layer-1][I,j]-dz,Z_Bottoms[Layer-1][I,j]-dz_min)
 
                     Z_Bottoms[Layer][I,j] = Val
                     Mat_Order[I,j] = Mat_Order[i,j] + 1
@@ -522,10 +491,10 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
                 Change,dz = Angle(0.,dY,dz,Max_Tan)
                 if Change:
                     
-                    if Code:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[I,j]-dz_min)
+                    if Layer==0:
+                        Val = min(Z_top[I,j]-dz,Z_top[I,j]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer][I,j]-dz_min)
+                        Val = min(Z_Bottoms[Layer-1][I,j]-dz,Z_Bottoms[Layer-1][I,j]-dz_min)
                     
                     Z_Bottoms[Layer][I,j] = Val
                     Mat_Order[I,j] = Mat_Order[i,j] + 1
@@ -543,10 +512,10 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
                 Change,dz = Angle(dX,0.,dz,Max_Tan)
                 if Change:
 
-                    if Code:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[i,J]-dz_min)
+                    if Layer==0:
+                        Val = min(Z_top[i,J]-dz,Z_top[i,J]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer][i,J]-dz_min)
+                        Val = min(Z_Bottoms[Layer-1][i,J]-dz,Z_Bottoms[Layer-1][i,J]-dz_min)
 
                     Z_Bottoms[Layer][i,J] = Val
                     Mat_Order[i,J] = Mat_Order[i,j] + 1
@@ -565,10 +534,10 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
                 
                 if Change:
 
-                    if Code:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[i,J]-dz_min)
+                    if Layer==0:
+                        Val = min(Z_top[i,J]-dz,Z_top[i,J]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer][i,J]-dz_min)
+                        Val = min(Z_Bottoms[Layer-1][i,J]-dz,Z_Bottoms[Layer-1][i,J]-dz_min)
 
                     Z_Bottoms[Layer][i,J] = Val
                     Mat_Order[i,J] = Mat_Order[i,j] + 1
@@ -580,7 +549,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
 
 def Angle(dx,dy,dz,Max_Tan):
     """
-    Determines if two points has an angle lower or greater than the
+    Determines the angles between two points is lower or greater than the
     given max angle.
     
     Args:
