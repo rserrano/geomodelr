@@ -19,10 +19,6 @@
 
 import numpy as np
 import flopy as fp
-import os
-from sys import exit
-from math import ceil, floor
-from scipy import interpolate
 
 class TIME_UNIT:
     UNDEFINED = 0
@@ -100,62 +96,72 @@ def create_modflow_inputs(name, model, units_data,
  
     Z_top = np.zeros((rows,cols))
 
-    Bottom_min = bbox[2] + 1E-5
+    bottom_min = bbox[2] + 1E-5
 
     # Define Z-top
     for i in np.arange(rows):
+        yp = Y_sup - (2*i+1)*dY/2.0
         for j in np.arange(cols):
-
             xp = X_inf + (2*j+1)*dX/2.0
-            yp = Y_inf + (2*i+1)*dY/2.0
             Z_top[i,j] = model.height((xp, yp))
 
 
     Z_top_min = np.min(Z_top)
 
-    if ((Z_top_min-Bottom_min)/layers < dz_min):
-        layers = int((Z_top_min-Bottom_min)/dz_min)
+    if ((Z_top_min-bottom_min)/layers < dz_min):
+        layers = int((Z_top_min-bottom_min)/dz_min)
         #print('Maximum number of initial layers: ' + str(layers))
 
     
     if (algorithm is 'regular'):
 
-        Z_bottoms,K_hor,K_ratio_hor,K_ver,I_bound=regular_grid(model,
-            rows,cols,layers,Z_top,X_inf,Y_inf,dX,dY,Bottom_min,
-            units_data)
+        Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
+            bottom_min,units_data)
     
     elif (algorithm is 'adaptive'):
 
-        Z_bottoms,K_hor,K_ratio_hor,K_ver,I_bound,layers=adaptive_grid(model,
-            rows,cols,layers,Z_top,X_inf,Y_inf,dX,dY,Bottom_min,
-            units_data,angle,dz_min)
+        Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
+            bottom_min,units_data,angle,dz_min)
 
 
-    #  ------- Flowpy Package ----
+    K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
+        units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY)
+
+    #  ------- Flowpy Packages ----
     # Grid
 
+    geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
+        lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
 
-    mf_handle = fp.modflow.Modflow(name, exe_name='mf2005',verbose=False)
+    mf_handle = fp.modflow.mf.Modflow(modelname=name,namefile_ext='nam',
+        version='mf2005')
     # Variables for the Dis package
     dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
         top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
         itmuni=time_units, lenuni=length_units)
 
+    dis.sr=geo
+
     # Variables for the BAS package
     bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
 
-    chani_var = -np.ones(layers,dtype=np.int32)
+    #chani_var = -1
 
     # Add LPF package to the MODFLOW model
     lpf = fp.modflow.ModflowLpf(mf_handle, chani=chani_var, hk=K_hor,
-        vka=K_ver, hani=K_ratio_hor,laytyp=np.ones(layers,dtype=np.int32))
+        vka=K_ver, hani=K_anisotropy_hor,laytyp=np.ones(layers,dtype=np.int32))#
 
+    #mf_handle.add_package(geo)
+    #oc = fp.modflow.ModflowOc(mf_handle)
+    #pcg = fp.modflow.ModflowPcg(mf_handle)
     mf_handle.write_input()
+#
+    #return((mf_handle,dis,geo))
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
-def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_inf,
-    dX,dY,Bottom_min, units_data):
+def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,
+    dX,dY,bottom_min, units_data):
     """
     Generates a regular finite difference grid to use in MODFLOW.
     
@@ -172,53 +178,43 @@ def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_inf,
 
         (float) X_inf: origin X coordinate.
 
-        (float) Y_inf: origin Y coordinate.
+        (float) Y_sup: origin Y coordinate.
 
         (float) dX: spacings along a col.
 
         (float) dY: spacings along a row.
 
-        (float) Bottom_min: model bottom.
+        (float) bottom_min: model bottom.
 
         (dic) units_data: units data.
     """
-
 
     Z_bottoms = np.zeros((layers,rows,cols))
 
     I_bound = np.ones((layers, rows, cols), dtype=np.int32)
 
     K_hor = np.zeros((layers,rows,cols))
-    K_ratio_hor = np.zeros((layers,rows,cols))
+    K_anisotropy_hor = np.zeros((layers,rows,cols))
     K_ver = np.zeros((layers,rows,cols))
 
     for i in np.arange(rows):
         
-        yp = Y_inf + (2*i+1)*dY/2.0
+        yp = Y_sup - (2*i+1)*dY/2.0
 
         for j in np.arange(cols):
 
             xp = X_inf + (2*j+1)*dX/2.0
             z_max = Z_top[i,j]
 
-            z_vec = np.linspace(z_max, Bottom_min,layers+1)
+            z_vec = np.linspace(z_max, bottom_min,layers+1)
 
             Z_bottoms[:,i,j] = z_vec[1:]
 
-            for L in np.arange(layers):
-                zp = (z_vec[L] + z_vec[L+1])/2.0
-
-                Unit = model.closest([xp,yp,zp])[0]
-                Data = units_data[Unit]
-                K_hor[L,i,j] = Data[0]; K_ratio_hor[L,i,j] = Data[1]
-                K_ver[L,i,j] = Data[2]
-                I_bound[L,i,j] = Data[3]
-
-    return((Z_bottoms,K_hor, K_ratio_hor, K_ver, I_bound))
+    return(Z_bottoms)
 
 
-def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
-    dX,dY,Bottom_min,units_data,angle,dz_min):
+def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
+    dX,dY,bottom_min,units_data,angle,dz_min):
     """
     Generates an adaptive finite difference grid to use in MODFLOW.
     
@@ -235,13 +231,13 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
 
         (float) X_inf: origin X coordinate.
 
-        (float) Y_inf: origin Y coordinate.
+        (float) Y_sup: origin Y coordinate.
 
         (float) dX: spacings along a col.
 
         (float) dY: spacings along a row.
 
-        (float) Bottom_min: model bottom.
+        (float) bottom_min: model bottom.
 
         (dic) units_data: units data.
 
@@ -262,14 +258,14 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
     Z_Layer_L = np.zeros((rows,cols))
 
     for i in np.arange(rows):
-        yp = Y_inf + (2*i+1)*dY/2.0
+        yp = Y_sup - (2*i+1)*dY/2.0
 
         for j in np.arange(cols):
 
             xp = X_inf + (2*j+1)*dX/2.0
             z_max = Z_top[i,j]
 
-            dz = (z_max - Bottom_min)/layers
+            dz = (z_max - bottom_min)/layers
             
             zl = z_max-dz
 
@@ -297,15 +293,15 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
     for L in np.arange(1,layers-1):
 
         for i in np.arange(rows):
-            yp = Y_inf + (2*i+1)*dY/2.0
+            yp = Y_sup - (2*i+1)*dY/2.00
 
             for j in np.arange(cols):
 
                 xp = X_inf + (2*j+1)*dX/2.0
                 
                 zp = Z_bottoms[Count_Lay][i,j]
-                #zl = zp - (zp- Bottom_min)/(layers-L)
-                zl = (Z_top[i,j]*(layers-(L+1)) + Bottom_min*(L+1))/layers
+                #zl = zp - (zp- bottom_min)/(layers-L)
+                zl = (Z_top[i,j]*(layers-(L+1)) + bottom_min*(L+1))/layers
                 
 
                 z_mean,change = find_unit_limits(model, xp, yp, zp, zl,
@@ -338,17 +334,34 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
 
         Mat_Order*=0
 
-
-    Z_bottoms.append(Bottom_min*np.ones((rows,cols)))
+    Z_bottoms.append(bottom_min*np.ones((rows,cols)))
     layers = len(Z_bottoms)
-
     Z_bottoms= np.array(Z_bottoms)
 
-    K_hor = np.zeros((layers,rows,cols))
-    K_ratio_hor = np.zeros((layers,rows,cols))
-    K_ver = np.zeros((layers,rows,cols))
+    return((Z_bottoms,layers))
 
-    I_bound = np.ones((layers, rows, cols), dtype=np.int32)
+def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,
+    dX,dY):
+
+    aux_data=np.array(units_data.values())
+    anisotropy_bool = np.max(aux_data[:,1])==np.min(aux_data[:,1])
+    ibound_bool = np.max(aux_data[:,3])==np.min(aux_data[:,3])
+
+    if anisotropy_bool:
+        K_anisotropy_hor = aux_data[0,1]
+        chani_var = aux_data[0,1]
+    else:
+        K_anisotropy_hor = np.zeros((layers,rows,cols))
+        chani_var = -1
+
+    if ibound_bool:
+        I_bound = aux_data[0,3]
+    else:
+        I_bound = np.ones((layers, rows, cols), dtype=np.int32)
+
+    K_hor = np.zeros((layers,rows,cols))
+    K_ver = np.zeros((layers,rows,cols))
+    
     for L in np.arange(0,layers):
 
         if (L>0):
@@ -357,7 +370,7 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
             mid_points = ( Z_top + Z_bottoms[L,:,:])/2.0
         
         for i in np.arange(rows):
-            yp = Y_inf + (2*i+1)*dY/2.0
+            yp = Y_sup - (2*i+1)*dY/2.0
 
             for j in np.arange(cols):
     
@@ -365,12 +378,14 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_inf,
 
                 Unit = model.closest([xp,yp,mid_points[i,j]])[0]
                 Data = units_data[Unit]
-                K_hor[L,i,j] = Data[0]; K_ratio_hor[L,i,j] = Data[1]
+                K_hor[L,i,j] = Data[0];
+                if not(anisotropy_bool):
+                    K_anisotropy_hor[L,i,j] = Data[1]
                 K_ver[L,i,j] = Data[2]
-                I_bound[L,i,j] = Data[3]
+                if not(ibound_bool):
+                    I_bound[L,i,j] = Data[3]
 
-    return((Z_bottoms,K_hor, K_ratio_hor, K_ver, I_bound,
-        layers))
+    return((K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var))
 
 def find_unit_limits(model, xp, yp, z_max, z_min, eps):
     """
