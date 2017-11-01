@@ -110,8 +110,6 @@ def create_modflow_inputs(name, model, units_data,
 
     if ((Z_top_min-bottom_min)/layers < dz_min):
         layers = int((Z_top_min-bottom_min)/dz_min)
-        #print('Maximum number of initial layers: ' + str(layers))
-
     
     if (algorithm is 'regular'):
 
@@ -130,8 +128,8 @@ def create_modflow_inputs(name, model, units_data,
     #  ------- Flowpy Packages ----
     # Grid
 
-    geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
-        lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
+    #geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
+        #lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
 
     mf_handle = fp.modflow.mf.Modflow(modelname=name,namefile_ext='nam',
         version='mf2005')
@@ -140,20 +138,15 @@ def create_modflow_inputs(name, model, units_data,
         top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
         itmuni=time_units, lenuni=length_units)
 
-    dis.sr=geo
+    #dis.sr=geo
 
     # Variables for the BAS package
     bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
-
-    #chani_var = -1
 
     # Add LPF package to the MODFLOW model
     lpf = fp.modflow.ModflowLpf(mf_handle, chani=chani_var, hk=K_hor,
         vka=K_ver, hani=K_anisotropy_hor,laytyp=np.ones(layers,dtype=np.int32))#
 
-    #mf_handle.add_package(geo)
-    #oc = fp.modflow.ModflowOc(mf_handle)
-    #pcg = fp.modflow.ModflowPcg(mf_handle)
     mf_handle.write_input()
 #
     #return((mf_handle,dis,geo))
@@ -176,9 +169,9 @@ def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,
 
         (numpy.array) Z_top: topogrphy of the grid model.
 
-        (float) X_inf: origin X coordinate.
+        (float) X_inf: x coordinate of upper left corner of the grid.
 
-        (float) Y_sup: origin Y coordinate.
+        (float) Y_sup: y coordinate of upper left corner of the grid.
 
         (float) dX: spacings along a col.
 
@@ -212,7 +205,6 @@ def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,
 
     return(Z_bottoms)
 
-
 def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
     dX,dY,bottom_min,units_data,angle,dz_min):
     """
@@ -229,9 +221,9 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
 
         (numpy.array) Z_top: topogrphy of the grid model.
 
-        (float) X_inf: origin X coordinate.
+        (float) X_inf: x coordinate of upper left corner of the grid.
 
-        (float) Y_sup: origin Y coordinate.
+        (float) Y_sup: y coordinate of upper left corner of the grid.
 
         (float) dX: spacings along a col.
 
@@ -342,6 +334,29 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
 
 def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,
     dX,dY):
+    """
+    Generates the hidraulic conductivy and I_bound (active or not active) matrices.
+    
+    Args:
+        (GeologicalModel) model: geomodlr model to work on.
+
+        (dic) units_data: units data.
+
+        (numpy.array) Z_top: topogrphy of the grid model.
+
+        (numpy.array) Z_bottoms: bottoms of the layers.
+
+        (int) rows: number of rows in the MODFLOW model.
+
+        (int) cols: number of cols in the MODFLOW model.
+
+        (int) layers: number of layers in the MODFLOW model.        
+
+        (float) X_inf: x coordinate of upper left corner of the grid.
+
+        (float) Y_sup: y coordinate of upper left corner of the grid.
+        
+    """
 
     aux_data=np.array(units_data.values())
     anisotropy_bool = np.max(aux_data[:,1])==np.min(aux_data[:,1])
@@ -561,10 +576,9 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
 
         c += 1
 
-
 def Angle(dx,dy,dz,Max_Tan):
     """
-    Determines the angles between two points is lower or greater than the
+    Determines the angle between two points is lower or greater than the
     given max angle.
     
     Args:
