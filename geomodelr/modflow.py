@@ -121,7 +121,6 @@ def create_modflow_inputs(name, model, units_data,
         Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
             bottom_min,units_data,angle,dz_min)
 
-
     K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
         units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY)
 
@@ -501,9 +500,9 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
                 if Change:
 
                     if Layer==0:
-                        Val = min(Z_top[I,j]-dz,Z_top[I,j]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[I,j]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer-1][I,j]-dz,Z_Bottoms[Layer-1][I,j]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer-1][I,j]-dz_min)
 
                     Z_Bottoms[Layer][I,j] = Val
                     Mat_Order[I,j] = Mat_Order[i,j] + 1
@@ -522,9 +521,9 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
                 if Change:
                     
                     if Layer==0:
-                        Val = min(Z_top[I,j]-dz,Z_top[I,j]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[I,j]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer-1][I,j]-dz,Z_Bottoms[Layer-1][I,j]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer-1][I,j]-dz_min)
                     
                     Z_Bottoms[Layer][I,j] = Val
                     Mat_Order[I,j] = Mat_Order[i,j] + 1
@@ -543,9 +542,9 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
                 if Change:
 
                     if Layer==0:
-                        Val = min(Z_top[i,J]-dz,Z_top[i,J]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[i,J]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer-1][i,J]-dz,Z_Bottoms[Layer-1][i,J]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer-1][i,J]-dz_min)
 
                     Z_Bottoms[Layer][i,J] = Val
                     Mat_Order[i,J] = Mat_Order[i,j] + 1
@@ -565,9 +564,9 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
                 if Change:
 
                     if Layer==0:
-                        Val = min(Z_top[i,J]-dz,Z_top[i,J]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_top[i,J]-dz_min)
                     else:
-                        Val = min(Z_Bottoms[Layer-1][i,J]-dz,Z_Bottoms[Layer-1][i,J]-dz_min)
+                        Val = min(Z_Bottoms[Layer][i,j]-dz,Z_Bottoms[Layer-1][i,J]-dz_min)
 
                     Z_Bottoms[Layer][i,J] = Val
                     Mat_Order[i,J] = Mat_Order[i,j] + 1
