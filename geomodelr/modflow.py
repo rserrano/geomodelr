@@ -20,13 +20,13 @@
 import numpy as np
 import flopy as fp
 
-class TIME_UNIT:
+class LENGTH_UNIT:
     UNDEFINED = 0
     FEET =1
     METERS = 2
     CENTIMETERS = 3
 
-class LENGTH_UNIT:
+class TIME_UNIT:
     UNDEFINED = 0
     SECONDS = 1
     MINUTES = 2
@@ -39,8 +39,8 @@ class ALGORITHM:
     ADAPTIVE = 'adaptive'
 
 def create_modflow_inputs(name, model, units_data,
-    length_units=LENGTH_UNIT.SECONDS, rows=100, cols=100, layers=100,
-    bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.METERS, 
+    length_units=LENGTH_UNIT.METERS, rows=100, cols=100, layers=100,
+    bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.SECONDS, 
     algorithm=ALGORITHM.REGULAR):
     """
     Generates the DIS, BAS, LPF and NAM files, which are used by classical
