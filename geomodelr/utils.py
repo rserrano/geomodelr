@@ -23,9 +23,6 @@ import numpy as np
 import itertools
 import gc
 
-from isosurfaces import plot_unit, save_unit, triangulate_unit
-
-
 def generate_simple_grid(query_func, bbox, grid_divisions):
     """
     Returns a uniform grid of sizes grid_divisions x grid_divisions x grid_divisions 
