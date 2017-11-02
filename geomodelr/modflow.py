@@ -375,6 +375,9 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
 
     K_hor = np.zeros((layers,rows,cols))
     K_ver = np.zeros((layers,rows,cols))
+
+    anisotropy_bool = not(anisotropy_bool)
+    ibound_bool = not(ibound_bool)
     
     for L in np.arange(0,layers):
 
@@ -393,10 +396,10 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
                 Unit = model.closest([xp,yp,mid_points[i,j]])[0]
                 Data = units_data[Unit]
                 K_hor[L,i,j] = Data[0];
-                if not(anisotropy_bool):
+                if anisotropy_bool:
                     K_anisotropy_hor[L,i,j] = Data[1]
                 K_ver[L,i,j] = Data[2]
-                if not(ibound_bool):
+                if ibound_bool:
                     I_bound[L,i,j] = Data[3]
 
     return((K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var))
