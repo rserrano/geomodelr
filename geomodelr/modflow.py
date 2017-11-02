@@ -559,8 +559,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
                 
                 dz=Z_Bottoms[Layer][i,j]-Z_Bottoms[Layer][i,J]
 
-                Change,dz = Angle(dX,0.,dz,Max_Tan)
-                
+                Change,dz = Angle(dX,0.,dz,Max_Tan)                
                 if Change:
 
                     if Layer==0:
