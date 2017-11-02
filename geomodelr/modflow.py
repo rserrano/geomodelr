@@ -111,12 +111,12 @@ def create_modflow_inputs(name, model, units_data,
     if ((Z_top_min-bottom_min)/layers < dz_min):
         layers = int((Z_top_min-bottom_min)/dz_min)
     
-    if (algorithm is 'regular'):
+    if (algorithm == 'regular'):
 
         Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
             bottom_min,units_data)
     
-    elif (algorithm is 'adaptive'):
+    elif (algorithm == 'adaptive'):
 
         Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
             bottom_min,units_data,angle,dz_min)
