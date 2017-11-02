@@ -536,26 +536,43 @@ class TestGeoModelR(unittest.TestCase):
 
         #Bounding_Box = np.array([831000.0,1456450,-1100,842000, 1456550])
 
-        if True:
+        if False:
             modflow.create_modflow_inputs('Files_Test',geo_model,units_data,
             length_units=1, rows=Rows, cols=Cols,layers=Layers,
-            bbox = Bounding_Box, angle = Angle, dz_min=DZ, time_units=2,
+            bbox  = Bounding_Box, angle = Angle, dz_min=DZ, time_units=2,
             algorithm='adaptive')
 
-        Pos_List = [(1,1)]
 
-        Mat_Order = np.zeros((3,3))
+        # Test LAYER CORRECTION
+        Pos_List = [(0,0)]; Rows=Cols=2
+        Mat_Order = np.zeros((Rows,Cols))
+        Z_Bool_Top = np.array([[True,False],[False,False]])
 
-        Z_Bool_Top = np.array([[False,False,False],[False,True,False],
-            [False,False,False]])
+        Z_top = np.array([[1.0, -0.6],[1.0,-2.45]])
+        Max_Tan = np.tan(45 * np.pi/180.0)
+        dz_min=0.25; dX=1.5; dY=2.0
 
+        Z_Bottoms = [np.array([[1.0-dz_min, -1.0],
+            [1.0-dz_min-dY*Max_Tan-0.1, -2.76]])]
+        Layer=0
 
-        #Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,Code,
-    #Max_Tan,Rows,Cols,dX,dY,dz_min):
+        #print Z_Bottoms
+        #print Z_Bool_Top, '\n'
+        modflow.Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
+            Max_Tan,Rows,Cols,dX,dY,dz_min)
+        #print Z_Bottoms
+        #print Z_Bool_Top
+        #print Pos_List
+        #print Mat_Order
 
-        #self.assertGreaterEqual(60.,total_time.total_seconds
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][0,0]-0.75))
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][0,1]+0.85))
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][1,0]+1.25))
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][1,1]+2.75))
 
-
+        self.assertEqual(Mat_Order[0,1],1)
+        self.assertEqual(Mat_Order[1,0],1)
+        self.assertEqual(Mat_Order[1,1],2)
         
 def main(args=None):
     unittest.main()
