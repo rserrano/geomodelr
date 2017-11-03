@@ -147,8 +147,9 @@ def create_modflow_inputs(name, model, units_data,
         vka=K_ver, hani=K_anisotropy_hor,laytyp=np.ones(layers,dtype=np.int32))#
 
     mf_handle.write_input()
-#
-    #return((mf_handle,dis,geo))
+
+    output = {'num_layers': layers}
+    return(output)
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
