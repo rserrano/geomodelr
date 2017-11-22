@@ -24,20 +24,23 @@ from copy import deepcopy
 
 # Finds the lines that result after intersecting a fault plane with a plane.
 def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
+    # Obtain line by line intersected with the triangles.
     lines = []
-    for tp in fplane:
+    for tp in fplane: # for each triangle in the fault plane.
         ints = []
-        for i in range(3):
+        for i in range(3): # for each line in the triangle.
             # Find the ray parameters.
             ni = (i+1)%3
             p0 = np.array(tp[i])
             p1 = np.array(tp[ni])
-            nt = p1-p0
+            
+            # find the vector of the triangle.
+            nt = p1-p0 
             d  = la.norm(nt)
             nt = nt/d
             
             # Find if the ray and the plane are parallel. (plane normal perpendicular).
-            div = np.dot(nv, nt)
+            div = np.dot(nv, nt) 
             if math.fabs(div) < 1e-9:
                 continue
             
@@ -61,16 +64,17 @@ def find_fault_plane_intersection(fplane, x0, v1, v2, nv, intersect_line):
             lines.append(ints)
     
     filt_lines = []
-    # Cut the lines to the plane.
+    # Cut the lines to the plane with outside function.
     for line in lines:
         res = intersect_line(line)
         filt_lines += res
     
-    # Join the lines.
+    # Join all the segments in continuous lines where possible.
     j_lines = []
     for l in filt_lines:
         # Check that the resulting lines have two coordinates.
         assert len(l) == 2
+        
         for i in range(2):
             p = l[i]
             pc = l[(i+1)%2]

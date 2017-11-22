@@ -15,13 +15,14 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef GEOMODELR_GEOMODEL_HPP
-#define GEOMODELR_GEOMODEL_HPP
+#ifndef GEOMODELR_FAULTS_HPP
+#define GEOMODELR_FAULTS_HPP
 
 #include "basic.hpp"
-#include "section.hpp"
-#include "match.hpp"
-#include "model.hpp"
-#include "faults.hpp"
 
-#endif
+// pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
+
+pydict find_faults_plane_intersection(const pydict& fplanes, const pylist& plane);
+pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pylist& planes);
+ 
+#endif // GEOMODELR_FAULTS_HPP

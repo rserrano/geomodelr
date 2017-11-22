@@ -15,13 +15,18 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef GEOMODELR_GEOMODEL_HPP
-#define GEOMODELR_GEOMODEL_HPP
-
-#include "basic.hpp"
-#include "section.hpp"
-#include "match.hpp"
-#include "model.hpp"
 #include "faults.hpp"
 
-#endif
+vector<vector<point2>> find_fault_plane_intersection( const vector<triangle_pt>& fplane, const point3& x0, const point3& v1, const point3& v2, const point3& nv) {
+	return vector<vector<point2>>();
+}
+
+pydict find_faults_plane_intersection(const pydict& fplanes, const pylist& plane) {
+	std::cout << "executing find_faults_plane_intersection\n";
+	return pydict();
+}
+pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pylist& planes) {
+	std::cout << "executing find_faults_multiple_planes_intersection\n";
+	return pydict();
+}
+ 

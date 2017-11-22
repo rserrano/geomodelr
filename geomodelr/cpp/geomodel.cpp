@@ -173,13 +173,20 @@ BOOST_PYTHON_MODULE(cpp)
 	python::class_<GeomodelrException> GeomodelrExceptionClass("GeomodelrException", boost::python::init<std::string>());
 	GeomodelrExceptionType = createExceptionClass("GeomodelrException");
 	python::register_exception_translator<GeomodelrException>(&translate);
+
 	python::def("faultplane_for_lines", test_faultplane_for_lines);
+	
+	// Register triangle-plane intersection. 
+	python::def("find_faults_plane_intersection", find_faults_plane_intersection);
+	python::def("find_faults_multiple_planes_intersection", find_faults_multiple_planes_intersection);
+	
 	python::def("set_verbose", set_verbose, python::args("verbose"), doc_verb);
 	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pylist&, 
 							      const pylist&, const pylist&, 
 							      const pylist&, const pylist&>())
 							      .def("info", &SectionPython::info)
 							      .def("closest", &SectionPython::closest);
+	
 	python::class_<ModelPython>("Model", python::init<const pylist&, const pylist&, const pylist&, const pyobject&,
 							  const pyobject&, const pylist&>())
 							  .def("make_matches", &ModelPython::make_matches)

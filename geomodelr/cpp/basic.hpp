@@ -76,6 +76,7 @@ typedef python::object pyobject;
 typedef python::tuple pytuple;
 
 typedef std::tuple<point3, point3, point3> triangle_pt;
+
 template<class T>
 inline const typename std::tuple_element<0, T>::type& g0(const T& t){
 	return std::get<0>(t);
