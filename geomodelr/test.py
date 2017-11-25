@@ -44,7 +44,7 @@ class TestGeoModelR(unittest.TestCase):
         # self.pr.enable()
     def tearDown(self):
         pass
-        # Print profiling of GeoModelR.
+        # profiling of GeoModelR.
         # self.pr.disable()
         # s = StringIO.StringIO()
         # sortby = 'cumulative'
@@ -611,42 +611,69 @@ class TestGeoModelR(unittest.TestCase):
     def test_modflow(self):
 
         this_dir, this_filename = os.path.split(__file__)
-        fn = os.path.join(this_dir, 'test_files', 'cienaga.json')
+        fn = os.path.join(this_dir, 'test_files', 'Cienaga_Final.json')
         geo_model = model.model_from_file(fn)
 
         Geo_Data = True
         Graph = True
 
-        Rows = 50; Cols = 150; Layers = 100
+        Rows = 150;  Cols = 110; Layers = 40; Angle = 30; DZ = 2.0
 
-        plt.close('all')
+        Units = [u'D_Aluvial',u'CO_ArenasCongl',u'CO_ConglAren',u'Arenas']
+        Kh = np.array([3.0, 0.07, 0.05, 0.04])
+        ani = np.ones(4)
+        Kv = Kh/10.0
+        Act_Uni = np.array([1,1,1,1])
 
-        Kx = np.arange(1,9)*1E-7
-        Ky = np.ones(8)
-        Kz = Kx*1.0
-        Prop =np.array([Kx,Ky,Kz])
-        Act_Uni = np.array([0,0,0,1,0,1,0,0])
+        units_data = { Units[k]: (Kh[k],ani[k],Kv[k],Act_Uni[k]) for k in range(4) }
 
         #self.assertEqual( geo_model.closest([100,100,100])[1], u'CO_ConglAren')
-        start_time = datetime.now()
 
 
         Bounding_Box = geo_model.bbox
         #Bounding_Box = np.array([831000.0,1450000,-400,833000, 1450600])
+        #Bounding_Box = np.array([834300.0,1450000,-400,837900, 1450600])
+        #Bounding_Box = np.array([832200.0,1450000,-400,834300, 1450600])
 
-        Dis=modflow.create_modflow_inputs('Prueba',geo_model,
-            N_row=Rows, N_col=Cols,N_layers=Layers,properties=Prop,
-            act_uni = Act_Uni, Bbox = Bounding_Box, Class=2)
+        #Bounding_Box = np.array([831000.0,1456450,-1100,842000, 1456550])
 
-
-        end_time = datetime.now()
-        total_time = end_time - start_time
-        print 'Total time: ', total_time.total_seconds(), ' s'
-        print(Dis.check())
-        print 'Number of Layers: ', Dis.nlay
-        #self.assertGreaterEqual(60.,total_time.total_seconds
+        if False:
+            modflow.create_modflow_inputs('Files_Test',geo_model,units_data,
+            length_units=1, rows=Rows, cols=Cols,layers=Layers,
+            bbox  = Bounding_Box, angle = Angle, dz_min=DZ, time_units=2,
+            algorithm='adaptive')
 
 
+        # Test LAYER CORRECTION
+        Pos_List = [(0,0)]; Rows=Cols=2
+        Mat_Order = np.zeros((Rows,Cols))
+        Z_Bool_Top = np.array([[True,False],[False,False]])
+
+        Z_top = np.array([[1.0, -0.6],[1.0,-2.45]])
+        Max_Tan = np.tan(45 * np.pi/180.0)
+        dz_min=0.25; dX=1.5; dY=2.0
+
+        Z_Bottoms = [np.array([[1.0-dz_min, -1.0],
+            [1.0-dz_min-dY*Max_Tan-0.1, -2.76]])]
+        Layer=0
+
+        #print Z_Bottoms
+        #print Z_Bool_Top, '\n'
+        modflow.Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
+            Max_Tan,Rows,Cols,dX,dY,dz_min)
+        #print Z_Bottoms
+        #print Z_Bool_Top
+        #print Pos_List
+        #print Mat_Order
+
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][0,0]-0.75))
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][0,1]+0.85))
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][1,0]+1.25))
+        self.assertGreaterEqual(1E-5,abs(Z_Bottoms[0][1,1]+2.75))
+
+        self.assertEqual(Mat_Order[0,1],1)
+        self.assertEqual(Mat_Order[1,0],1)
+        self.assertEqual(Mat_Order[1,1],2)
         
 def main(args=None):
     unittest.main()
