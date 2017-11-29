@@ -19,6 +19,9 @@
 #define GEOMODELR_FAULTS_HPP
 
 #include "basic.hpp"
+using std::cout;
+using std::endl;
+#include <assert.h>
 
 // pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
 
