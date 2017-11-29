@@ -135,7 +135,7 @@ def create_modflow_inputs(name, model, units_data,
     # Variables for the Dis package
     dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
         top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
-        itmuni=time_units, lenuni=length_units)
+        itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
 
     #dis.sr=geo
 
