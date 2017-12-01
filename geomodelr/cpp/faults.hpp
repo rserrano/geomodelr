@@ -25,7 +25,7 @@ using std::endl;
 
 // pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
 
-pydict find_faults_plane_intersection(const pydict& fplanes, const pylist& plane);
+pydict find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const pylist& plane_info);
 pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pylist& planes);
  
 #endif // GEOMODELR_FAULTS_HPP
