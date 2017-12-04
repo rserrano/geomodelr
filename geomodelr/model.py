@@ -109,39 +109,41 @@ class GeologicalModel(cpp.Model):
         # Calculate direction and base point.
         try:
             if base_section['transform']['type'] == 'plane':
-                base_line = base_section['transform']['line']
-                transform = 'plane'
-            elif base_section['transform']['type'] == 'horizontal':
-                base_line = None
-                transform = 'horizontal'
+                if not 'orientation' in base_section['transform'] or base_section['transform']['orientation'] == 'vertical': 
+                    base_line = base_section['transform']['line']
+                    orientation = 'vertical'
+                elif base_section['transform']['orientation'] == 'horizontal':
+                    base_line = None
+                    orientation = 'horizontal'
+                else:
+                    raise shared.ModelException("The base section should be a plane")
             else:
-                raise shared.ModelException("The base section should be horizontal or plane")
+                raise shared.ModelException("The base section should be a plane")
         except TypeError:
             raise shared.ModelException("The model needs minimum a base cross section.")
         
-        if transform == 'plane':
+        if orientation == 'vertical':
             base_point = np.array(base_line[0][:2])
             direction = np.array(base_line[1][:2])-base_point
             direction = direction/la.norm(direction)
-            horizontal = False
         else:
             base_point = None
             direction = None
-            horizontal = True
         
         for idx, feature in enumerate(self.geojson['features']):
             if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
-                if transform == 'plane':
+                if orientation == 'vertical':
                     cut, cs = shared.cross_idx_repr( feature, base_line )
                     sect = [feature['name'], cut, cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames']]
                     sections.append(sect)
                 else:
                     cs = shared.points_index_repr(feature)
                     sect = [feature['name'], feature['transform']['height'], cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames']]
-        
+                    sections.append(sect) 
+
         # Obtain the possible farthest cuts to add triangles towards them.
         bbox = self.geojson['bbox']
-        if horizontal:
+        if orientation == 'horizontal':
             super(GeologicalModel, self).__init__(bbox, geomap, topography, sections)
         else:
             super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections)
