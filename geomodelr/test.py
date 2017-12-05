@@ -606,7 +606,6 @@ class TestGeoModelR(unittest.TestCase):
 
 
         # Modelo Hidrogeológico
-
         fn = os.path.join(this_dir, 'test_files', 'Modelo_Hidro.json')
         geo_model = model.model_from_file(fn)
 
@@ -628,6 +627,16 @@ class TestGeoModelR(unittest.TestCase):
             self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
+
+        # Triangulos y plano horizontal
+        eps_z = 0.0
+        eps_z2 = 1e-25
+        planes=[[[1,1,eps_z],[-1,1,eps_z],[-1,-1,eps_z],[1,-1,eps_z]]]
+        Faults={'Triangle_1':[[[1,0,0],[0,1,eps_z2],[0,0,1]]],'Triangle_2':[[[1,0,0],[0,0,-1],[0,1,eps_z2]]]}
+        Fault_int = cpp.find_faults_multiple_planes_intersection(Faults,planes)
+        self.assertEqual(len(Fault_int.values()[0][0]),2)
+        self.assertEqual(len(Fault_int.values()[1]),0)
+
         
 def main(args=None):
     unittest.main()
