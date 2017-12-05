@@ -17,7 +17,10 @@
 */
 #include "faults.hpp"
 
-pylist joint_lines(vector<line>& faults){
+// Joints the straight segments to create unique lines.
+//      faults: vector of straight segments of given fault.
+//      start_x: norm of v1 vector of the previous plane.
+pylist joint_lines(vector<line>& faults, const double start_x){
 
 	pylist output;
 	size_t C;
@@ -26,12 +29,14 @@ pylist joint_lines(vector<line>& faults){
 	bool check; 
 
     while (faults.size()>0){
+
+        // Takes the first straight segment.
     	C=0; 
     	p0 = (faults[0])[0];
     	pf = (faults[0])[1];
     	pylist line_p;
-    	line_p.append(python::make_tuple(gx(p0),gy(p0)));
-    	line_p.append(python::make_tuple(gx(pf),gy(pf)));
+    	line_p.append(python::make_tuple(gx(p0) + start_x,gy(p0)));
+    	line_p.append(python::make_tuple(gx(pf) + start_x,gy(pf)));
     	faults.erase(faults.begin());
 
     	while (C<faults.size()){
@@ -40,30 +45,32 @@ pylist joint_lines(vector<line>& faults){
 
     			check = true;
     			pa = (faults[C])[i];
+                // Computes the distace between pa and the initial point of the line.
     			dist = geometry::distance(pa,p0);
     			
     			if (dist<1E-5){
 
                     pb = (faults[C])[1-i];
-    				line_p.insert(0,python::make_tuple(gx(pb),gy(pb)));
+    				line_p.insert(0,python::make_tuple(gx(pb) + start_x,gy(pb)));
     				p0 = pb;
 					faults.erase(faults.begin() + C);
 					C=0; check = false;
 					break;
     			}
 
+                // Computes the distace between pa and the final point of the line.
                 dist = geometry::distance(pa,pf);
                 if (dist<1E-5){
 
                     pb = (faults[C])[1-i];
-                    line_p.append(python::make_tuple(gx(pb),gy(pb)));
+                    line_p.append(python::make_tuple(gx(pb) + start_x,gy(pb)));
                     pf = pb;
                     faults.erase(faults.begin() + C);
                     C=0; check = false;
                     break;
                 }
     		}
-            
+
             if (check){
                 C++;
             }
@@ -74,65 +81,74 @@ pylist joint_lines(vector<line>& faults){
     
 }
 
+// Finds the lines that intersect a plane with a given fault plane.
 vector<line> find_fault_plane_intersection(const vector<triangle_pt>& fplane, const point3& x0, const point3& v1, const point3& v2,
 	const point3& nv, const polygon& plane_poly) {
 
 	point3 node_a, node_b, node_c, dir;
 	double D = geometry::dot_product(x0,nv);
-	double eval_a, eval_b, eval_c, T;
+	double eval_a, eval_b, eval_c, T, dot_val;
 
 	vector<line> output;
 
-	for (const triangle_pt& it: fplane) {
+	for (const triangle_pt& it: fplane) { //for each triangle in the fault plane.
 
 		node_a = g0(it); node_b = g1(it); node_c = g2(it);
-		eval_a = geometry::dot_product(node_a,nv) - D;
-		eval_b = geometry::dot_product(node_b,nv) - D;
-		eval_c = geometry::dot_product(node_c,nv) - D;
+		eval_a = geometry::dot_product(node_a,nv) - D; // evals the first point of the triangle in the plane equation.
+		eval_b = geometry::dot_product(node_b,nv) - D; // evals the second point of the triangle in the plane equation.
+		eval_c = geometry::dot_product(node_c,nv) - D; // evals the third point of the triangle in the plane equation.
         line straight_segment;
 
-
-		if (eval_a*eval_b < 0.0){
+        // determines if the straight segment given by the first and second point intersects the fault plane.
+		if (eval_a*eval_b <= 0.0){
 
 			dir = node_b;
 			geometry::subtract_point(dir,node_a);
-			T = (D - geometry::dot_product(nv,node_a)) /geometry::dot_product(nv,dir);
-			assert(T<1+1e-9); assert(T>-1e-9);
-			geometry::multiply_value(dir,T); geometry::add_point(dir,node_a);
+            dot_val = geometry::dot_product(nv,dir);
+            if (std::abs(dot_val)>1e-20){
+                T = (D - geometry::dot_product(nv,node_a)) /dot_val;
+                geometry::multiply_value(dir,T); geometry::add_point(dir,node_a);
 
-			geometry::subtract_point(dir,x0);
-            geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
+                geometry::subtract_point(dir,x0);
+                geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
+            }
 		}
 
-		if (eval_b*eval_c < 0.0){
+        // determines if the straight segment given by the second and third point intersects the fault plane.
+		if (eval_b*eval_c <= 0.0){
 
 			dir = node_c;
 			geometry::subtract_point(dir,node_b);
-			T = (D - geometry::dot_product(nv,node_b)) /geometry::dot_product(nv,dir);
-			assert(T<1+1e-9); assert(T>-1e-9);
-			geometry::multiply_value(dir,T); geometry::add_point(dir,node_b);
+			dot_val = geometry::dot_product(nv,dir);
+            if (std::abs(dot_val)>1e-20){
+                T = (D - geometry::dot_product(nv,node_b)) /dot_val;
+                geometry::multiply_value(dir,T); geometry::add_point(dir,node_b);
 
-			geometry::subtract_point(dir,x0);
-			geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
+                geometry::subtract_point(dir,x0);
+                geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
+            }
 		}
 
-		if (eval_c*eval_a < 0.0){
+        // determines if the straight segment given by the third and first point intersects the fault plane.
+		if (eval_c*eval_a <= 0.0){
 
 			dir = node_a;
 			geometry::subtract_point(dir,node_c);
-			T = (D - geometry::dot_product(nv,node_c)) /geometry::dot_product(nv,dir);
-			assert(T<1+1e-9); assert(T>-1e-9);
-			geometry::multiply_value(dir,T); geometry::add_point(dir,node_c);
+			dot_val = geometry::dot_product(nv,dir);
+            if (std::abs(dot_val)>1e-20){
+                T = (D - geometry::dot_product(nv,node_c)) /dot_val;
+                geometry::multiply_value(dir,T); geometry::add_point(dir,node_c);
 
-			geometry::subtract_point(dir,x0);
-			geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
+                geometry::subtract_point(dir,x0);
+                geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
+            }
 		}
 
 		if (straight_segment.size()==2){
 
             vector<line> intersect_line;
             geometry::intersection(plane_poly,straight_segment,intersect_line);
-            if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=1E-5) ){
+            if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=5E-6) ){
                 output.push_back(intersect_line[0]);
             }
 		}
@@ -143,7 +159,8 @@ vector<line> find_fault_plane_intersection(const vector<triangle_pt>& fplane, co
 }
 
 
-pydict find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const pylist& plane_info) {
+void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const pylist& plane_info,
+    pydict& output, const int f_index, double& start_x) {
 
     // Plane information
     point3 x0, x_aux, v1, v2;
@@ -153,6 +170,7 @@ pydict find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& 
 
     v1.set<0>(python::extract<double>(plane_info[1][0]) - gx(x0)); v1.set<1>(python::extract<double>(plane_info[1][1]) - gy(x0));
     v1.set<2>(python::extract<double>(plane_info[1][2]) - gz(x0));
+    double norm_v1 = std::sqrt( geometry::dot_product( v1, v1 ));
 
     v2.set<0>(python::extract<double>(plane_info[3][0]) - gx(x0)); v2.set<1>(python::extract<double>(plane_info[3][1]) - gy(x0));
     v2.set<2>(python::extract<double>(plane_info[3][2]) - gz(x0));
@@ -180,15 +198,19 @@ pydict find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& 
 	nv.set<2>(gx(v1)*gy(v2) - gx(v2)*gy(v1));
 
 	//nv = geometry::
-    pydict output;
     vector<line> faults_lines;
 
 	for (auto iter = faults_cpp.begin(); iter != faults_cpp.end(); iter++){
         faults_lines = find_fault_plane_intersection(iter->second, x0, v1, v2, nv, plane_poly);
-		output[iter->first] = joint_lines( faults_lines );
+        if (f_index==0){
+            output[iter->first] = pylist();
+        }
+        pylist aux_list = python::extract<pylist>(output[iter->first]);
+        aux_list.extend(joint_lines( faults_lines, start_x ));
+        output[iter->first] = aux_list;
 	}
 
-	return output;
+    start_x += norm_v1;
 
 }
 
@@ -198,9 +220,9 @@ pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pyl
 
     map<wstring, vector<triangle_pt> > faults_cpp;
 
-    for (int k = 0; k<len(dict_keys); k++){
+    for (int k = 0; k<python::len(dict_keys); k++){
         //string fkey = string(python::extract<char*>(python::str(dict_keys[k])));
-        wstring fkey    = python::extract<wstring>(dict_keys[k]);
+        wstring fkey = python::extract<wstring>(dict_keys[k]);
         
         vector<triangle_pt> faults_triangles;
         pylist dict_values = python::extract<pylist>((fplanes.values())[k]);
@@ -223,11 +245,12 @@ pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pyl
     }
 
     pydict faults_intersection;
-    pylist plane_info;
+    
 
+    double start_x = 0.0;
     for (int k=0; k<python::len(planes); k++){
-        plane_info = python::extract<pylist>(planes[k]);
-        faults_intersection = find_faults_plane_intersection(faults_cpp,plane_info);
+        pylist plane_info = python::extract<pylist>(planes[k]);
+        find_faults_plane_intersection(faults_cpp,plane_info,faults_intersection, k, start_x);
     }
 
     return faults_intersection;
