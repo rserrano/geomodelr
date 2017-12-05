@@ -590,12 +590,7 @@ class TestGeoModelR(unittest.TestCase):
 
         planes = [plane_1,plane_2,plane_3]
 
-        start_time = datetime.now()
         Fault_int = cpp.find_faults_multiple_planes_intersection(geo_model.joined_faults,planes)
-        end_time = datetime.now()
-        total_time = end_time - start_time
-        print 'Total time: ', total_time.total_seconds(), ' s'
-
         faults_size=[2,4,3,3]
         lines_size=[[6,9],[7,7,5,9],[15,19,16],[7,9,9]]
 
@@ -614,12 +609,7 @@ class TestGeoModelR(unittest.TestCase):
         plane_3 = [[1062218,1063707,2000],[1070000,1063707,2000],[ 1072218.,1073707.,2000.],[1068400,1075106,2000]]
         planes = [plane_1,plane_2,plane_3]
 
-        start_time = datetime.now()
         Fault_int = cpp.find_faults_multiple_planes_intersection(geo_model.joined_faults,planes)
-        end_time = datetime.now()
-        total_time = end_time - start_time
-        print 'Total time: ', total_time.total_seconds(), ' s'
-
         faults_size=[5,3,4,3]
         lines_size=[[9,3,21,56,19],[16,10,12],[4,14,16,27],[46,31,53]]
 
@@ -628,6 +618,22 @@ class TestGeoModelR(unittest.TestCase):
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
 
+        Fault_int_py = faults.find_faults_multiple_planes_intersection(geo_model.joined_faults,planes)
+
+        for name,fault in Fault_int.iteritems():
+            flat_fault = np.array([item for sublist in fault for item in sublist])
+            flat_python = np.array([item for sublist in Fault_int_py[name] for item in sublist])
+            
+            for p in flat_fault:
+                bool_val = False
+                for pp in flat_python:
+                    dist = np.linalg.norm(p-pp)
+                    if (dist<1E-10):
+                        bool_vec=True
+                        break
+
+                self.assertEqual(bool_vec,True)
+                
         # Triangulos y plano horizontal
         eps_z = 0.0
         eps_z2 = 1e-25
