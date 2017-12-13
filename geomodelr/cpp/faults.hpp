@@ -19,15 +19,15 @@
 #define GEOMODELR_FAULTS_HPP
 
 #include "basic.hpp"
+#include <math.h>
 using std::cout;
 using std::endl;
-#include <assert.h>
-
-// pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb);
 
 void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const pylist& plane_info,
 	pydict& faults_intersection,const int f_index, double& start_x);
 
 pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pylist& planes);
+
+pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& topography_info, double up_faults);
  
 #endif // GEOMODELR_FAULTS_HPP
