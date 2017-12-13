@@ -48,6 +48,7 @@ typedef geometry::model::box<point2> box;
 typedef geometry::model::polygon<point2, false, false> polygon;
 typedef polygon::ring_type ring;
 typedef geometry::model::linestring<point2> line;
+typedef geometry::model::linestring<point3> line_3d;
 //typedef std::pair<box, int> value;
 typedef std::tuple<box, wstring, int> value_f;
 //typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
