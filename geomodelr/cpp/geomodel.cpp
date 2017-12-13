@@ -179,6 +179,7 @@ BOOST_PYTHON_MODULE(cpp)
 	// Register triangle-plane intersection. 
 	python::def("find_faults_plane_intersection", find_faults_plane_intersection);
 	python::def("find_faults_multiple_planes_intersection", find_faults_multiple_planes_intersection);
+	python::def("find_faults_topography_intersection", find_faults_topography_intersection);
 	
 	python::def("set_verbose", set_verbose, python::args("verbose"), doc_verb);
 	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pylist&, 
