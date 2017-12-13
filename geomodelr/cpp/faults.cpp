@@ -491,19 +491,19 @@ pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& 
         faults_cpp.insert(map<wstring, vector<triangle_pt>>::value_type(fkey, faults_triangles));
     }
 
-    float topography_array[rows][cols];
+    double topography_array[rows][cols];
     for (int i=0; i<rows;i++){
         for (int j=0; j<cols;j++){
             topography_array[i][j] = python::extract<double>(topography_info["heights"][j][i]);
         }
     }
-
+    double max_x, max_y, min_x, min_y;
     int i_max, i_min, j_max, j_min;
     pydict output;
 
     for (auto iter = faults_cpp.begin(); iter != faults_cpp.end(); iter++){
-        vector<line_3d> faults_intersection;
 
+        vector<line_3d> faults_intersection;
         for (const triangle_pt& tri_fault: iter->second){ //for each triangle in the fault plane.
             point3 x0_f = g0(tri_fault);
             point3 nv_f; get_triangle_normal(tri_fault,x0_f,nv_f);
