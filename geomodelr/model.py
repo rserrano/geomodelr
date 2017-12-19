@@ -254,7 +254,7 @@ class GeologicalModel(cpp.Model):
             print "\tFault names present: %s" % ", ".join(lnames)
             print "\tFault properties present: %s" % ", ".join(lprops)
     
-    def intersect_plane( self, plane ):
+    #def intersect_plane( self, plane ):
         """
         Intersects a plane with the faults of the Geological Model.
         
@@ -270,9 +270,9 @@ class GeologicalModel(cpp.Model):
             (list of points) as values. The coordinates go from the 
             lower left corner, (0.0, 0.0).
         """
-        return faults.find_faults_plane_intersection( self.faults, plane )
+        #return faults.find_faults_plane_intersection( self.faults, plane )
     
-    def intersect_planes( self, planes ):
+    #def intersect_planes( self, planes ):
         """
         Intersects a set of planes with the faults of the Geological Model.
         
@@ -289,7 +289,7 @@ class GeologicalModel(cpp.Model):
             (dict): a dictionary with fault names as keys, and lines, (list of points) 
             as values.
         """
-        return faults.find_faults_multiple_planes_intersection( self.faults, planes )
+        #return faults.find_faults_multiple_planes_intersection( self.faults, planes )
 
     def validate( self ):
         """
