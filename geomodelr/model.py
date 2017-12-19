@@ -107,30 +107,52 @@ class GeologicalModel(cpp.Model):
                 break
         
         # Calculate direction and base point.
-        
         try:
-            base_line = base_section['transform']['line']
+            if base_section['transform']['type'] == 'plane':
+                if not 'orientation' in base_section['transform'] or base_section['transform']['orientation'] == 'vertical': 
+                    base_line = base_section['transform']['line']
+                    orientation = 'vertical'
+                elif base_section['transform']['orientation'] == 'horizontal':
+                    base_line = None
+                    orientation = 'horizontal'
+                else:
+                    raise shared.ModelException("The base section should be a plane")
+            else:
+                raise shared.ModelException("The base section should be a plane")
         except TypeError:
             raise shared.ModelException("The model needs minimum a base cross section.")
         
-        base_point = np.array(base_line[0][:2])
-        direction = np.array(base_line[1][:2])-base_point
-        direction = direction/la.norm(direction)
+        if orientation == 'vertical':
+            base_point = np.array(base_line[0][:2])
+            direction = np.array(base_line[1][:2])-base_point
+            direction = direction/la.norm(direction)
+        else:
+            base_point = None
+            direction = None
         
         for idx, feature in enumerate(self.geojson['features']):
             if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
-                cs = shared.cross_idx_repr(feature, base_line)
-                sect = [feature['name'], cs[0], cs[1]['points'], cs[1]['polygons'], cs[1]['units'], cs[1]['lines'], cs[1]['lnames']]
-                sections.append(sect)
-        
+                if orientation == 'vertical':
+                    cut, cs = shared.cross_idx_repr( feature, base_line )
+                    sect = [feature['name'], cut, cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames']]
+                    sections.append(sect)
+                else:
+                    cs = shared.points_index_repr(feature)
+                    sect = [feature['name'], feature['transform']['height'], cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames']]
+                    sections.append(sect) 
+
         # Obtain the possible farthest cuts to add triangles towards them.
         bbox = self.geojson['bbox']
-        super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections)
+        if orientation == 'horizontal':
+            super(GeologicalModel, self).__init__(bbox, geomap, topography, sections)
+        else:
+            super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections)
         self.make_matches()
+        
         # Add units to model before deleting geojson.
         units = self.geojson['properties']['units'].keys()
         self.units = units
-
+        
         # Save space.
         if delete:
             del self.geojson
@@ -143,8 +165,7 @@ class GeologicalModel(cpp.Model):
             by triangulating them and trying to find a continuous set of triangles
             between the two lines that go from the ends to the other side.
         """
-
-        self.joined_faults = super(GeologicalModel, self).make_matches()
+        super(GeologicalModel, self).make_matches()
     
     def print_information( self, verbose=False ):
         """
@@ -159,6 +180,7 @@ class GeologicalModel(cpp.Model):
         # Get name of the study.
         if 'name' in self.geojson:
             print "Geological Model Name:", self.geojson['name']
+        
         else:
             print "No name"
         
@@ -248,7 +270,7 @@ class GeologicalModel(cpp.Model):
             (list of points) as values. The coordinates go from the 
             lower left corner, (0.0, 0.0).
         """
-        return faults.find_faults_plane_intersection( self.joined_faults, plane )
+        return faults.find_faults_plane_intersection( self.faults, plane )
     
     def intersect_planes( self, planes ):
         """
@@ -267,7 +289,7 @@ class GeologicalModel(cpp.Model):
             (dict): a dictionary with fault names as keys, and lines, (list of points) 
             as values.
         """
-        return faults.find_faults_multiple_planes_intersection( self.joined_faults, planes )
+        return faults.find_faults_multiple_planes_intersection( self.faults, planes )
 
     def validate( self ):
         """

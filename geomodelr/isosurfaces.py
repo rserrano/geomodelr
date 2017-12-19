@@ -11,7 +11,6 @@ try:
     from skimage import measure
     MESH_AVAILABLE = True
 except ImportError:
-    # print "Creating solids not supported"
     pass
 
 PLOT_AVAILABLE = False

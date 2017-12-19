@@ -223,7 +223,7 @@ def points_index_repr(geojson):
     
     return { 'points': points, 'lines': lines, 'polygons': polygons, 'units': units, 'lnames': lnames }
 
-# Returns the points index representation of a cross section.
+# Returns the points index representation of a cross section, if it's perpendicular to the surface.
 def cross_idx_repr(geojson, base_line):
     pi = points_index_repr(geojson)
     line = geojson['transform']['line']

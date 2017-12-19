@@ -23,14 +23,13 @@
 #include <iostream>
 #include <array>
 
-Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, const point2& base_point, const point2& direction ) 
-: bbox(bbox), base_point(base_point), direction(direction), topography(nullptr)
+Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, const point2& base_point, const point2& direction )
+: bbox(bbox), base_point(base_point), direction(direction), topography(nullptr), horizontal(false)
 {
 	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
 	point2 b1(g0(g1(bbox)), g1(g1(bbox)));
 	point2 b2(g0(g0(bbox)), g1(g1(bbox)));
 	point2 b3(g0(g1(bbox)), g1(g0(bbox)));
-	
 	auto cut = [base_point, direction]( point2& v ) {
 		geometry::subtract_point(v, base_point);
 		double norm = std::sqrt(gx(v)*gx(v) + gy(v)*gy(v));
@@ -41,11 +40,15 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 		double s = gx(direction)*gy(v) - gy(direction)*gx(v);
 		return norm*s;
 	};
-	
 	vector<double> cuts = { cut(b0), cut(b1), cut(b2), cut(b3) };
 	std::sort(cuts.begin(), cuts.end());
-	
 	this->cuts_range = std::make_pair(cuts[0], cuts[3]);
+}
+
+Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox )
+: bbox(bbox), base_point(), direction(), topography(nullptr), horizontal(true)
+{
+	this->cuts_range = std::make_pair(g2(g0(bbox)), g2(g1(bbox)));
 }
 
 Model::~Model(){
@@ -69,12 +72,29 @@ void Model::clear_matches() {
 	this->match.clear();
 }
 
-map<wstring, vector<triangle_pt>> Model::make_matches() {
+void Model::make_matches() {
 	this->clear_matches();
 	
-	map<wstring, vector<triangle_pt>> faults;
-	auto add_to_faults = [&](const map<wstring, vector<triangle_pt>>& m) {
+	auto& faults = this->global_faults; 
+	
+	// Converts to global points.
+	auto global_point = [&]( const point3& pt ) {
+		point2 p(gx(pt), gy(pt));
+		return this->inverse_point(p, gz(pt));
+	};
+	
+	// Converts to global triangles.
+	auto global_triangle = [global_point]( const triangle_pt& tr ) {
+		return triangle_pt(global_point(g0(tr)), global_point(g1(tr)), global_point(g2(tr)));
+	};
+	
+	// Converts to global coordinates and pushes to faults.
+	auto add_to_faults = [&]( map<wstring, vector<triangle_pt>>& m ) {
 		for ( auto it = m.begin(); it != m.end(); it++ ) {
+			// Transform to global coordinates.
+			vector<triangle_pt>& trs = it->second;
+			std::transform( trs.begin(), trs.end(), trs.begin(), global_triangle );
+			// Push into the faults.
 			auto& f = faults[it->first];
 			f.reserve(f.size() + it->second.size());
 			f.insert(f.end(), it->second.begin(), it->second.end());
@@ -82,7 +102,6 @@ map<wstring, vector<triangle_pt>> Model::make_matches() {
 	};
 	
 	for ( size_t i = 1; i < this->sections.size(); i++ ) {
-
 		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
 		// Match the polygons.
 		this->match.back()->match_polygons();
@@ -103,10 +122,8 @@ map<wstring, vector<triangle_pt>> Model::make_matches() {
 		map<wstring, vector<triangle_pt>> m = this->sections.back()->last_lines(false, this->cuts_range.second);
 		add_to_faults(m);
 	}
-	
-	return faults;
-
 }
+
 void Model::set_matches( const vector< std::tuple< std::tuple<wstring, wstring>, vector<std::pair<int, int>> > >& matching ) 
 {
 	this->clear_matches();
@@ -238,9 +255,6 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 
 double Model::signed_distance_unbounded( const wstring& unit, const point3& pt ) const {
 	double sdist = this->signed_distance( unit, pt );
-	bool outside = false;
-	double odist = 0.0;
-	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
 	
 	double x = gx(pt);
 	double y = gy(pt);
@@ -348,7 +362,10 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, co
 
 
 std::pair<point2, double> Model::model_point( const point3& pt ) const {
-
+	// If it's a horizontal cross section, just translate it.
+	if ( this->horizontal ) {
+		return std::make_pair(point2(gx(pt), gy(pt)), gz(pt));
+	}
 	point2 ppoint(gx(pt), gy(pt));
 	const double& z = gz(pt);
 	geometry::subtract_point(ppoint, this->base_point);
@@ -370,6 +387,10 @@ std::pair<point2, double> Model::model_point( const point3& pt ) const {
 }
 
 point3 Model::inverse_point( const point2& pt, double cut ) const {
+	// If it's a horizontal cross section, just translate it.
+	if ( this->horizontal ) {
+		return point3( gx(pt), gy(pt), cut );
+	}
 	const double& d0 = gx(this->direction);
 	const double& d1 = gy(this->direction);
 	
@@ -579,14 +600,7 @@ double TopographyPython::height( const pyobject& pypt ) const {
 	return ((Topography *)this)->height( point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])) );
 }
 
-ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point, 
-		    const pyobject& direction, const pyobject& map, 
-		    const pyobject& topography, const pylist& sections ): 
-	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
-			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
-		point2(python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
-		point2(python::extract<double>(direction[0]), python::extract<double>(direction[1]) ) )
-{
+void ModelPython::fill_model( const pyobject& topography, const pylist& sections ) {
 	if ( python::len(topography) > 0 ) {
 		const pyobject& point = python::extract<pyobject>(topography["point"]);
 		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
@@ -611,26 +625,50 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point,
 	}
 }
 
-pydict ModelPython::make_matches() {
-	map<wstring, vector<triangle_pt>> faults = ((Model *)this)->make_matches();
+ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point, 
+		    	 const pyobject& direction, const pyobject& map, 
+		    	 const pyobject& topography, const pylist& sections ): 
+	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
+			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
+		point2( python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
+		point2( python::extract<double>(direction[0]),  python::extract<double>(direction[1])  ))
+{
+	this->fill_model( topography, sections );
+}
 
-	auto point_coords = [&]( const point3& pt ) {
-		point2 p(gx(pt), gy(pt));
-		point3 glp = ((Model *)this)->inverse_point(p, gz(pt));
-		return python::make_tuple(gx(glp), gy(glp), gz(glp));
+
+ModelPython::ModelPython( const pyobject& bbox, const pyobject& map, 
+			  const pyobject& topography, const pylist& sections ): 
+	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
+			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))))
+{
+	this->fill_model( topography, sections );
+}
+
+
+void ModelPython::make_matches() {
+	// map<wstring, vector<triangle_pt>> faults = ((Model *)this)->make_matches();
+	
+	((Model *)this)->make_matches();
+	
+}
+
+pydict ModelPython::get_faults() const {
+	auto python_point = [&]( const point3& pt ) {
+		return python::make_tuple(gx(pt), gy(pt), gz(pt));
 	};
 	
-	auto triangle_coords = [point_coords]( const triangle_pt& tr ) {
-		return python::make_tuple(point_coords(g0(tr)), point_coords(g1(tr)), point_coords(g2(tr)));
+	auto python_triangle = [python_point]( const triangle_pt& tr ) {
+		return python::make_tuple(python_point(g0(tr)), python_point(g1(tr)), python_point(g2(tr)));
 	};
+	
 	// Now convert faults to python and return.
 	pydict ret;
-	for ( auto it = faults.begin(); it != faults.end(); it++ ) {
+	for ( auto it = this->global_faults.begin(); it != this->global_faults.end(); it++ ) {
 		pylist tris;
 		for ( const triangle_pt& t: it->second ) {
-			pytuple tr = triangle_coords( t );
+			pytuple tr = python_triangle( t );
 			tris.append( tr );
-			
 		}
 		ret[it->first] = tris;
 	}
