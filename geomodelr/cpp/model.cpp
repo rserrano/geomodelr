@@ -547,7 +547,7 @@ pydict ModelPython::intersect_planes(const pylist& planes) const{
         }
         planes_cpp.push_back(plane);
 	}
-	
+		
 	// Now convert intersections to python and return.
 	return (map_to_pydict(((Model *)this)->intersect_planes(planes_cpp)));
 	
