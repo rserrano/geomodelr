@@ -16,16 +16,17 @@
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 #include "faults.hpp"
+#include <algorithm>    // std::min_element, std::max_elemen
 
 // ====================== AUXILIAR FUNCTIONS =================================
-
+// Converts the python dictionary of faults into a C++ map.
+//      faults_python: python dictionary of faults.
 map<wstring, vector<triangle_pt> > pydict_to_map(const pydict& faults_python){
 
     pylist dict_keys = faults_python.keys();
 
     map<wstring, vector<triangle_pt> > faults_cpp;
 
-    // converts from pydict to map of C++.
     for (int k = 0; k<python::len(dict_keys); k++){
         wstring fkey = python::extract<wstring>(dict_keys[k]);
         
@@ -52,8 +53,11 @@ map<wstring, vector<triangle_pt> > pydict_to_map(const pydict& faults_python){
     return faults_cpp;
 }
 
-vector<line_3d> pylist_to_planes(const pylist& planes){    
-    vector<line_3d> output;
+// Converts a python list of planes into a C++ vector.
+//      planes: pylist of planes.
+vector<line_3d> pylist_to_vector(const pylist& planes){
+
+    vector<line_3d> planes_cpp;
     for (int i=0; i<python::len(planes); i++){
         int N = python::len(python::extract<pylist>(planes[i]));
         line_3d plane;
@@ -61,11 +65,14 @@ vector<line_3d> pylist_to_planes(const pylist& planes){
             plane.push_back(point3(python::extract<double>(planes[i][j][0]),python::extract<double>(planes[i][j][1]),
                 python::extract<double>(planes[i][j][2])) );
         }
-        output.push_back(plane);
+        planes_cpp.push_back(plane);
     }
-    return output;
+
+    return planes_cpp;
 }
 
+// Converts a C++ vector of intersections into a python list.
+//      input: C++ vector of intersections.
 pylist vector_to_pylist(const vector<line>& input){
     pylist output;
     for (auto& it_line: input){
@@ -78,15 +85,19 @@ pylist vector_to_pylist(const vector<line>& input){
     return output;
 }
 
+// Converts the C++ map of intersections into a python dictionary.
+//      intersections: C++ map of intersections.
 pydict map_to_pydict(const map<wstring, vector<line> >& intersections){
     pydict output;
     for ( auto it = intersections.begin(); it != intersections.end(); it++ ){
         output[it->first] = vector_to_pylist(it->second);
     }
-
     return output;
 }
 
+// Computes the cross product between two point3.
+//      v1: first vector.
+//      v2: second vector.
 point3 cross_product(const point3& v1,const point3& v2){
     point3 output;
     output.set<0>(gy(v1)*gz(v2) - gy(v2)*gz(v1));
@@ -161,7 +172,13 @@ vector<line> joint_lines(vector<line>& faults, const double start_x){
     
 }
 
-// Finds the lines that intersect a plane with a given fault plane.
+// Finds the lines that intersect a plane with a given fault.
+//      fplane: triangles of the faulrt.
+//      x0: point of the plane.
+//      v1: first direction vector of the plane.
+//      v2: second direction vector of the plane.
+//      nv: normal vector of the plane.
+//      plane_poly: polygonal representation of the plane using the four points of its corners.
 vector<line> find_fault_plane_intersection(const vector<triangle_pt>& fplane, const point3& x0, const point3& v1, const point3& v2,
 	const point3& nv, const polygon& plane_poly) {
 
@@ -260,8 +277,8 @@ vector<line> find_fault_plane_intersection(const vector<triangle_pt>& fplane, co
 }
 
 // Finds the lines that intersect a plane with the fault planes.
-// faults_cpp:    the set of fault planes to intersect with the plane.
-// plane_info:      plane to intersect. It's the four corners of the plane.
+//      faults_cpp:    the set of fault planes to intersect with the plane.
+//      plane_info:    plane to intersect. It's the four corners of the plane.
 void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const line_3d& plane_info,
     map<wstring, vector<line> >& output, const int f_index, double& start_x) {
 
@@ -284,7 +301,7 @@ void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& fa
     polygon plane_poly; ring& outer = plane_poly.outer();
     outer.push_back(point2(0.0,0.0));
     // creates the polygon class using the four points of the plane.
-    for (int k=1; k<plane_info.size(); k++){
+    for (size_t k=1; k<plane_info.size(); k++){
         point3 aux_p = plane_info[k]; geometry::subtract_point(aux_p,x0);
         outer.push_back(point2(geometry::dot_product(aux_p,v1),geometry::dot_product(aux_p,v2)));
     }
@@ -333,18 +350,19 @@ map<wstring, vector<line>> find_faults_multiple_planes_intersection(const map<ws
 pydict find_faults_multiple_planes_intersection_python(const pydict& fplanes, const pylist& planes) {
 
     map<wstring, vector<triangle_pt> > faults_cpp = pydict_to_map(fplanes);
-    vector<line_3d> planes_cpp = pylist_to_planes(planes);    
+    vector<line_3d> planes_cpp = pylist_to_vector(planes);    
     return map_to_pydict(find_faults_multiple_planes_intersection(faults_cpp, planes_cpp));
 
 }
  
 // =========================================================================================
 
-void get_triangle_normal(const triangle_pt& tri, const point3& X0, point3& nv){
+point3 get_triangle_normal(const triangle_pt& tri, const point3& X0){
     
     point3 v1 = g1(tri); geometry::subtract_point(v1,X0);
     point3 v2 = g2(tri); geometry::subtract_point(v2,X0);
-    nv = cross_product(v1,v2);
+    return cross_product(v1,v2);
+
 }
 
 bool intersect_triangle_plane(const triangle_pt& tri, const point3& x0,const point3& nv){
@@ -370,9 +388,30 @@ vector<size_t> sort_indexes(const vector<double> &v) {
   return idx;
 }
 
-pylist joint_lines_3d(vector<line_3d>& faults){
+vector<vector<double>> topography_to_vector(const pylist& topography, int rows, int cols, double& z_max,double& z_min){
 
-    pylist output;
+    vector<vector<double>> topography_array(rows, vector<double>(cols));
+
+    z_min = python::extract<double>(topography[0][0]);
+    z_max = z_min;
+    double val;
+    for (int i=0; i<rows;i++){
+        for (int j=0; j<cols;j++){
+            val = python::extract<double>(topography[j][i]);
+            topography_array[i][j] = val;
+
+            if (val<z_min){z_min=val;}
+            if (val>z_max){z_max=val;}
+        }
+    }
+
+    return topography_array;
+
+}
+
+vector<line> joint_lines_3d(vector<line_3d>& faults){
+
+    vector<line> output;
     size_t C;
     double dist;
     point3 p0, pf, pa, pb;
@@ -384,9 +423,9 @@ pylist joint_lines_3d(vector<line_3d>& faults){
         C=0; 
         p0 = (faults[0])[0];
         pf = (faults[0])[1];
-        pylist line_p;
-        line_p.append(python::make_tuple(gx(p0) ,gy(p0), gz(p0)));
-        line_p.append(python::make_tuple(gx(pf) ,gy(pf), gz(pf)));
+        line line_p;
+        line_p.push_back(point2(gx(p0),gy(p0)));
+        line_p.push_back(point2(gx(pf),gy(pf)));
         faults.erase(faults.begin());
 
         while (C<faults.size()){
@@ -401,7 +440,7 @@ pylist joint_lines_3d(vector<line_3d>& faults){
                 if (dist<1E-5){
 
                     pb = (faults[C])[1-i];
-                    line_p.insert(0,python::make_tuple(gx(pb) ,gy(pb), gz(pb)));
+                    line_p.insert(line_p.begin(),point2(gx(pb) ,gy(pb)));
                     p0 = pb;
                     faults.erase(faults.begin() + C);
                     C=0; check = false;
@@ -413,7 +452,7 @@ pylist joint_lines_3d(vector<line_3d>& faults){
                 if (dist<1E-5){
 
                     pb = (faults[C])[1-i];
-                    line_p.append(python::make_tuple(gx(pb) ,gy(pb), gz(pb)));
+                    line_p.push_back(point2(gx(pb) ,gy(pb)));
                     pf = pb;
                     faults.erase(faults.begin() + C);
                     C=0; check = false;
@@ -425,7 +464,7 @@ pylist joint_lines_3d(vector<line_3d>& faults){
                 C++;
             }
         }
-        output.append(line_p);
+        output.push_back(line_p);
     }    
     return output;
     
@@ -493,89 +532,79 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
 
 }
 
-pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& topography_info, double up_faults){
+map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring, vector<triangle_pt>>& faults_cpp,
+    const vector<vector<double>>& topography_array, double z_max, double z_min,double x_inf, double y_inf,
+    double dx, double dy, int rows, int cols,double up_faults){
 
-    double x_inf = python::extract<double>(topography_info["point"][0]);
-    double y_inf = python::extract<double>(topography_info["point"][1]);
     point3 xy_0(x_inf,y_inf,-up_faults);
-
-    double dx = python::extract<double>(topography_info["sample"][0]);
-    double dy = python::extract<double>(topography_info["sample"][1]);
-
-    int rows = python::extract<int>(topography_info["dims"][1]);
-    int cols = python::extract<int>(topography_info["dims"][0]);
-
-    // converts from pydict to map of C++.
-    map<wstring, vector<triangle_pt> > faults_cpp = pydict_to_map(fplanes);
-
-    vector<vector<double>> topography_array(rows, vector<double>(cols));
-    for (int i=0; i<rows;i++){
-        for (int j=0; j<cols;j++){
-            topography_array[i][j] = python::extract<double>(topography_info["heights"][j][i]);
-        }
-    }
-    double max_x, max_y, min_x, min_y;
+    double max_x, max_y, min_x, min_y, max_z, min_z;
     int i_max, i_min, j_max, j_min;
-    pydict output;
+    map<wstring, vector<line>> output;
 
     for (auto iter = faults_cpp.begin(); iter != faults_cpp.end(); iter++){
 
         vector<line_3d> faults_intersection;
         for (const triangle_pt& tri_fault: iter->second){ //for each triangle in the fault plane.
             point3 x0_f = g0(tri_fault);
-            point3 nv_f; get_triangle_normal(tri_fault,x0_f,nv_f);
+            point3 nv_f = get_triangle_normal(tri_fault,x0_f);
             //geometry::subtract_point(x0_f,xy_0);
 
-            max_x = std::max(gx(g0(tri_fault)),std::max(gx(g1(tri_fault)),gx(g2(tri_fault))))-x_inf;
-            min_x = std::min(gx(g0(tri_fault)),std::min(gx(g1(tri_fault)),gx(g2(tri_fault))))-x_inf;
-            max_y = std::max(gy(g0(tri_fault)),std::max(gy(g1(tri_fault)),gy(g2(tri_fault))))-y_inf;
-            min_y = std::min(gy(g0(tri_fault)),std::min(gy(g1(tri_fault)),gy(g2(tri_fault))))-y_inf;
+            max_z = std::max(gz(g0(tri_fault)),std::max(gz(g1(tri_fault)),gz(g2(tri_fault))));
+            min_z = std::min(gz(g0(tri_fault)),std::min(gz(g1(tri_fault)),gz(g2(tri_fault))));
 
-            // defines the bouding box of the fault triangle.
-            j_min = std::max(int(ceil(min_x/dx)),1); j_max = std::min(int(ceil(max_x/dx)),cols-1);
-            i_min = std::max(int(ceil(min_y/dy)),1); i_max = std::min(int(ceil(max_y/dy)),rows-1);
+            if (std::min(max_z,z_max)>=std::max(min_z,z_min)){
 
-            for (int i=i_min; i<=i_max;i++){
-                for (int j=j_min; j<=j_max;j++){
+                max_x = std::max(gx(g0(tri_fault)),std::max(gx(g1(tri_fault)),gx(g2(tri_fault))))-x_inf;
+                min_x = std::min(gx(g0(tri_fault)),std::min(gx(g1(tri_fault)),gx(g2(tri_fault))))-x_inf;
+                max_y = std::max(gy(g0(tri_fault)),std::max(gy(g1(tri_fault)),gy(g2(tri_fault))))-y_inf;
+                min_y = std::min(gy(g0(tri_fault)),std::min(gy(g1(tri_fault)),gy(g2(tri_fault))))-y_inf;
+                
+                // defines the bouding box of the fault triangle.
+                j_min = std::max(int(ceil(min_x/dx)),1); j_max = std::min(int(ceil(max_x/dx)),cols-1);
+                i_min = std::max(int(ceil(min_y/dy)),1); i_max = std::min(int(ceil(max_y/dy)),rows-1);
 
-                    point3 B(dx*j,dy*(i-1),topography_array[i-1][j]); geometry::add_point(B,xy_0);
-                    point3 C(dx*(j-1),dy*i,topography_array[i][j-1]); geometry::add_point(C,xy_0);
+                for (int i=i_min; i<=i_max;i++){
+                    for (int j=j_min; j<=j_max;j++){
 
-                    for (int t=0; t<=1;t++){
+                        point3 B(dx*j,dy*(i-1),topography_array[i-1][j]); geometry::add_point(B,xy_0);
+                        point3 C(dx*(j-1),dy*i,topography_array[i][j-1]); geometry::add_point(C,xy_0);
 
-                        point3 A(dx*(j-1+t),dy*(i-1+t),topography_array[i-1+t][j-1+t]); geometry::add_point(A,xy_0);
-                        triangle_pt tri_topo(A,B,C);
-                        point3 nv_t; get_triangle_normal(tri_topo,A,nv_t);
+                        for (int t=0; t<=1;t++){
 
-                        point3 nv_line = cross_product(nv_t,nv_f);
-                        double norm_nt_line = std::sqrt(geometry::dot_product(nv_line,nv_line));
+                            point3 A(dx*(j-1+t),dy*(i-1+t),topography_array[i-1+t][j-1+t]); geometry::add_point(A,xy_0);
+                            triangle_pt tri_topo(A,B,C);
+                            point3 nv_t = get_triangle_normal(tri_topo,A);
 
-                        if ((norm_nt_line>1E-20) && intersect_triangle_plane(tri_fault,A,nv_t) && intersect_triangle_plane(tri_topo,x0_f,nv_f)){
-                            
-                            vector<point3> intersection_points; vector<double> point_proyections;
+                            point3 nv_line = cross_product(nv_t,nv_f);
+                            double norm_nt_line = std::sqrt(geometry::dot_product(nv_line,nv_line));
 
-                            find_triangle_plane_intersection(tri_fault, A, nv_t, nv_line, intersection_points, point_proyections);
-                            find_triangle_plane_intersection(tri_topo, x0_f, nv_f, nv_line, intersection_points, point_proyections);
-
-                            if (point_proyections.size()==4){
+                            if ((norm_nt_line>1E-20) && intersect_triangle_plane(tri_fault,A,nv_t) && intersect_triangle_plane(tri_topo,x0_f,nv_f)){
                                 
-                                vector<size_t> vec_pos = sort_indexes(point_proyections);
-                                
-                                if ((vec_pos[0]+vec_pos[1]!=1) && (vec_pos[0]+vec_pos[1]!=5)){
+                                vector<point3> intersection_points; vector<double> point_proyections;
 
-                                    line_3d segment;
-                                    geometry::append(segment,intersection_points[vec_pos[1]]);
-                                    geometry::append(segment,intersection_points[vec_pos[2]]);
+                                find_triangle_plane_intersection(tri_fault, A, nv_t, nv_line, intersection_points, point_proyections);
+                                find_triangle_plane_intersection(tri_topo, x0_f, nv_f, nv_line, intersection_points, point_proyections);
 
-                                    if (geometry::length(segment)>2E-5){
-                                        faults_intersection.push_back(segment);
+                                if (point_proyections.size()==4){
+                                    
+                                    vector<size_t> vec_pos = sort_indexes(point_proyections);
+                                    
+                                    if ((vec_pos[0]+vec_pos[1]!=1) && (vec_pos[0]+vec_pos[1]!=5)){
+
+                                        line_3d segment;
+                                        geometry::append(segment,intersection_points[vec_pos[1]]);
+                                        geometry::append(segment,intersection_points[vec_pos[2]]);
+
+                                        if (geometry::length(segment)>2E-5){
+                                            faults_intersection.push_back(segment);
+                                        }
                                     }
                                 }
                             }
+
                         }
 
                     }
-
                 }
             }
 
@@ -586,4 +615,16 @@ pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& 
     }
 
     return output;
+}
+
+pydict find_faults_topography_intersection_python(const pydict& fplanes, const pylist& topography_info,
+    double x_inf, double y_inf, double dx, double dy, int rows, int cols,double up_faults){
+
+    map<wstring, vector<triangle_pt> > faults_cpp = pydict_to_map(fplanes);
+
+    double z_max, z_min;
+    vector<vector<double>> topography_array = topography_to_vector(topography_info, rows, cols, z_max, z_min);
+
+    return map_to_pydict(find_faults_topography_intersection(faults_cpp,topography_array, z_max, z_min, x_inf, y_inf, dx, dy,
+        rows, cols, up_faults));
 }

@@ -33,6 +33,11 @@ map<wstring, vector<line>> find_faults_multiple_planes_intersection(const map<ws
 
 pydict find_faults_multiple_planes_intersection_python(const pydict& fplanes, const pylist& planes);
 
-pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& topography_info, double up_faults);
+map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring, vector<triangle_pt>>& faults_cpp,
+    const vector<vector<double>>& topography_array, double z_max, double z_min,double x_inf, double y_inf,
+    double dx, double dy, int rows, int cols,double up_faults);
+
+pydict find_faults_topography_intersection_python(const pydict& fplanes, const pylist& topography_info,
+    double x_inf, double y_inf, double dx, double dy, int rows, int cols,double up_faults);
  
 #endif // GEOMODELR_FAULTS_HPP
