@@ -17,9 +17,77 @@
 */
 #include "faults.hpp"
 
+// ====================== AUXILIAR FUNCTIONS =================================
+
+map<wstring, vector<triangle_pt> > pydict_to_map(const pydict& faults_python){
+
+    pylist dict_keys = faults_python.keys();
+
+    map<wstring, vector<triangle_pt> > faults_cpp;
+
+    // converts from pydict to map of C++.
+    for (int k = 0; k<python::len(dict_keys); k++){
+        wstring fkey = python::extract<wstring>(dict_keys[k]);
+        
+        vector<triangle_pt> faults_triangles;
+        const pylist& dict_values = python::extract<pylist>((faults_python.values())[k]);
+
+        for (int f=0; f< python:: len(dict_values); f++){
+
+            point3 node_a(python::extract<double>(dict_values[f][0][0]),python::extract<double>(dict_values[f][0][1]),
+                python::extract<double>(dict_values[f][0][2]));
+
+            point3 node_b(python::extract<double>(dict_values[f][1][0]),python::extract<double>(dict_values[f][1][1]),
+                python::extract<double>(dict_values[f][1][2]));
+
+            point3 node_c(python::extract<double>(dict_values[f][2][0]),python::extract<double>(dict_values[f][2][1]),
+                python::extract<double>(dict_values[f][2][2]));
+
+            faults_triangles.push_back(triangle_pt(node_a,node_b,node_c));
+        }
+
+        faults_cpp.insert(map<wstring, vector<triangle_pt>>::value_type(fkey, faults_triangles));
+    }
+
+    return faults_cpp;
+}
+
+vector<line_3d> pylist_to_planes(const pylist& planes){    
+    vector<line_3d> output;
+    for (int i=0; i<python::len(planes); i++){
+        int N = python::len(python::extract<pylist>(planes[i]));
+        line_3d plane;
+        for (int j=0; j<N; j++){
+            plane.push_back(point3(python::extract<double>(planes[i][j][0]),python::extract<double>(planes[i][j][1]),
+                python::extract<double>(planes[i][j][2])) );
+        }
+        output.push_back(plane);
+    }
+    return output;
+}
+
+pylist vector_to_pylist(const vector<line>& input){
+    pylist output;
+    for (auto& it_line: input){
+        pylist line_p;
+        for (auto& it_point: it_line){
+            line_p.append(python::make_tuple(gx(it_point),gy(it_point)));
+        }
+        output.append(line_p);
+    }
+    return output;
+}
+
+pydict map_to_pydict(const map<wstring, vector<line> >& intersections){
+    pydict output;
+    for ( auto it = intersections.begin(); it != intersections.end(); it++ ){
+        output[it->first] = vector_to_pylist(it->second);
+    }
+
+    return output;
+}
 
 point3 cross_product(const point3& v1,const point3& v2){
-
     point3 output;
     output.set<0>(gy(v1)*gz(v2) - gy(v2)*gz(v1));
     output.set<1>(gz(v1)*gx(v2) - gz(v2)*gx(v1));
@@ -28,27 +96,27 @@ point3 cross_product(const point3& v1,const point3& v2){
     return output;
 }
 
-
 // Joints the straight segments to create unique lines.
 //      faults: vector of straight segments of given fault.
 //      start_x: norm of v1 vector of the previous plane.
-pylist joint_lines(vector<line>& faults, const double start_x){
+vector<line> joint_lines(vector<line>& faults, const double start_x){
 
-	pylist output;
+	vector<line> output;
 	size_t C;
 	double dist;
 	point2 p0, pf, pa, pb;
-	bool check; 
+	bool check;
+    point2 aux_point(start_x,0.0);
 
     while (faults.size()>0){
 
         // Takes the first straight segment.
     	C=0; 
-    	p0 = (faults[0])[0];
+    	p0 = (faults[0])[0]; 
     	pf = (faults[0])[1];
-    	pylist line_p;
-    	line_p.append(python::make_tuple(gx(p0) + start_x,gy(p0)));
-    	line_p.append(python::make_tuple(gx(pf) + start_x,gy(pf)));
+    	line line_p;
+    	line_p.push_back(point2(gx(p0)+start_x,gy(p0)));
+    	line_p.push_back(point2(gx(pf)+start_x,gy(pf)));
     	faults.erase(faults.begin());
 
     	while (C<faults.size()){
@@ -62,9 +130,9 @@ pylist joint_lines(vector<line>& faults, const double start_x){
     			
     			if (dist<1E-5){
 
-                    pb = (faults[C])[1-i];
-    				line_p.insert(0,python::make_tuple(gx(pb) + start_x,gy(pb)));
-    				p0 = pb;
+                    pb = (faults[C])[1-i]; p0 = pb;
+                    geometry::add_point(pb,aux_point);
+    				line_p.insert(line_p.begin(),pb);
 					faults.erase(faults.begin() + C);
 					C=0; check = false;
 					break;
@@ -74,9 +142,9 @@ pylist joint_lines(vector<line>& faults, const double start_x){
                 dist = geometry::distance(pa,pf);
                 if (dist<1E-5){
 
-                    pb = (faults[C])[1-i];
-                    line_p.append(python::make_tuple(gx(pb) + start_x,gy(pb)));
-                    pf = pb;
+                    pb = (faults[C])[1-i]; pf=pb;
+                    geometry::add_point(pb,aux_point);
+                    line_p.push_back(pb);
                     faults.erase(faults.begin() + C);
                     C=0; check = false;
                     break;
@@ -87,7 +155,7 @@ pylist joint_lines(vector<line>& faults, const double start_x){
                 C++;
             }
     	}
-        output.append(line_p);
+        output.push_back(line_p);
     }    
     return output;
     
@@ -194,24 +262,16 @@ vector<line> find_fault_plane_intersection(const vector<triangle_pt>& fplane, co
 // Finds the lines that intersect a plane with the fault planes.
 // faults_cpp:    the set of fault planes to intersect with the plane.
 // plane_info:      plane to intersect. It's the four corners of the plane.
-void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const pylist& plane_info,
-    pydict& output, const int f_index, double& start_x) {
-
-    // Plane information
-    point3 x0, x_aux, v1, v2;
-    
-    x0.set<0>(python::extract<double>(plane_info[0][0])); x0.set<1>(python::extract<double>(plane_info[0][1]));
-    x0.set<2>(python::extract<double>(plane_info[0][2]));
+void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const line_3d& plane_info,
+    map<wstring, vector<line> >& output, const int f_index, double& start_x) {
 
     // Find the vectors v1 and v2 in the plane that generate the space.
-    v1.set<0>(python::extract<double>(plane_info[1][0]) - gx(x0)); v1.set<1>(python::extract<double>(plane_info[1][1]) - gy(x0));
-    v1.set<2>(python::extract<double>(plane_info[1][2]) - gz(x0));
+    point3 x0 = plane_info[0];
+    point3 v1 = plane_info[1]; geometry::subtract_point(v1,x0);
+    point3 v2 = plane_info[3]; geometry::subtract_point(v2,x0);
     double norm_v1 = std::sqrt( geometry::dot_product( v1, v1 ));
-
-    v2.set<0>(python::extract<double>(plane_info[3][0]) - gx(x0)); v2.set<1>(python::extract<double>(plane_info[3][1]) - gy(x0));
-    v2.set<2>(python::extract<double>(plane_info[3][2]) - gz(x0));
-
 	double dot_val = geometry::dot_product(v1,v2);
+
     //Gram-Schmidt method is used to make them perpendicular.
 	if (std::abs(dot_val)>1e-50){
 		geometry::multiply_value( v1,dot_val/geometry::dot_product(v1,v1));
@@ -223,29 +283,28 @@ void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& fa
 
     polygon plane_poly; ring& outer = plane_poly.outer();
     outer.push_back(point2(0.0,0.0));
-
     // creates the polygon class using the four points of the plane.
-    for (int k=1; k<python::len(plane_info); k++){
-        x_aux.set<0>(python::extract<double>(plane_info[k][0]) - gx(x0)); x_aux.set<1>(python::extract<double>(plane_info[k][1]) - gy(x0));
-        x_aux.set<2>(python::extract<double>(plane_info[k][2]) - gz(x0));
-        outer.push_back(point2(geometry::dot_product(x_aux,v1),geometry::dot_product(x_aux,v2)));
+    for (int k=1; k<plane_info.size(); k++){
+        point3 aux_p = plane_info[k]; geometry::subtract_point(aux_p,x0);
+        outer.push_back(point2(geometry::dot_product(aux_p,v1),geometry::dot_product(aux_p,v2)));
     }
 
     // normal vector to the plane.
 	point3 nv = cross_product(v1,v2);
 
     vector<line> faults_lines;
-
 	for (auto iter = faults_cpp.begin(); iter != faults_cpp.end(); iter++){
 
         // finds the lines that intersect a plane with the fault planes.
         faults_lines = find_fault_plane_intersection(iter->second, x0, v1, v2, nv, plane_poly);
+        vector<line> aux_vector = joint_lines(faults_lines,start_x);
         if (f_index==0){
-            output[iter->first] = pylist();
+            output.insert(map<wstring, vector<line>>::value_type(iter->first,aux_vector));
         }
-        pylist aux_list = python::extract<pylist>(output[iter->first]);
-        aux_list.extend(joint_lines( faults_lines, start_x ));
-        output[iter->first] = aux_list;
+        else{
+            output[iter->first].reserve(output[iter->first].size() + distance(aux_vector.begin(),aux_vector.end()));
+            output[iter->first].insert(output[iter->first].end(),aux_vector.begin(),aux_vector.end());
+        }
 	}
 
     start_x += norm_v1;
@@ -255,44 +314,27 @@ void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& fa
 // Finds the lines that intersect a set of planes with the fault planes.
 // fplanes: the set of fault planes to intersect with the plane.
 // planes: set of planes to intersect.
-pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pylist& planes) {
+map<wstring, vector<line>> find_faults_multiple_planes_intersection(const map<wstring, vector<triangle_pt>>& faults_cpp,
+    const vector<line_3d>& planes_cpp) {
 
-    pylist dict_keys = fplanes.keys();
-
-    map<wstring, vector<triangle_pt> > faults_cpp;
-
-    // converts from pydict to map of C++.
-    for (int k = 0; k<python::len(dict_keys); k++){
-        wstring fkey = python::extract<wstring>(dict_keys[k]);
-        
-        vector<triangle_pt> faults_triangles;
-        const pylist& dict_values = python::extract<pylist>((fplanes.values())[k]);
-
-        for (int f=0; f< python:: len(dict_values); f++){
-
-            point3 node_a(python::extract<double>(dict_values[f][0][0]),python::extract<double>(dict_values[f][0][1]),
-                python::extract<double>(dict_values[f][0][2]));
-
-            point3 node_b(python::extract<double>(dict_values[f][1][0]),python::extract<double>(dict_values[f][1][1]),
-                python::extract<double>(dict_values[f][1][2]));
-
-            point3 node_c(python::extract<double>(dict_values[f][2][0]),python::extract<double>(dict_values[f][2][1]),
-                python::extract<double>(dict_values[f][2][2]));
-
-            faults_triangles.push_back(triangle_pt(node_a,node_b,node_c));
-        }
-
-        faults_cpp.insert(map<wstring, vector<triangle_pt>>::value_type(fkey, faults_triangles));
-    }
-
-    pydict faults_intersection;
+    map<wstring, vector<line>> faults_intersection;
     double start_x = 0.0;
-    for (int k=0; k<python::len(planes); k++){
-        pylist plane_info = python::extract<pylist>(planes[k]);
-        find_faults_plane_intersection(faults_cpp,plane_info,faults_intersection, k, start_x);
+    for (size_t k=0; k<planes_cpp.size(); k++){
+        find_faults_plane_intersection(faults_cpp,planes_cpp[k],faults_intersection, k, start_x);
     }
 
     return faults_intersection;
+
+}
+
+// Finds the lines that intersect a set of planes with the fault planes.
+// fplanes: the set of fault planes to intersect with the plane.
+// planes: set of planes to intersect.
+pydict find_faults_multiple_planes_intersection_python(const pydict& fplanes, const pylist& planes) {
+
+    map<wstring, vector<triangle_pt> > faults_cpp = pydict_to_map(fplanes);
+    vector<line_3d> planes_cpp = pylist_to_planes(planes);    
+    return map_to_pydict(find_faults_multiple_planes_intersection(faults_cpp, planes_cpp));
 
 }
  
@@ -453,10 +495,6 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
 
 pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& topography_info, double up_faults){
 
-    pylist dict_keys = fplanes.keys();
-
-    map<wstring, vector<triangle_pt> > faults_cpp;
-
     double x_inf = python::extract<double>(topography_info["point"][0]);
     double y_inf = python::extract<double>(topography_info["point"][1]);
     point3 xy_0(x_inf,y_inf,-up_faults);
@@ -468,30 +506,9 @@ pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& 
     int cols = python::extract<int>(topography_info["dims"][0]);
 
     // converts from pydict to map of C++.
-    for (int k = 0; k<python::len(dict_keys); k++){
-        wstring fkey = python::extract<wstring>(dict_keys[k]);
-        
-        vector<triangle_pt> faults_triangles;
-        const pylist& dict_values = python::extract<pylist>((fplanes.values())[k]);
+    map<wstring, vector<triangle_pt> > faults_cpp = pydict_to_map(fplanes);
 
-        for (int f=0; f< python::len(dict_values); f++){
-
-            point3 node_a(python::extract<double>(dict_values[f][0][0]),python::extract<double>(dict_values[f][0][1]),
-                python::extract<double>(dict_values[f][0][2]));
-
-            point3 node_b(python::extract<double>(dict_values[f][1][0]),python::extract<double>(dict_values[f][1][1]),
-                python::extract<double>(dict_values[f][1][2]));
-
-            point3 node_c(python::extract<double>(dict_values[f][2][0]),python::extract<double>(dict_values[f][2][1]),
-                python::extract<double>(dict_values[f][2][2]));
-
-            faults_triangles.push_back(triangle_pt(node_a,node_b,node_c));
-        }
-
-        faults_cpp.insert(map<wstring, vector<triangle_pt>>::value_type(fkey, faults_triangles));
-    }
-
-    double topography_array[rows][cols];
+    vector<vector<double>> topography_array(rows, vector<double>(cols));
     for (int i=0; i<rows;i++){
         for (int j=0; j<cols;j++){
             topography_array[i][j] = python::extract<double>(topography_info["heights"][j][i]);

@@ -23,10 +23,15 @@
 using std::cout;
 using std::endl;
 
-void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const pylist& plane_info,
-	pydict& faults_intersection,const int f_index, double& start_x);
+void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& faults_cpp, const line_3d& plane_info,
+	map<wstring, vector<line> >& faults_intersection,const int f_index, double& start_x);
 
-pydict find_faults_multiple_planes_intersection(const pydict& fplanes, const pylist& planes);
+pydict map_to_pydict(const map<wstring, vector<line> >& intersections);
+
+map<wstring, vector<line>> find_faults_multiple_planes_intersection(const map<wstring, vector<triangle_pt>>& faults_cpp,
+    const vector<line_3d>& planes_cpp);
+
+pydict find_faults_multiple_planes_intersection_python(const pydict& fplanes, const pylist& planes);
 
 pydict find_faults_topography_intersection(const pydict& fplanes, const pydict& topography_info, double up_faults);
  
