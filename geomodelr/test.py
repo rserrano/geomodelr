@@ -691,7 +691,7 @@ class TestGeoModelR(unittest.TestCase):
 
         planes = [plane_1,plane_2,plane_3]
 
-        Fault_int = cpp.find_faults_multiple_planes_intersection(geo_model.faults,planes)
+        Fault_int = geo_model.intersect_planes(planes)
         faults_size=[2,4,3,3]
         lines_size=[[6,9],[7,7,5,9],[15,19,16],[7,9,9]]
 
@@ -710,7 +710,7 @@ class TestGeoModelR(unittest.TestCase):
         plane_3 = [[1062218,1063707,2000],[1070000,1063707,2000],[ 1072218.,1073707.,2000.],[1068400,1075106,2000]]
         planes = [plane_1,plane_2,plane_3]
 
-        Fault_int = cpp.find_faults_multiple_planes_intersection(geo_model.faults,planes)
+        Fault_int = geo_model.intersect_planes(planes)
         faults_size=[5,3,4,3]
         lines_size=[[9,3,21,56,19],[16,10,12],[4,14,16,27],[46,31,53]]
 
@@ -740,7 +740,7 @@ class TestGeoModelR(unittest.TestCase):
         eps_z2 = 1e-25
         planes=[[[1,1,eps_z],[-1,1,eps_z],[-1,-1,eps_z],[1,-1,eps_z]]]
         Faults={'Triangle_1':[[[1,0,0],[0,1,eps_z2],[0,0,1]]],'Triangle_2':[[[1,0,0],[0,0,-1],[0,1,eps_z2]]]}
-        Fault_int = cpp.find_faults_multiple_planes_intersection(Faults,planes)
+        Fault_int = cpp.find_faults_intersection(Faults,planes)
         self.assertEqual(len(Fault_int.values()[0][0]),2)
         self.assertEqual(len(Fault_int.values()[1]),0)
 
