@@ -21,6 +21,7 @@
 #include "basic.hpp"
 #include "section.hpp"
 #include "match.hpp"
+#include "faults.hpp"
 
 class Topography {
 protected:
@@ -192,6 +193,9 @@ public:
 	// In this case the solids are not bounded by the bounding box, only by the topography.
 	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
 
+	map<wstring,vector<line>> intersect_plane(const line_3d& plane) const;
+	map<wstring,vector<line>> intersect_planes(const vector<line_3d>& planes) const;
+
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const vector< std::tuple< std::tuple<wstring, wstring>, vector<std::pair<int, int>> > >& matching);
@@ -199,6 +203,7 @@ public:
 	// Methods to query matches.
 	vector<std::tuple<wstring, double, double>> possible_closest(const point3& pt) const;
 	std::pair<point2, double> model_point(const point3& pt) const;
+
 	point3 inverse_point(const point2& pt, double cut) const;
 	template<typename Predicates>
 	std::tuple<wstring, double> closest( const point3& pt, const Predicates& predicates ) const {
@@ -302,6 +307,8 @@ public:
 	double signed_distance( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_bounded( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const;
+	pydict intersect_plane(const pylist& plane) const;
+	pydict intersect_planes(const pylist& planes) const;
 
 	pydict info() const;
 	double height(const pyobject& pt) const;

@@ -405,6 +405,14 @@ point3 Model::inverse_point( const point2& pt, double cut ) const {
 	return point3(gx(this->base_point) + v0, gy(this->base_point) + v1, p1);
 }
 
+map<wstring,vector<line>> Model::intersect_planes(const vector<line_3d>& planes) const{
+	return find_faults_multiple_planes_intersection(this->global_faults, planes);
+}
+
+map<wstring,vector<line>> Model::intersect_plane(const line_3d& plane) const{
+	return find_faults_multiple_planes_intersection(this->global_faults, vector<line_3d>(1, plane));
+}
+
 vector<std::tuple<wstring, double, double>> Model::possible_closest( const point3& pt ) const {
 	if ( not this->sections.size() ) {
 		return vector<std::tuple<wstring, double, double>>();
@@ -525,6 +533,35 @@ pytuple ModelPython::closest(const pyobject& pypt) const {
 	point3 pt(p0, p1, p2);
 	std::tuple<wstring, double> res = ((Model *)this)->closest( pt );
 	return python::make_tuple(g0(res), g1(res));
+}
+
+pydict ModelPython::intersect_planes(const pylist& planes) const{
+	
+	vector<line_3d> planes_cpp;
+    for (int i=0; i<python::len(planes); i++){
+        int N = python::len(python::extract<pylist>(planes[i]));
+        line_3d plane;
+        for (int j=0; j<N; j++){
+            plane.push_back(point3(python::extract<double>(planes[i][j][0]),python::extract<double>(planes[i][j][1]),
+                python::extract<double>(planes[i][j][2])) );
+        }
+        planes_cpp.push_back(plane);
+	}
+	
+	// Now convert intersections to python and return.
+	return (map_to_pydict(((Model *)this)->intersect_planes(planes_cpp)));
+	
+}
+
+pydict ModelPython::intersect_plane(const pylist& plane) const{
+	
+    line_3d plane_cpp;
+    for (int j=0; j<python::len(plane); j++){
+        plane_cpp.push_back(point3(python::extract<double>(plane[j][0]),python::extract<double>(plane[j][1]),
+            python::extract<double>(plane[j][2])));
+    }
+	// Now convert intersections to python and return.
+	return (map_to_pydict(((Model *)this)->intersect_plane(plane_cpp)));
 }
 
 double ModelPython::height( const pyobject& pt ) const {

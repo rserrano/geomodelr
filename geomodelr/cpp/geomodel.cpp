@@ -178,8 +178,8 @@ BOOST_PYTHON_MODULE(cpp)
 	python::def("faultplane_for_lines", test_faultplane_for_lines);
 	
 	// Register triangle-plane intersection. 
-	python::def("find_faults_plane_intersection", find_faults_plane_intersection);
-	python::def("find_faults_multiple_planes_intersection", find_faults_multiple_planes_intersection);
+	//python::def("find_faults_plane_intersection", find_faults_plane_intersection);
+	python::def("find_faults_intersection", find_faults_multiple_planes_intersection_python);
 	python::def("find_faults_topography_intersection", find_faults_topography_intersection);
 	
 	python::def("set_verbose", set_verbose, python::args("verbose"), doc_verb);
@@ -203,6 +203,8 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
 					    .def("signed_distance_unbounded", &ModelPython::signed_distance_unbounded, python::args("unit", "point"), doc_signed_distance_unbounded)
 					    .def("height", &ModelPython::height, python::args("point"), doc_height)
+					    .def("intersect_plane", &ModelPython::intersect_plane)
+					    .def("intersect_planes", &ModelPython::intersect_planes)
 					    .def("info", &ModelPython::info)
 					    .add_property("bbox", &ModelPython::pybbox)
 					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches)
