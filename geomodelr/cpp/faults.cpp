@@ -78,7 +78,9 @@ pylist vector_to_pylist(const vector<line>& input){
     for (auto& it_line: input){
         pylist line_p;
         for (auto& it_point: it_line){
-            line_p.append(python::make_tuple(gx(it_point),gy(it_point)));
+            pylist point; point.append(gx(it_point)); point.append(gy(it_point));
+            //line_p.append(python::make_tuple(gx(it_point),gy(it_point)));
+            line_p.append(point);
         }
         output.append(line_p);
     }
