@@ -168,6 +168,27 @@ BOOST_PYTHON_MODULE(cpp)
 					          "    (double)\n"
 					          "    The signed distance from the unit to the point.\n";
 	
+	const char* doc_intersect_planes = "Intersects a set of planes with the faults of the Geological Model.\n"
+        				  "Takes a set of plane represented with its four corners and returns the set\n"
+        				  "of lines that intersect that plane with the faults. The coordinates start from\n"
+        				  "the first plane lower corner, and increase by dist(plane[i][0], plane[i][1]) for the\n"
+        				  "next plane.\n\n"
+        				  "Args:\n"
+        				  "    (list) plane: List with planes. Each plane has a list with four corners\n"
+        				  "    that we want to intersect the fault with.\n"
+        				  "Returns:\n"
+        				  "    (dict): a dictionary with fault names as keys, and lines, (list of points)\n"
+        				  "    as values.\n";
+        const char* doc_intersect_plane = "Intersects a plane with the faults of the Geological Model.\n\n"
+        				  "Takes a plane represented with its four corners and returns the set\n"
+        				  "of lines that intersect that plane with the faults.\n\n"
+        				  "Args:\n"
+        				  "    (list) plane: list with the four corners of the plane that we \n"
+        				  "    want to intersect the fault with.\n\n"
+        				  "Returns:\n"
+        				  "    (dict): a dictionary with fault names as keys, and lines,\n"
+        				  "    (list of points) as values. The coordinates go from the\n"
+        				  "    lower left corner, (0.0, 0.0).\n";
 	// Register exception.
 	python::class_<GeomodelrException> GeomodelrExceptionClass("GeomodelrException", boost::python::init<std::string>());
 	
@@ -203,8 +224,8 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
 					    .def("signed_distance_unbounded", &ModelPython::signed_distance_unbounded, python::args("unit", "point"), doc_signed_distance_unbounded)
 					    .def("height", &ModelPython::height, python::args("point"), doc_height)
-					    .def("intersect_plane", &ModelPython::intersect_plane)
-					    .def("intersect_planes", &ModelPython::intersect_planes)
+					    .def("intersect_plane", &ModelPython::intersect_plane, doc_intersect_plane)
+					    .def("intersect_planes", &ModelPython::intersect_planes, doc_intersect_planes)
 					    .def("info", &ModelPython::info)
 					    .add_property("bbox", &ModelPython::pybbox)
 					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches)

@@ -35,7 +35,7 @@ The requirements of Geomodelr Query Tool are:
 - Currently, Linux and Mac OS X are supported in Python 2.7 but we plan to support Windows and Python 3.5 in the near future.
 - C++ Build tools that support C++11.
 - Boost Libraries.
-- numpy, scipy and shapely, (pip will install them).
+- numpy, scipy and (pip will install them).
 
 In general, you can install geomodelr by calling::
 

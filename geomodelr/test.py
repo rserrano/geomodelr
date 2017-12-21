@@ -22,7 +22,6 @@ import unittest
 import os
 import model
 import json
-import faults
 import shared
 import utils
 import isosurfaces
@@ -719,7 +718,7 @@ class TestGeoModelR(unittest.TestCase):
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
 
-        Fault_int_py = faults.find_faults_multiple_planes_intersection(geo_model.faults,planes)
+        Fault_int_py = cpp.find_faults_intersection(geo_model.faults,planes)
 
         for name,fault in Fault_int.iteritems():
             flat_fault = np.array([item for sublist in fault for item in sublist])

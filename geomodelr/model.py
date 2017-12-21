@@ -16,7 +16,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import shared
-import faults
 import json
 import datetime
 import numpy as np
@@ -254,43 +253,6 @@ class GeologicalModel(cpp.Model):
             print "\tFault names present: %s" % ", ".join(lnames)
             print "\tFault properties present: %s" % ", ".join(lprops)
     
-    #def intersect_plane( self, plane ):
-        """
-        Intersects a plane with the faults of the Geological Model.
-        
-        Takes a plane represented with its four corners and returns the set 
-        of lines that intersect that plane with the faults.
-        
-        Args:
-            (list) plane: list with the four corners of the plane that we 
-            want to intersect the fault with.
-        
-        Returns:
-            (dict): a dictionary with fault names as keys, and lines, 
-            (list of points) as values. The coordinates go from the 
-            lower left corner, (0.0, 0.0).
-        """
-        #return faults.find_faults_plane_intersection( self.faults, plane )
-    
-    #def intersect_planes( self, planes ):
-        """
-        Intersects a set of planes with the faults of the Geological Model.
-        
-        Takes a set of plane represented with its four corners and returns the set 
-        of lines that intersect that plane with the faults. The coordinates start from
-        the first plane lower corner, and increase by dist(plane[i][0], plane[i][1]) for the
-        next plane.
-        
-        Args:
-            (list) plane: List with planes. Each plane has a list with four corners 
-            that we want to intersect the fault with.
-        
-        Returns:
-            (dict): a dictionary with fault names as keys, and lines, (list of points) 
-            as values.
-        """
-        #return faults.find_faults_multiple_planes_intersection( self.faults, planes )
-
     def validate( self ):
         """
         Validates that the Geological JSON has correct information.
