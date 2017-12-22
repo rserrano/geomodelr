@@ -112,7 +112,7 @@ point3 cross_product(const point3& v1,const point3& v2){
 // Joints the straight segments to create unique lines.
 //      faults: vector of straight segments of given fault.
 //      start_x: norm of v1 vector of the previous plane.
-vector<line> joint_lines(vector<line>& faults, const double start_x){
+vector<line> joint_lines(vector<line_segment>& faults, const double start_x){
 
 	vector<line> output;
 	size_t C;
@@ -125,8 +125,8 @@ vector<line> joint_lines(vector<line>& faults, const double start_x){
 
         // Takes the first straight segment.
     	C=0; 
-    	p0 = (faults[0])[0]; 
-    	pf = (faults[0])[1];
+    	p0 = faults[0].first; 
+    	pf = faults[0].second; 
     	line line_p;
     	line_p.push_back(point2(gx(p0)+start_x,gy(p0)));
     	line_p.push_back(point2(gx(pf)+start_x,gy(pf)));
@@ -137,13 +137,20 @@ vector<line> joint_lines(vector<line>& faults, const double start_x){
     		for (int i=0; i<2; i++){
 
     			check = true;
-    			pa = (faults[C])[i];
+                if (i==0){
+                    pa = faults[C].first;
+                    pb = faults[C].second;
+                } else {
+                    pb = faults[C].first;
+                    pa = faults[C].second;
+                }
                 // Computes the distace between pa and the initial point of the line.
     			dist = geometry::distance(pa,p0);
     			
     			if (dist<1E-5){
 
-                    pb = (faults[C])[1-i]; p0 = pb;
+                    //pb = (faults[C])[1-i];
+                    p0 = pb;
                     geometry::add_point(pb,aux_point);
     				line_p.insert(line_p.begin(),pb);
 					faults.erase(faults.begin() + C);
@@ -155,7 +162,8 @@ vector<line> joint_lines(vector<line>& faults, const double start_x){
                 dist = geometry::distance(pa,pf);
                 if (dist<1E-5){
 
-                    pb = (faults[C])[1-i]; pf=pb;
+                    //pb = (faults[C])[1-i];
+                    pf=pb;
                     geometry::add_point(pb,aux_point);
                     line_p.push_back(pb);
                     faults.erase(faults.begin() + C);
@@ -174,6 +182,68 @@ vector<line> joint_lines(vector<line>& faults, const double start_x){
     
 }
 
+vector<line> joint_lines_tree(const rtree_l& segments_tree, const vector<line_segment>& lines,const double start_x){
+
+    vector<bool> check_lines(lines.size(), true);
+    //vector<size_t> positions(lines.size()); iota(positions.begin(), positions.end(), 0);
+
+    vector<line> output;
+    point2 p0, pf, pa, pb, pt;
+    double epsilon = 1E-5;
+    point2 aux_pt(start_x,0.0);
+    int pos;
+
+    auto bool_it = std::find (check_lines.begin(), check_lines.end(), true);
+    while (bool_it != check_lines.end()){
+
+        size_t bool_pos = bool_it - check_lines.begin();
+        // Takes the first straight segment.
+        p0 = lines[bool_pos].first;
+        pf = lines[bool_pos].second; 
+        line line_p;
+        line_p.push_back(point2(gx(p0)+start_x,gy(p0)));
+        line_p.push_back(point2(gx(pf)+start_x,gy(pf)));
+        check_lines[bool_pos] = false;
+
+        for (int k=0; k<2; k++){
+            if (k==0){
+                pt=pf;
+            } else {
+                pt=p0;
+            }
+            bool check = true;
+            while (check){
+
+                box bx(point2(gx(pt) - epsilon, gy(pt) - epsilon), point2(gx(pt) + epsilon, gy(pt) + epsilon));
+                check = false;
+                for ( auto it = segments_tree.qbegin(geometry::index::intersects(bx));it != segments_tree.qend(); it++ ) {
+                    pos = g1(*it);
+                    if (check_lines[pos]){
+                        pa = g0(*it).first;
+                        pb = g0(*it).second;
+
+                        if (geometry::distance(pa,pt)<epsilon){
+                            pt = pb; geometry::add_point(pb,aux_pt);
+                            line_p.push_back(pb);                          
+                            check_lines[pos] = false; check = true; break;
+
+                        } else if (geometry::distance(pb,pt)<epsilon){
+                            pt = pa; geometry::add_point(pa,aux_pt);
+                            line_p.push_back(pa);                          
+                            check_lines[pos] = false; check = true; break;
+                        }
+                    }
+                }
+            }
+
+        }
+
+    output.push_back(line_p);
+    bool_it = std::find (check_lines.begin(), check_lines.end(), true);
+    }
+
+    return output;
+}
 // Finds the lines that intersect a plane with a given fault.
 //      fplane: triangles of the faulrt.
 //      x0: point of the plane.
@@ -181,15 +251,15 @@ vector<line> joint_lines(vector<line>& faults, const double start_x){
 //      v2: second direction vector of the plane.
 //      nv: normal vector of the plane.
 //      plane_poly: polygonal representation of the plane using the four points of its corners.
-vector<line> find_fault_plane_intersection(const vector<triangle_pt>& fplane, const point3& x0, const point3& v1, const point3& v2,
-	const point3& nv, const polygon& plane_poly) {
+vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fplane, const point3& x0, const point3& v1, const point3& v2,
+	const point3& nv, const polygon& plane_poly, vector<value_l>& intersections) {
 
 	point3 node_a, node_b, node_c, dir;
 	double D = geometry::dot_product(x0,nv);
 	double eval_a, eval_b, eval_c, T, dot_val;
 
-	vector<line> output;
-
+	vector<line_segment> output;
+    int count = -1;
 	for (const triangle_pt& it: fplane){ //for each triangle in the fault plane.
 
 		node_a = g0(it); node_b = g1(it); node_c = g2(it);
@@ -270,7 +340,9 @@ vector<line> find_fault_plane_intersection(const vector<triangle_pt>& fplane, co
 
             // ensures that the straight segment is greater than 2E-5 and, in addition, it must intersects the polygon of the plane.
             if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=2E-5) ){
-                output.push_back(intersect_line[0]);
+                output.push_back(line_segment(intersect_line[0][0],intersect_line[0][1]));
+                count++;
+                intersections.push_back(std::make_tuple(output[count],count));
             }
 		}
 
@@ -311,12 +383,14 @@ void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& fa
     // normal vector to the plane.
 	point3 nv = cross_product(v1,v2);
 
-    vector<line> faults_lines;
 	for (auto iter = faults_cpp.begin(); iter != faults_cpp.end(); iter++){
 
         // finds the lines that intersect a plane with the fault planes.
-        faults_lines = find_fault_plane_intersection(iter->second, x0, v1, v2, nv, plane_poly);
-        vector<line> aux_vector = joint_lines(faults_lines,start_x);
+        vector<value_l> intersections;
+        vector<line_segment> fault_lines = find_fault_plane_intersection(iter->second, x0, v1, v2, nv, plane_poly,intersections);
+
+        //vector<line> aux_vector = joint_lines(fault_lines,start_x);
+        vector<line> aux_vector = joint_lines_tree(rtree_l(intersections),fault_lines,start_x);
         if (f_index==0){
             output.insert(map<wstring, vector<line>>::value_type(iter->first,aux_vector));
         }
