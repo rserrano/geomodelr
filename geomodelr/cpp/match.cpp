@@ -265,8 +265,6 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	return test_start( l_a, l_b, true  );
 }
 
-
-
 map<wstring, vector<triangle_pt>> Match::match_lines()
 {
 	/*

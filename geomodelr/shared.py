@@ -193,6 +193,8 @@ def points_index_repr(geojson):
             pointsd[tpoint] = ipoint
         return ipoint
     
+    ianchors = map( ipoint, geojson["properties"]["anchors"] )
+    
     for feature in geojson['features']:
         geom = feature['geometry']
         if geom['type'] == 'Polygon':
@@ -211,6 +213,7 @@ def points_index_repr(geojson):
             iline = []
             for point in geom['coordinates']:
                 iline.append(ipoint(point))
+            # Check that 
             lines.append(iline)
             if 'name' in feature['properties']:
                 lnames.append(feature['properties']['name'])
@@ -221,7 +224,16 @@ def points_index_repr(geojson):
     for p in pointsd:
         points[pointsd[p]] = list(p)
     
-    return { 'points': points, 'lines': lines, 'polygons': polygons, 'units': units, 'lnames': lnames }
+    # When the ends of the fault are anchored
+    ianchors = set(ianchors)
+    anchored_lines = []
+    for idx, line in enumerate( lines ):
+        if line[0] in ianchors:
+            anchored_lines.append( [idx, True] )
+        if line[-1] in ianchors:
+            anchored_lines.append( [idx, False] )
+    
+    return { 'points': points, 'lines': lines, 'polygons': polygons, 'units': units, 'lnames': lnames, 'anchored_lines': anchored_lines }
 
 # Returns the points index representation of a cross section, if it's perpendicular to the surface.
 def cross_idx_repr(geojson, base_line):

@@ -49,6 +49,14 @@ typedef geometry::model::polygon<point2, false, false> polygon;
 typedef polygon::ring_type ring;
 typedef geometry::model::linestring<point2> line;
 typedef geometry::model::linestring<point3> line_3d;
+typedef std::tuple<std::tuple<double, double, double>, 
+		   std::tuple<double, double, double>> bbox3;
+
+typedef std::tuple<std::tuple<double, double>, 
+		   std::tuple<double, double>> bbox2;
+
+typedef std::pair<int, bool> line_anchor;
+
 //typedef std::pair<box, int> value;
 typedef std::tuple<box, wstring, int> value_f;
 //typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;

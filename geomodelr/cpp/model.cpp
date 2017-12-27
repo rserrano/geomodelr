@@ -380,7 +380,7 @@ std::pair<point2, double> Model::model_point( const point3& pt ) const {
 
 	const double& d0 = gx(this->direction);
 	const double& d1 = gy(this->direction);
-
+	
 	double c = d0*gy(ppoint) - d1*gx(ppoint);
 	double d = d0*gx(ppoint) + d1*gy(ppoint);
 	return std::make_pair(point2(d*norm, z), c*norm);
@@ -638,7 +638,8 @@ double TopographyPython::height( const pyobject& pypt ) const {
 }
 
 void ModelPython::fill_model( const pyobject& topography, const pylist& sections ) {
-	if ( python::len(topography) > 0 ) {
+	if ( python::len(topography) > 0 ) {// Get all the information sent from python to build the topography.
+		
 		const pyobject& point = python::extract<pyobject>(topography["point"]);
 		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
 		const pyobject& dims = python::extract<pyobject>(topography["dims"]);
@@ -647,15 +648,24 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 	}
 	size_t nsects = python::len(sections);
 	for ( size_t i = 0; i < nsects; i++ ) {
+		// Get all the information sent from python to create each cross section.
+		if ( python::len( sections[i] ) != 9 ) {
+			throw GeomodelrException("Every section needs 8 parameters.");
+		}
 		wstring name    = python::extract<wstring>(sections[i][0]);
 		double cut             = python::extract<double>(sections[i][1]);
-		const pylist& points   = python::extract<pylist>(sections[i][2]);
-		const pylist& polygons = python::extract<pylist>(sections[i][3]);
-		const pylist& units    = python::extract<pylist>(sections[i][4]); 
-		const pylist& lines    = python::extract<pylist>(sections[i][5]);
-		const pylist& lnames   = python::extract<pylist>(sections[i][6]);
-		this->sections.push_back(new SectionPython(name, cut, points, polygons, units, lines, lnames));
+		const pyobject& bbox   = python::extract<pyobject>(sections[i][2]);
+		const pylist& points   = python::extract<pylist>(sections[i][3]);
+		const pylist& polygons = python::extract<pylist>(sections[i][4]);
+		const pylist& units    = python::extract<pylist>(sections[i][5]); 
+		const pylist& lines    = python::extract<pylist>(sections[i][6]);
+		const pylist& lnames   = python::extract<pylist>(sections[i][7]);
+		const pylist& anchored_lines = python::extract<pylist>(sections[i][8]);
+		
+		// Pass all the information to the cross section, including the bounding box of the given section.
+		this->sections.push_back( new SectionPython( name, cut, bbox, points, polygons, units, lines, lnames, anchored_lines ) );
 	}
+	
 	std::sort(this->sections.begin(), this->sections.end(), [](const Section* a, const Section* b){ return a->cut < b->cut; });
 	for ( size_t i = 0; i < this->sections.size(); i++ ) {
 		this->cuts.push_back(this->sections[i]->cut);
@@ -670,6 +680,12 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point,
 		point2( python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
 		point2( python::extract<double>(direction[0]),  python::extract<double>(direction[1])  ))
 {
+	for ( int i = 0; i < python::len( sections ); i++ ) {
+		double cut = python::extract<double>( sections[i][1] );
+		pytuple sbbox = calculate_section_bbox( bbox, base_point, direction, cut );
+		pylist pl = python::extract<pylist>( sections[i] );
+		pl.insert( 2, sbbox );
+	}
 	this->fill_model( topography, sections );
 }
 
@@ -679,6 +695,12 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& map,
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))))
 {
+	pytuple sbbox = python::make_tuple( bbox[0], bbox[1], bbox[3], bbox[4] );
+	
+	for ( int i = 0; i < python::len( sections ); i++ ) {
+		pylist pl = python::extract<pylist>( sections[i] );
+		pl.insert( 2, sbbox );
+	}
 	this->fill_model( topography, sections );
 }
 
@@ -769,3 +791,51 @@ double ModelPython::signed_distance_bounded( const wstring& unit, const pyobject
 double ModelPython::signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_unbounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
+
+pytuple calculate_section_bbox( const pyobject& bbox, const pyobject& point, const pyobject& direction, double cut ) {
+	
+	// Get the point of the cross section.
+	double x = python::extract<double>( direction[0] ), y = python::extract<double>( direction[1] );
+	point2 d( x, y );
+	x = python::extract<double>( point[0] );
+	y = python::extract<double>( point[1] );
+	point2 bp( x, y );
+	
+	double minx = python::extract<double>( bbox[0] );
+	double miny = python::extract<double>( bbox[1] );
+	double minz = python::extract<double>( bbox[2] );
+	
+	double maxx = python::extract<double>( bbox[3] );
+	double maxy = python::extract<double>( bbox[4] );
+	double maxz = python::extract<double>( bbox[5] );
+	
+	point2 p( gy( d ), -gx(d) );
+	geometry::multiply_value( p, cut );
+	geometry::add_point( p, bp );
+	
+	// Get all the cuts ( values of x in the equation p + x*v = bbox ).
+	vector<double> xs;
+	// Add the cuts of X.
+	if ( std::fabs( gx( d ) ) > tolerance ) {
+		xs.push_back( ( minx - gx( p ) ) / gx( d ) );
+		xs.push_back( ( maxx - gx( p ) ) / gx( d ) );
+	}
+	
+	// Add the cuts of Y.
+	if ( std::fabs( gy( d ) ) > tolerance ) {
+		xs.push_back( ( miny - gy( p ) ) / gy( d ) );
+		xs.push_back( ( maxy - gy( p ) ) / gy( d ) );
+	}
+	
+	// Sort them.
+	std::sort( xs.begin(), xs.end() );
+	
+	if ( xs.size() == 4 ) { // In case the xs cut four times, return the two in the middle.
+		return python::make_tuple( xs[1], minz, xs[2], maxz );
+	} else if ( xs.size() == 2 ) { // In case the xs cut two times, return them both.
+		return python::make_tuple( xs[0], minz, xs[1], maxz );
+	}
+	throw GeomodelrException("The vector direction is invalid.");
+}
+
+

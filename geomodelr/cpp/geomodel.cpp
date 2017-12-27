@@ -203,17 +203,25 @@ BOOST_PYTHON_MODULE(cpp)
 	python::def("find_faults_intersection", find_faults_multiple_planes_intersection_python);
 	python::def("topography_intersection", find_faults_topography_intersection_python);
 	
+	// Register bbox calculation for section.
+	python::def("calculate_section_bbox", calculate_section_bbox );
+	python::def("extend_line", test_extend_line );
+	
+	// Set verbose shows the errors in stderr.
 	python::def("set_verbose", set_verbose, python::args("verbose"), doc_verb);
-	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pylist&, 
-							      const pylist&, const pylist&, 
-							      const pylist&, const pylist&>())
+
+	// Single section class. Mainly exported for testing purposes.
+	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pytuple&,
+							      const pylist&, const pylist&, const pylist&,
+							      const pylist&, const pylist&, const pylist&>())
 							      .def("info", &SectionPython::info)
 							      .def("closest", &SectionPython::closest);
 	
+	// Main exported class, Model.
 	python::class_<ModelPython>("Model", python::init<const pylist&, const pyobject&, const pyobject&, const pyobject&,
-					         const pyobject&, const pylist&>())
+					         const pyobject&, pylist&>())
 					    .def(python::init<const pylist&, const pyobject&,
-					    	 const pyobject&, const pylist&>())
+					    	 const pyobject&, pylist&>())
 					    .def("make_matches", &ModelPython::make_matches)
 					    .def("possible_closest", &ModelPython::possible_closest, python::args("point"), doc_possible_closest)
 					    .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)

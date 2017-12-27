@@ -17,6 +17,7 @@
 */
 
 #include "section.hpp"
+#include<cmath>
 
 Section::~Section()
 {
@@ -25,8 +26,9 @@ Section::~Section()
 	}
 }
 
-Section::Section( const wstring& name, double cut ): name(name), cut(cut), polidx(nullptr) 
+Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr) 
 {
+	
 }
 
 std::pair<int, double> Section::closest( const point2& pt ) const {
@@ -34,9 +36,12 @@ std::pair<int, double> Section::closest( const point2& pt ) const {
 }
 	
 
-SectionPython::SectionPython(const wstring& name, double cut, const pylist& points, 
+SectionPython::SectionPython(const wstring& name, double cut, 
+	const pyobject& bbox, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
-	const pylist& lines, const pylist& lnames ): Section( name, cut )
+	const pylist& lines, const pylist& lnames,
+	const pylist& anchored_lines ): Section( name, cut, std::make_tuple( std::tuple<double, double>(python::extract<double>(bbox[0]), python::extract<double>(bbox[1])),
+									     std::tuple<double, double>(python::extract<double>(bbox[2]), python::extract<double>(bbox[3])) ) )
 {
 	size_t npols = python::len(polygons);
 	vector<value_f> envelopes;
@@ -98,6 +103,7 @@ SectionPython::SectionPython(const wstring& name, double cut, const pylist& poin
 	if ( envelopes.size() > 0 ) {
 		this->polidx = new rtree_f( envelopes );
 	}
+	// Add the lines.
 	size_t nlines = python::len(lines);
 	for ( size_t i = 0; i < nlines; i++ ) {
 		line lin;
@@ -111,6 +117,35 @@ SectionPython::SectionPython(const wstring& name, double cut, const pylist& poin
 		}
 		this->lines.push_back(lin);
 		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
+	}
+	
+	// Add which are the anchors, (for signaling later), but also extend the previously added lines.
+	size_t nanchs = python::len(anchored_lines);
+	for ( size_t i = 0; i < nanchs; i++ ) {
+		int lidx = python::extract<int>(anchored_lines[i][0]);
+		bool lbeg = python::extract<bool>(anchored_lines[i][1]);
+		
+		line_anchor la = std::make_pair( lidx, lbeg );
+		
+		
+		if ( lidx < 0 or size_t(lidx) >= this->lines.size() ) {
+			if ( geomodelr_verbose ) {
+				std::wcerr << L"Wrong input to anchored_lines\n";
+			}
+			continue;
+		}
+		
+		line& ln = this->lines[lidx];
+		try {
+			extend_line( lbeg, this->bbox, ln );
+		} catch ( const GeomodelrException& e ) {
+			if ( geomodelr_verbose ) {
+				std::cerr << e.what() << std::endl;
+			}
+		}
+		
+		this->anchored_lines.insert(la);
+		
 	}
 }
 
@@ -135,7 +170,6 @@ const {
 	}
 	
 	return python::make_tuple(cls.first, this->units[cls.first]);
-
 }
 
 
@@ -170,3 +204,84 @@ map<wstring, vector<triangle_pt>> Section::last_lines( bool is_back, double end 
 	return ret;
 }
 
+void extend_line( bool beg, const bbox2& bbox, line& l ) {
+
+	if ( l.size() <= 1 ) {
+		throw GeomodelrException("An input line has a single point.");
+	}
+	point2 vct;
+	point2 pt;
+	if ( beg ) {
+		vct = l[0];
+		pt = l[1];
+		// Obtain the vector.
+		geometry::subtract_point(vct, pt);
+		pt = l[0];
+	} else {
+		vct = l[l.size()-1];
+		pt = l[l.size()-2];
+		// Obtain the vector.
+		geometry::subtract_point(vct, pt);
+		pt = l[l.size()-1];
+	}
+	
+	double x;
+	double minx = std::numeric_limits<double>::infinity();
+	if ( std::fabs( gx( vct ) ) > tolerance ) {
+		x = ( g0( g0(bbox) ) - gx(pt) )/gx(vct);
+		if ( x > 0 ) {
+			minx = std::min(minx, x);
+		}
+		x = ( g0( g1(bbox) ) - gx(pt) )/gx(vct);
+		if ( x > 0 ) {
+			minx = std::min(minx, x);
+		}
+	}
+	
+	if ( std::fabs( gy( vct ) ) > tolerance ) {
+		x = ( g1( g0(bbox) ) - gy(pt) )/gy(vct);
+		if ( x > 0 ) {
+			minx = std::min(minx, x);
+		}
+		x = ( g1( g1(bbox) ) - gy(pt) )/gy(vct);
+		if ( x > 0 ) {
+			minx = std::min(minx, x);
+		}
+	}
+	
+	if ( not std::isfinite( minx ) ) {
+		if ( not ( std::fabs( gy( vct ) ) > tolerance or std::fabs( gx( vct ) ) > tolerance ) ) {
+			throw GeomodelrException("Could not determine direction of line.");
+		}
+		throw GeomodelrException("Could not extend line.");
+	}
+	
+	if ( std::fabs( minx ) < tolerance ) {
+		throw GeomodelrException("The line actually goes to the bounds and does not need modification.");
+	}
+	
+	geometry::multiply_value(vct, minx);
+	geometry::add_point(pt, vct);
+	
+	if ( beg ) {
+		l.insert( l.begin(), pt );
+	} else {
+		l.push_back( pt );
+	}
+}
+
+pylist test_extend_line( bool beg, const pyobject& bbox, const pylist& pl ) {
+	auto b = std::make_tuple( std::tuple<double, double>( python::extract<double>(bbox[0]), python::extract<double>(bbox[1]) ),
+				  std::tuple<double, double>( python::extract<double>(bbox[2]), python::extract<double>(bbox[3]) ) );
+	
+	line l;
+	for ( int i = 0; i < python::len( pl ); i++ ) {
+		l.push_back( point2( python::extract<double>(pl[i][0]), python::extract<double>(pl[i][1]) ) );
+	}
+	extend_line( beg, b, l );
+	pylist ret;
+	for ( size_t i = 0; i < l.size(); i++ ) {
+		ret.append( python::make_tuple( gx( l[i] ), gy( l[i] ) ) );
+	}
+	return ret;
+}

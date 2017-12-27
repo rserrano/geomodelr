@@ -36,9 +36,11 @@ class Section {
 protected:
 	wstring name;
 	double cut;
+	bbox2 bbox;
 	vector<polygon> polygons;
 	vector<wstring> units;
 	vector<line> lines;
+	std::set<line_anchor> anchored_lines;
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.
 	
@@ -111,20 +113,23 @@ public:
 	}
 	std::pair<int, double> closest( const point2& ) const;
 	map<wstring, vector<triangle_pt>> last_lines(bool is_back, double end);
-	Section(const wstring& name, double cut );
+	Section( const wstring& name, double cut, const bbox2& bbox );
 	virtual ~Section();
 };
 
 class SectionPython : public Section {
 public:
-	SectionPython(const wstring& name, double cut, const pylist& points, 
+	SectionPython(const wstring& name, double cut, const pyobject& bbox, const pylist& points, 
 		      const pylist& polygons, const pylist& units, 
-		      const pylist& lines, const pylist& lnames );
+		      const pylist& lines, const pylist& lnames, const pylist& anchored_lines );
 	
 	pydict info() const;
 	pytuple closest( const pyobject& pypt ) const;
 
 };
+
+void extend_line( bool beg, const bbox2& bbox, line& l );
+pylist test_extend_line( bool beg, const pyobject& bbox, const pylist& line );
 
 #endif
 

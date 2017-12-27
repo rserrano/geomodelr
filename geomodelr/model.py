@@ -133,19 +133,20 @@ class GeologicalModel(cpp.Model):
             if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
                 if orientation == 'vertical':
                     cut, cs = shared.cross_idx_repr( feature, base_line )
-                    sect = [feature['name'], cut, cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames']]
+                    sect = [feature['name'], cut, cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
                     sections.append(sect)
                 else:
                     cs = shared.points_index_repr(feature)
-                    sect = [feature['name'], feature['transform']['height'], cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames']]
+                    sect = [feature['name'], feature['transform']['height'], cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
                     sections.append(sect) 
-
+        
         # Obtain the possible farthest cuts to add triangles towards them.
         bbox = self.geojson['bbox']
         if orientation == 'horizontal':
             super(GeologicalModel, self).__init__(bbox, geomap, topography, sections)
         else:
             super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections)
+        
         self.make_matches()
         
         # Add units to model before deleting geojson.
