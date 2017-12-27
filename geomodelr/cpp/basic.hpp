@@ -44,6 +44,7 @@ static const double tolerance = 1e-15;
 
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;
 typedef geometry::model::point<double, 3, geometry::cs::cartesian> point3;
+typedef geometry::model::segment<point2> line_segment;
 typedef geometry::model::box<point2> box;
 typedef geometry::model::polygon<point2, false, false> polygon;
 typedef polygon::ring_type ring;
@@ -59,8 +60,11 @@ typedef std::pair<int, bool> line_anchor;
 
 //typedef std::pair<box, int> value;
 typedef std::tuple<box, wstring, int> value_f;
+typedef std::tuple<line_segment, int> value_l; // Value to search for surface lines, fault intersection.
 //typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
 typedef geometry::index::rtree<value_f, geometry::index::quadratic<16>> rtree_f;
+typedef geometry::index::rtree<value_l, geometry::index::quadratic<16>> rtree_l; // Tree to search for surface line.
+
 typedef std::tuple<int, int, int> triangle;
 typedef std::tuple<int, int> edge;
 

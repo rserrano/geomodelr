@@ -683,7 +683,8 @@ class TestGeoModelR(unittest.TestCase):
         this_dir, this_filename = os.path.split(__file__)
         # Modelo de Argos
         fn = os.path.join(this_dir, 'test_files', 'Modelo_Argos.json')
-        geo_model = model.model_from_file(fn)
+        mfile = open(fn)
+        geo_model = model.GeologicalModel(json.loads(mfile.read()),delete=False)
 
         Geo_Data = True
         Graph = True
@@ -694,50 +695,185 @@ class TestGeoModelR(unittest.TestCase):
 
         planes = [plane_1,plane_2,plane_3]
 
+        start_time = datetime.now()
         Fault_int = geo_model.intersect_planes(planes)
+        end_time = datetime.now()
+        total_time = end_time - start_time
+        print 'Total plane time ARGOS: ', total_time.total_seconds(), ' s'
+
+        # planes
         faults_size=[2,4,3,3]
         lines_size=[[6,9],[7,7,5,9],[15,19,16],[7,9,9]]
         
-        
-        for fp in range(4):
+        for fp in range(len(Fault_int.keys())):
             self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
 
+        # topography
+        topo = geo_model.geojson[u'features'][0][u'transform']
+        x_inf = (topo['point'][0])
+        y_inf = (topo['point'][1])
+        dx = (topo['sample'][0])
+        dy = (topo['sample'][1])
+        rows = (topo['dims'][1])
+        cols = (topo['dims'][0])
+        val_down = 40
+        start_time = datetime.now()
+        Fault_int = cpp.topography_intersection(geo_model.faults,topo["heights"], x_inf, y_inf, dx, dy, rows, cols,val_down)
+        end_time = datetime.now()
+        total_time = end_time - start_time
+        print 'Total topography time ARGOS: ', total_time.total_seconds(), ' s', '\n'
+        faults_size=[2,20,1,1]
+        lines_size=[[508,686],[896,15,7,11,13,13,7,7,7,7,19,7,13,7,351,11,7,7,134,62],[1289],[1101]]
+        for fp in range(len(Fault_int.keys())):
+            self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
+            for ls in range(faults_size[fp]):
+                self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
+
+        val_down = 80
+        Fault_int = cpp.topography_intersection(geo_model.faults,topo["heights"], x_inf, y_inf, dx, dy, rows, cols,val_down)
+        faults_size=[1,7,1,2]
+        lines_size=[[670],[127,17,271,7,11,7,13],[1294],[1112,9]]
+        for fp in range(len(Fault_int.keys())):
+            self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
+            for ls in range(faults_size[fp]):
+                self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
+
+        pt_a = np.array(Fault_int.values()[1][0][100])
+        pt_b = np.array([1066726.97619749, 894290.3324648936])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[1][2][197])
+        pt_b = np.array([1067090.97619749, 894706.4264705727])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[2][0][1197])
+        pt_b = np.array([1067210.4184914103, 894672.2670868154])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[3][0][987])
+        pt_b = np.array([1066946.97619749, 894670.3029072022])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+
 
         # Modelo Hidrogeológico
         fn = os.path.join(this_dir, 'test_files', 'Modelo_Hidro.json')
-        geo_model = model.model_from_file(fn)
+        mfile = open(fn)
+        geo_model = model.GeologicalModel(json.loads(mfile.read()),delete=False)
 
         plane_1 = [[1062218,1063707,2100],[1074654,1063707,2100],[ 1072218.,1073707.,2100.],[1062218,1075106,2100]]
         plane_2 = [[1062218,1063707,2350],[1074654,1063707,2350],[ 1070218.,1071707.,2350.],[1062818,1075106,2350]]
         plane_3 = [[1062218,1063707,2000],[1070000,1063707,2000],[ 1072218.,1073707.,2000.],[1068400,1075106,2000]]
         planes = [plane_1,plane_2,plane_3]
 
+        start_time = datetime.now()
         Fault_int = geo_model.intersect_planes(planes)
+        end_time = datetime.now()
+        total_time = end_time - start_time
+        print 'Total plane time HIDRO: ', total_time.total_seconds(), ' s'        
         faults_size=[5,3,4,3]
         lines_size=[[9,3,21,56,19],[16,10,12],[4,14,16,27],[46,31,53]]
-
-        for fp in range(4):
+        for fp in range(len(Fault_int.keys())):
             self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
 
-        Fault_int_py = cpp.find_faults_intersection(geo_model.faults,planes)
+        # topography
+        topo = geo_model.geojson[u'features'][0][u'transform']
+        x_inf = (topo['point'][0])
+        y_inf = (topo['point'][1])
+        dx = (topo['sample'][0])
+        dy = (topo['sample'][1])
+        rows = (topo['dims'][1])
+        cols = (topo['dims'][0])
+        val_down = 25
+        start_time = datetime.now()
+        Fault_int = cpp.topography_intersection(geo_model.faults,topo["heights"], x_inf, y_inf, dx, dy, rows, cols,val_down)
+        end_time = datetime.now()
+        total_time = end_time - start_time
+        print 'Total topography time HIDRO: ', total_time.total_seconds(), ' s', '\n'
+        faults_size=[8,4,1,7]
+        lines_size=[[296,381,151,40,64,79,3,289],[176,30,174,64],[561],[85,393,7,16,31,225,47]]
+        for fp in range(len(Fault_int.keys())):
+            self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
+            for ls in range(faults_size[fp]):
+                self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
 
-        for name,fault in Fault_int.iteritems():
-            flat_fault = np.array([item for sublist in fault for item in sublist])
-            flat_python = np.array([item for sublist in Fault_int_py[name] for item in sublist])
-            
-            for p in flat_fault:
-                bool_val = False
-                for pp in flat_python:
-                    dist = np.linalg.norm(p-pp)
-                    if (dist<1E-10):
-                        bool_vec=True
-                        break
 
-                self.assertEqual(bool_vec,True)
+        pt_a = np.array(Fault_int.values()[0][7][187])
+        pt_b = np.array([1071268.1381392078, 1074203.0357593736])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[2][0][87])
+        pt_b = np.array([1065419.5067169308, 1071187.923653486])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[0][0][246])
+        pt_b = np.array([1064258.6077600627, 1065726.7137298346])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[2][0][246])
+        pt_b = np.array([1064347.0354034072, 1069852.4047539085])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[3][5][6])
+        pt_b = np.array([1067292.0295606889, 1070866.2634328033])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+
+        # Modelo Aburra
+        fn = os.path.join(this_dir, 'test_files', 'aburra_version2.json')
+        mfile = open(fn)
+        geo_model = model.GeologicalModel(json.loads(mfile.read()),delete=False)
+
+        val_z = -20000
+        plane_1 = [[813449,1164500 ,val_z],[863000,1164500 ,val_z],[863000,1205000 ,val_z],[813449,1205000 ,val_z]]
+        val_z = -2000
+        plane_2 = [[813449,1164500 ,val_z],[863000,1164500 ,val_z],[863000,1205000 ,val_z],[813449,1205000 ,val_z]]
+        val_z = 000
+        plane_3 = [[813449,1164500 ,val_z],[863000,1164500 ,val_z],[863000,1205000 ,val_z],[813449,1205000 ,val_z]]
+        planes = [plane_1,plane_2,plane_3]
+
+        start_time = datetime.now()
+        Fault_int = geo_model.intersect_planes(planes)
+        end_time = datetime.now()
+        total_time = end_time - start_time
+        print 'Total plane time ABURRA: ', total_time.total_seconds(), ' s'
+
+        faults_size=[3,2,1,2,2,0,0,1,2]
+        lines_size=[[24,24,25],[27,27],[23],[9,9],[7,7],[],[],[9],[8,10]]
+
+        for fp in range(len(Fault_int.keys())):
+            self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
+            for ls in range(faults_size[fp]):
+                self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
+
+        # topography
+        topo = geo_model.geojson[u'features'][0][u'transform']
+        x_inf = (topo['point'][0])
+        y_inf = (topo['point'][1])
+        dx = (topo['sample'][0])
+        dy = (topo['sample'][1])
+        rows = (topo['dims'][1])
+        cols = (topo['dims'][0])
+        val_down = 500
+        start_time = datetime.now()
+        Fault_int = cpp.topography_intersection(geo_model.faults,topo["heights"], x_inf, y_inf, dx, dy, rows, cols,val_down)
+        end_time = datetime.now()
+        total_time = end_time - start_time
+        print 'Total topography time ABURRA: ', total_time.total_seconds(), ' s', '\n'
+        faults_size=[2,4,0,1,2,0,9,2,2]
+        lines_size=[[2531,27],[3592,7,19,23],[],[341],[489,706],[],[1272,17,23,7,7,879,256,11,15],[683,78],[211,595]]
+        for fp in range(len(Fault_int.keys())):
+            self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
+            for ls in range(faults_size[fp]):
+                self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
+
+        pt_a = np.array(Fault_int.values()[0][0][1936])
+        pt_b = np.array([819825.5422794257, 1193000.3769920217])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[1][0][2686])
+        pt_b = np.array([815498.8481213407, 1194961.7185969201])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[6][5][596])
+        pt_b = np.array([837808.1129541914, 1186785.1996537775])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[8][1][96])
+        pt_b = np.array([821305.6604503224, 1203616.173120729])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
                 
         # Triangulos y plano horizontal
         eps_z = 0.0
@@ -747,7 +883,9 @@ class TestGeoModelR(unittest.TestCase):
         Fault_int = cpp.find_faults_intersection(Faults,planes)
         self.assertEqual(len(Fault_int.values()[0][0]),2)
         self.assertEqual(len(Fault_int.values()[1]),0)
-    
+        # ================================== TOPOGRAFIA
+
+   
     def test_anchored_lines( self ):
         # cpp.set_verbose( True )
         # Test calculate_section_bbox
@@ -805,7 +943,7 @@ class TestGeoModelR(unittest.TestCase):
         pols_2 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 15, 14, 12]], [[11, 12, 14, 13]]]
         
         units = ["unit1", "unit1", "unit2", "unit2", "unit3", "unit3", "unit4"]
-        cpp.set_verbose(True)
+        
         # Instead, test what happens when there are faults.
         faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
         faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
@@ -838,7 +976,8 @@ class TestGeoModelR(unittest.TestCase):
         model = cpp.Model([-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], ["s2", 2, points_2, pols_2, units, faults_2, fname, []]])
         model.make_matches()
         self.assertEqual(len(model.faults["F1"]), 36)
-        
+
+
 def main(args=None):
     unittest.main()
 
