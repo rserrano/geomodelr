@@ -735,6 +735,19 @@ class TestGeoModelR(unittest.TestCase):
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
 
+        pt_a = np.array(Fault_int.values()[1][0][100])
+        pt_b = np.array([1066726.97619749, 894290.3324648936])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[1][2][197])
+        pt_b = np.array([1067090.97619749, 894706.4264705727])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[2][0][1197])
+        pt_b = np.array([1067210.4184914103, 894672.2670868154])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[3][0][987])
+        pt_b = np.array([1066946.97619749, 894670.3029072022])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+
 
         # Modelo Hidrogeológico
         fn = os.path.join(this_dir, 'test_files', 'Modelo_Hidro.json')
@@ -779,6 +792,22 @@ class TestGeoModelR(unittest.TestCase):
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
 
+
+        pt_a = np.array(Fault_int.values()[0][7][187])
+        pt_b = np.array([1071268.1381392078, 1074203.0357593736])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[2][0][87])
+        pt_b = np.array([1065419.5067169308, 1071187.923653486])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[0][0][246])
+        pt_b = np.array([1064258.6077600627, 1065726.7137298346])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[2][0][246])
+        pt_b = np.array([1064347.0354034072, 1069852.4047539085])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[3][5][6])
+        pt_b = np.array([1067292.0295606889, 1070866.2634328033])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
 
         # Modelo Aburra
         fn = os.path.join(this_dir, 'test_files', 'aburra_version2.json')
@@ -827,6 +856,19 @@ class TestGeoModelR(unittest.TestCase):
             self.assertEqual(len(Fault_int.values()[fp]),faults_size[fp])
             for ls in range(faults_size[fp]):
                 self.assertEqual(len(Fault_int.values()[fp][ls]),lines_size[fp][ls])
+
+        pt_a = np.array(Fault_int.values()[0][0][1936])
+        pt_b = np.array([819825.5422794257, 1193000.3769920217])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[1][0][2686])
+        pt_b = np.array([815498.8481213407, 1194961.7185969201])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[6][5][596])
+        pt_b = np.array([837808.1129541914, 1186785.1996537775])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
+        pt_a = np.array(Fault_int.values()[8][1][96])
+        pt_b = np.array([821305.6604503224, 1203616.173120729])
+        self.assertAlmostEqual(np.linalg.norm(pt_a-pt_b),0.0)
                 
         # Triangulos y plano horizontal
         eps_z = 0.0
