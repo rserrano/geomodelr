@@ -414,6 +414,13 @@ map<wstring,vector<line>> Model::intersect_planes(const vector<line_3d>& planes)
 	return find_faults_multiple_planes_intersection(this->global_faults, planes);
 }
 
+map<wstring,vector<line>> Model::intersect_topography(const vector<vector<double>>& topography_array,
+	double z_max, double z_min,double x_inf, double y_inf, double dx, double dy, int rows, int cols) const{
+
+	return find_faults_topography_intersection(this->global_faults,topography_array, z_max, z_min,
+		x_inf, y_inf, dx, dy, rows, cols);
+}
+
 map<wstring,vector<line>> Model::intersect_plane(const line_3d& plane) const{
 	return find_faults_multiple_planes_intersection(this->global_faults, vector<line_3d>(1, plane));
 }
@@ -555,6 +562,27 @@ pydict ModelPython::intersect_planes(const pylist& planes) const{
 		
 	// Now convert intersections to python and return.
 	return (map_to_pydict(((Model *)this)->intersect_planes(planes_cpp)));
+	
+}
+
+pydict ModelPython::intersect_topography(const pydict& topography_info) const{
+	
+	double x_inf = python::extract<double>(topography_info["point"][0]);
+    double y_inf = python::extract<double>(topography_info["point"][1]);
+
+    double dx = python::extract<double>(topography_info["sample"][0]);
+    double dy = python::extract<double>(topography_info["sample"][1]);
+
+    int rows = python::extract<int>(topography_info["dims"][1]);
+    int cols = python::extract<int>(topography_info["dims"][0]);
+
+    double z_max, z_min;
+    vector<vector<double>> topography_array = topography_to_vector(python::extract<pylist>(topography_info["heights"]),
+        rows, cols, z_max, z_min);
+		
+	// Now convert intersections to python and return.
+	return map_to_pydict(((Model *)this)->intersect_topography(topography_array, z_max, z_min, x_inf, y_inf, dx, dy,
+        rows, cols));
 	
 }
 

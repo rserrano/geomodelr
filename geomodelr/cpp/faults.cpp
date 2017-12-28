@@ -149,7 +149,7 @@ vector<line> joint_lines(vector<line_segment>& faults, const double start_x){
                 // Computes the distace between pa and the initial point of the line.
     			dist = geometry::distance(pa,p0);
     			
-    			if (dist<1E-5){
+    			if (dist<epsilon){
 
                     //pb = (faults[C])[1-i];
                     p0 = pb;
@@ -162,7 +162,7 @@ vector<line> joint_lines(vector<line_segment>& faults, const double start_x){
 
                 // Computes the distace between pa and the final point of the line.
                 dist = geometry::distance(pa,pf);
-                if (dist<1E-5){
+                if (dist<epsilon){
 
                     //pb = (faults[C])[1-i];
                     pf=pb;
@@ -191,7 +191,6 @@ vector<line> joint_lines_tree(const rtree_l& segments_tree, const vector<line_se
 
     vector<line> output;
     point2 p0, pf, pa, pb, pt;
-    double epsilon = 1E-5;
     point2 aux_pt(start_x,0.0);
     int pos;
 
@@ -286,7 +285,7 @@ vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fp
 			dir = node_b;
 			geometry::subtract_point(dir,node_a);
             dot_val = geometry::dot_product(nv,dir);
-            if (std::abs(dot_val)>1e-50){
+            if (std::abs(dot_val)>tolerance){
                 T = -eval_a/dot_val;
                 geometry::multiply_value(dir,T); geometry::add_point(dir,node_a);
                 
@@ -302,7 +301,7 @@ vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fp
 			dir = node_c;
 			geometry::subtract_point(dir,node_b);
 			dot_val = geometry::dot_product(nv,dir);
-            if (std::abs(dot_val)>1e-50){
+            if (std::abs(dot_val)>tolerance){
 
                 T = -eval_b/dot_val;
                 geometry::multiply_value(dir,T); geometry::add_point(dir,node_b);
@@ -311,7 +310,7 @@ vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fp
 
                     // Find if the point is already in the list.
                     aux_point = point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2));
-                    if (geometry::distance(aux_point,straight_segment[0])>=2E-5){
+                    if (geometry::distance(aux_point,straight_segment[0])>=2*epsilon){
                         geometry::append(straight_segment,aux_point); // saves the point coordinates in the coordinate system of the plane.
                     }
                 }
@@ -331,7 +330,7 @@ vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fp
 			geometry::subtract_point(dir,node_c);
 			dot_val = geometry::dot_product(nv,dir);
 
-            if (std::abs(dot_val)>1e-50){
+            if (std::abs(dot_val)>tolerance){
 
                 T = -eval_c/dot_val;
                 geometry::multiply_value(dir,T); geometry::add_point(dir,node_c);
@@ -339,7 +338,7 @@ vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fp
                 aux_point = point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2));
                 
                 // Find if the point is already in the list.
-                if (geometry::distance(aux_point,straight_segment[0])>=2E-5){
+                if (geometry::distance(aux_point,straight_segment[0])>=2*epsilon){
                     geometry::append(straight_segment,aux_point); // saves the point coordinates in the coordinate system of the plane.
                 }
             }
@@ -349,8 +348,8 @@ vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fp
             vector<line> intersect_line;
             geometry::intersection(plane_poly,straight_segment,intersect_line);
 
-            // ensures that the straight segment is greater than 2E-5 and, in addition, it must intersects the polygon of the plane.
-            if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=2E-5) ){
+            // ensures that the straight segment is greater than 2*epsilon and, in addition, it must intersects the polygon of the plane.
+            if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=2*epsilon) ){
                 output.push_back(line_segment(intersect_line[0][0],intersect_line[0][1]));
                 count++;
                 intersections.push_back(std::make_tuple(output[count],count));
@@ -375,7 +374,7 @@ void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& fa
 	double dot_val = geometry::dot_product(v1,v2);
 
     //Gram-Schmidt method is used to make them perpendicular.
-	if (std::abs(dot_val)>1e-50){
+	if (std::abs(dot_val)>tolerance){
 		geometry::multiply_value( v1,dot_val/geometry::dot_product(v1,v1));
 		geometry::subtract_point(v2,v1);	
 	}
@@ -538,7 +537,7 @@ vector<line> joint_lines_3d(vector<line_3d>& faults){
                 // Computes the distace between pa and the initial point of the line.
                 dist = geometry::distance(pa,p0);
                 
-                if (dist<1E-5){
+                if (dist<epsilon){
 
                     pb = (faults[C])[1-i];
                     line_p.insert(line_p.begin(),point2(gx(pb) ,gy(pb)));
@@ -550,7 +549,7 @@ vector<line> joint_lines_3d(vector<line_3d>& faults){
 
                 // Computes the distace between pa and the final point of the line.
                 dist = geometry::distance(pa,pf);
-                if (dist<1E-5){
+                if (dist<epsilon){
 
                     pb = (faults[C])[1-i];
                     line_p.push_back(point2(gx(pb) ,gy(pb)));
@@ -589,7 +588,7 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
         dir = node_b;
         geometry::subtract_point(dir,node_a);
         dot_val = geometry::dot_product(nv,dir);
-        if (std::abs(dot_val)>1e-50){
+        if (std::abs(dot_val)>tolerance){
 
             T = -eval_a/dot_val;
             geometry::multiply_value(dir,T); geometry::add_point(dir,node_a);            
@@ -604,7 +603,7 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
         dir = node_c;
         geometry::subtract_point(dir,node_b);
         dot_val = geometry::dot_product(nv,dir);
-        if (std::abs(dot_val)>1e-50){
+        if (std::abs(dot_val)>tolerance){
 
             T = -eval_b/dot_val;
             geometry::multiply_value(dir,T); geometry::add_point(dir,node_b);
@@ -621,7 +620,7 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
         geometry::subtract_point(dir,node_c);
         dot_val = geometry::dot_product(nv,dir);
 
-        if (std::abs(dot_val)>1e-50){
+        if (std::abs(dot_val)>tolerance){
 
             T = -eval_c/dot_val;
             geometry::multiply_value(dir,T); geometry::add_point(dir,node_c);
@@ -635,9 +634,9 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
 // Finds the lines that intersect the topography with a set of faults.
 map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring, vector<triangle_pt>>& faults_cpp,
     const vector<vector<double>>& topography_array, double z_max, double z_min,double x_inf, double y_inf,
-    double dx, double dy, int rows, int cols,double up_faults){
+    double dx, double dy, int rows, int cols){
 
-    point3 xy_0(x_inf,y_inf,-up_faults);
+    point3 xy_0(x_inf,y_inf,0.0);
     double max_x, max_y, min_x, min_y, max_z, min_z;
     int i_max, i_min, j_max, j_min;
     map<wstring, vector<line>> output;
@@ -683,7 +682,7 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
                             double norm_nt_line = std::sqrt(geometry::dot_product(nv_line,nv_line));
 
                             // guarantees that the intersection can exist.
-                            if ((norm_nt_line>1E-20) && intersect_triangle_plane(tri_fault,A,nv_t) && intersect_triangle_plane(tri_topo,x0_f,nv_f)){
+                            if ((norm_nt_line>tolerance) && intersect_triangle_plane(tri_fault,A,nv_t) && intersect_triangle_plane(tri_topo,x0_f,nv_f)){
                                 
                                 vector<point2> intersection_points; vector<double> point_proyections;
 
@@ -698,7 +697,7 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 
                                         line_segment segment(intersection_points[vec_pos[1]],intersection_points[vec_pos[2]]);
 
-                                        if (geometry::length(segment)>2E-5){
+                                        if (geometry::length(segment)>2*epsilon){
                                             faults_intersection.push_back(segment);
                                             count++;
                                             intersections.push_back(std::make_tuple(segment,count));
@@ -715,8 +714,8 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 
         }
 
-        output[iter->first] = joint_lines_tree(rtree_l(intersections),faults_intersection,0.0);
-        //output[iter->first] = joint_lines(faults_intersection,0.0);
+        //output[iter->first] = joint_lines_tree(rtree_l(intersections),faults_intersection,0.0);
+        output[iter->first] = joint_lines(faults_intersection,0.0);
 
     }
 
@@ -724,14 +723,23 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 }
 
 // Finds the lines that intersect the topography with a set of faults (Python).
-pydict find_faults_topography_intersection_python(const pydict& fplanes, const pylist& topography_info,
-    double x_inf, double y_inf, double dx, double dy, int rows, int cols,double up_faults){
+pydict find_faults_topography_intersection_python(const pydict& fplanes, const pydict& topography_info){
+
+    double x_inf = python::extract<double>(topography_info["point"][0]);
+    double y_inf = python::extract<double>(topography_info["point"][1]);
+
+    double dx = python::extract<double>(topography_info["sample"][0]);
+    double dy = python::extract<double>(topography_info["sample"][1]);
+
+    int cols = python::extract<int>(topography_info["dims"][0]);
+    int rows = python::extract<int>(topography_info["dims"][1]);
 
     map<wstring, vector<triangle_pt> > faults_cpp = pydict_to_map(fplanes);
 
     double z_max, z_min;
-    vector<vector<double>> topography_array = topography_to_vector(topography_info, rows, cols, z_max, z_min);
+    vector<vector<double>> topography_array = topography_to_vector(python::extract<pylist>(topography_info["heights"]),
+        rows, cols, z_max, z_min);
 
     return map_to_pydict(find_faults_topography_intersection(faults_cpp,topography_array, z_max, z_min, x_inf, y_inf, dx, dy,
-        rows, cols, up_faults));
+        rows, cols));
 }
