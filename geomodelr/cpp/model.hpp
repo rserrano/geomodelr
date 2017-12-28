@@ -198,6 +198,8 @@ public:
 
 	map<wstring,vector<line>> intersect_plane(const line_3d& plane) const;
 	map<wstring,vector<line>> intersect_planes(const vector<line_3d>& planes) const;
+	map<wstring,vector<line>> intersect_topography(const vector<vector<double>>& topography_array, double z_max, double z_min,
+		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -312,6 +314,7 @@ public:
 	double signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const;
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;
+	pydict intersect_topography(const pydict& topography_info) const;
 
 	pydict info() const;
 	double height(const pyobject& pt) const;
