@@ -55,7 +55,7 @@ protected:
 	vector<Match *> match;
 	vector<double> cuts;
 	map<wstring, vector<triangle_pt>> global_faults;
-
+	map<wstring, vector<size_t>> extended_faults;
 	Topography * topography;
 	bool horizontal;
 	
@@ -299,6 +299,8 @@ public:
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const pylist& matching);
 	pydict get_faults() const;
+	pydict get_not_extended() const;
+	
 	pylist get_matches() const;
 	// Methods to query matches.
 	pylist possible_closest(const pyobject& pt) const;

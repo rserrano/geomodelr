@@ -265,7 +265,7 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	return test_start( l_a, l_b, true  );
 }
 
-map<wstring, vector<triangle_pt>> Match::match_lines()
+std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Match::match_lines()
 {
 	/*
 	Creates the fault planes given the cross sections with faults with the same name.
@@ -295,18 +295,54 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 		}
 	}
 	map<wstring, vector<triangle_pt>> retfaults;
+	map<wstring, vector<size_t>> extended;
 	for ( auto it = rel_faults.begin(); it != rel_faults.end(); it++ ) {
-		const line& la = this->a->lines[g0(it->second)];
-		const line& lb = this->b->lines[g1(it->second)];
+		int fa = g0(it->second);
+		int fb = g1(it->second);
+		const line& la = this->a->lines[fa];
+		const line& lb = this->b->lines[fb];
+		const auto& ancha = this->a->anchored_lines;
+		const auto& anchb = this->b->anchored_lines;
 		
 		const wstring& name = it->first;
 		vector<point3> pa;
 		vector<point3> pb;
 		std::transform(la.begin(), la.end(), std::back_inserter(pa), [&]( const point2& p ) { return point3(gx(p), gy(p), this->a->cut); });
 		std::transform(lb.begin(), lb.end(), std::back_inserter(pb), [&]( const point2& p ) { return point3(gx(p), gy(p), this->b->cut); });
+		
 		try {
 			vector<triangle> fplane = faultplane_for_lines(pa, pb);
+			
 			size_t na = la.size();
+			size_t nb = lb.size();
+			
+			// Find which of the triangles contains an extended line.
+			vector<int> exts;
+			if (ancha.find(std::make_pair(fa, true)) != ancha.end()) {
+				exts.push_back(0);
+			}
+			if (ancha.find(std::make_pair(fa, false)) != ancha.end()) {
+				exts.push_back(na-1);
+			}
+			if (anchb.find(std::make_pair(fb, true)) != anchb.end()) {
+				exts.push_back(na);
+			}
+			if (anchb.find(std::make_pair(fb, false)) != anchb.end()) {
+				exts.push_back(na + nb - 1);
+			}
+
+			for ( size_t j = 0; j < fplane.size(); j++ ) {
+				for ( size_t i = 0; i < exts.size(); i++ ) {
+					if ( g0(fplane[j]) == exts[i] or
+					     g1(fplane[j]) == exts[i] or
+					     g2(fplane[j]) == exts[i] ) {
+						extended[name].push_back(j);
+						break;
+					}
+				}
+			}
+			
+			// Transform the triangles from idx to points or to aligned triangles that can evaluate line intersection fast.
 			auto pt = [&] ( size_t n ) {
 				if ( n < na ) {
 					return pa[n]; 
@@ -324,7 +360,7 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 				[&] ( const triangle_pt& t ) -> AlignedTriangle {
 					return AlignedTriangle(std::make_tuple(g0(t), g1(t), g2(t))); 
 				} );
-			
+		
 		} catch ( const GeomodelrException& e ) {
 			if ( geomodelr_verbose ) {
 				string aname(this->a->name.begin(), this->a->name.end());
@@ -346,7 +382,7 @@ map<wstring, vector<triangle_pt>> Match::match_lines()
 		}
 	}
 	this->faultidx = new rtree_f(envelopes.begin(), envelopes.end());
-	return retfaults;
+	return std::make_tuple(retfaults, extended);
 }
 
 void MatchPython::set( const pylist& match ) {

@@ -237,7 +237,9 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("info", &ModelPython::info)
 					    .add_property("bbox", &ModelPython::pybbox)
 					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches)
-					    .add_property("faults", &ModelPython::get_faults);
+					    .add_property("faults", &ModelPython::get_faults)
+					    .add_property("not_extended_faults", &ModelPython::get_not_extended);
+
 }
 
 wstring human_failure_type( const geometry::validity_failure_type& fail )
