@@ -114,7 +114,7 @@ point3 cross_product(const point3& v1,const point3& v2){
 // Joints the straight segments to create unique lines.
 //      faults: vector of straight segments of given fault.
 //      start_x: norm of v1 vector of the previous plane.
-vector<line> joint_lines(vector<line_segment>& faults, const double start_x){
+vector<line> join_lines(vector<line_segment>& faults, const double start_x){
 
 	vector<line> output;
 	size_t C;
@@ -123,7 +123,7 @@ vector<line> joint_lines(vector<line_segment>& faults, const double start_x){
 	bool check;
     point2 aux_point(start_x,0.0);
 
-    while (faults.size()>0){
+    while (!faults.empty()){
 
         // Takes the first straight segment.
     	C=0; 
@@ -178,14 +178,28 @@ vector<line> joint_lines(vector<line_segment>& faults, const double start_x){
                 C++;
             }
     	}
+
+        p0 = line_p[0];
+        geometry::subtract_point(p0,line_p.back());
+        if (std::sqrt(geometry::dot_product(p0,p0))<epsilon){
+            line_p.pop_back();
+        }
         output.push_back(line_p);
     }    
     return output;
     
 }
 
-vector<line> joint_lines_tree(const rtree_l& segments_tree, const vector<line_segment>& lines,const double start_x){
+vector<line> join_lines_tree(const vector<line_segment>& lines,const double start_x){
 
+    vector<value_l> intersections(lines.size());
+    int C=0;
+    for (auto& iter_segment: lines){
+        intersections.push_back(std::make_tuple(iter_segment,C));
+        C++;
+    }
+
+    rtree_l segments_tree(intersections);
     vector<bool> check_lines(lines.size(), true);
     //vector<size_t> positions(lines.size()); iota(positions.begin(), positions.end(), 0);
 
@@ -223,7 +237,6 @@ vector<line> joint_lines_tree(const rtree_l& segments_tree, const vector<line_se
                         pa = g0(*it).first;
                         pb = g0(*it).second;
 
-                        //std::cerr << pos << "\t" << k << "\t" << std::setprecision(13) << geometry::wkt(pt) << "\t" << geometry::wkt(pa) << "\t" << geometry::wkt(pb) <<endl;
                         if (geometry::distance(pa,pt)<epsilon){
                             pt = pb; geometry::add_point(pb,aux_pt);
                             if (k==0) {
@@ -249,6 +262,11 @@ vector<line> joint_lines_tree(const rtree_l& segments_tree, const vector<line_se
 
         }
 
+        p0 = line_p[0];
+        geometry::subtract_point(p0,line_p.back());
+        if (std::sqrt(geometry::dot_product(p0,p0))<epsilon){
+            line_p.pop_back();
+        }
         output.push_back(line_p);
         bool_it = std::find (check_lines.begin(), check_lines.end(), true);
     }
@@ -262,14 +280,13 @@ vector<line> joint_lines_tree(const rtree_l& segments_tree, const vector<line_se
 //      nv: normal vector of the plane.
 //      plane_poly: polygonal representation of the plane using the four points of its corners.
 vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fplane, const point3& x0, const point3& v1, const point3& v2,
-	const point3& nv, const polygon& plane_poly, vector<value_l>& intersections) {
+	const point3& nv, const polygon& plane_poly) {
 
 	point3 node_a, node_b, node_c, dir;
 	double D = geometry::dot_product(x0,nv);
 	double eval_a, eval_b, eval_c, T, dot_val;
 
 	vector<line_segment> output;
-    int count = -1;
 	for (const triangle_pt& it: fplane){ //for each triangle in the fault plane.
 
 		node_a = g0(it); node_b = g1(it); node_c = g2(it);
@@ -351,8 +368,6 @@ vector<line_segment> find_fault_plane_intersection(const vector<triangle_pt>& fp
             // ensures that the straight segment is greater than 2*epsilon and, in addition, it must intersects the polygon of the plane.
             if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=2*epsilon) ){
                 output.push_back(line_segment(intersect_line[0][0],intersect_line[0][1]));
-                count++;
-                intersections.push_back(std::make_tuple(output[count],count));
             }
 		}
 
@@ -396,11 +411,10 @@ void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& fa
 	for (auto iter = faults_cpp.begin(); iter != faults_cpp.end(); iter++){
 
         // finds the lines that intersect a plane with the fault planes.
-        vector<value_l> intersections;
-        vector<line_segment> fault_lines = find_fault_plane_intersection(iter->second, x0, v1, v2, nv, plane_poly,intersections);
+        vector<line_segment> fault_lines = find_fault_plane_intersection(iter->second, x0, v1, v2, nv, plane_poly);
 
-        //vector<line> aux_vector = joint_lines(fault_lines,start_x);
-        vector<line> aux_vector = joint_lines_tree(rtree_l(intersections),fault_lines,start_x);
+        //vector<line> aux_vector = join_lines(fault_lines,start_x);
+        vector<line> aux_vector = join_lines_tree(fault_lines,start_x);
         if (f_index==0){
             output.insert(map<wstring, vector<line>>::value_type(iter->first,aux_vector));
         }
@@ -509,7 +523,7 @@ vector<vector<double>> topography_to_vector(const pylist& topography, int rows, 
 
 }
 
-vector<line> joint_lines_3d(vector<line_3d>& faults){
+vector<line> join_lines_3d(vector<line_3d>& faults){
 
     vector<line> output;
     size_t C;
@@ -614,7 +628,7 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
 
     /* determines if the straight segment given by the third and first point intersects the fault plane as long as the
        straight segment has not yet been defined.*/
-    if (eval_c*eval_a <= 0.0){
+    if ((eval_c*eval_a <= 0.0) && (intersection_points.size()==1 || intersection_points.size()==3)){
 
         dir = node_a;
         geometry::subtract_point(dir,node_c);
@@ -645,7 +659,6 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 
         vector<line_segment> faults_intersection;
         vector<value_l> intersections;
-        int count = -1;
 
         for (const triangle_pt& tri_fault: iter->second){ //for each triangle in the fault plane.
             point3 x0_f = g0(tri_fault);
@@ -699,8 +712,6 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 
                                         if (geometry::length(segment)>2*epsilon){
                                             faults_intersection.push_back(segment);
-                                            count++;
-                                            intersections.push_back(std::make_tuple(segment,count));
                                         }
                                     }
                                 }
@@ -714,8 +725,8 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 
         }
 
-        //output[iter->first] = joint_lines_tree(rtree_l(intersections),faults_intersection,0.0);
-        output[iter->first] = joint_lines(faults_intersection,0.0);
+        output[iter->first] = join_lines_tree(faults_intersection,0.0);
+        //output[iter->first] = join_lines(faults_intersection,0.0);
 
     }
 
