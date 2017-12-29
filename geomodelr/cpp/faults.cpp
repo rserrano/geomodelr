@@ -89,6 +89,17 @@ pylist vector_to_pylist(const vector<line>& input){
     return output;
 }
 
+
+pylist join_lines_tree_test(const pylist& segments){
+    
+    vector<line_segment> lines_cpp;
+    for (int k=0; k<python::len(segments);k++){
+        point2 a(python::extract<double>(segments[k][0][0]),python::extract<double>(segments[k][0][1]));
+        point2 b(python::extract<double>(segments[k][1][0]),python::extract<double>(segments[k][1][1]));
+        lines_cpp.push_back(line_segment(a,b));
+    }
+    return (vector_to_pylist(join_lines_tree(lines_cpp,0.0)));
+}
 // Converts the C++ map of intersections into a python dictionary.
 //      intersections: C++ map of intersections.
 pydict map_to_pydict(const map<wstring, vector<line> >& intersections){

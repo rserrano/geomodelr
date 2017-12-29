@@ -202,6 +202,7 @@ BOOST_PYTHON_MODULE(cpp)
 	//python::def("find_faults_plane_intersection", find_faults_plane_intersection);
 	python::def("find_faults_intersection", find_faults_multiple_planes_intersection_python);
 	python::def("topography_intersection", find_faults_topography_intersection_python);
+	python::def("join_lines_tree_test",join_lines_tree_test);
 	
 	// Register bbox calculation for section.
 	python::def("calculate_section_bbox", calculate_section_bbox );
