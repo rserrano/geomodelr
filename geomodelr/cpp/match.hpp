@@ -41,14 +41,15 @@ protected:
 	const Section * b;
 	map<int, vector<int>> a_to_b;
 	map<int, vector<int>> b_to_a;
-	map<wstring, vector<AlignedTriangle>> faults;
-	map<wstring, std::tuple<int, int>> rel_faults;
+	map<wstring, vector<AlignedTriangle>> faults; // The aligned triangles to test.
+	map<wstring, std::tuple<int, int>> rel_faults; // Which fault is related to which other fault.
+	
 	rtree_f * faultidx;
 public:
 	Match( const Section * a, const Section * b );
 	virtual ~Match();
 	void match_polygons();
-	map<wstring, vector<triangle_pt>> match_lines();
+	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> match_lines();
 	std::tuple<int, int, int> crosses_triangles(const point2& pt, double cut) const;
 	void set( const vector<std::pair<int, int>>& match );
 };

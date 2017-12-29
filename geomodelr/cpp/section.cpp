@@ -138,13 +138,13 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		line& ln = this->lines[lidx];
 		try {
 			extend_line( lbeg, this->bbox, ln );
+			this->anchored_lines.insert(la);
 		} catch ( const GeomodelrException& e ) {
 			if ( geomodelr_verbose ) {
 				std::cerr << e.what() << std::endl;
 			}
 		}
 		
-		this->anchored_lines.insert(la);
 		
 	}
 }
@@ -174,15 +174,23 @@ const {
 
 
 
-map<wstring, vector<triangle_pt>> Section::last_lines( bool is_back, double end ) {
+std::tuple<map<wstring, vector<triangle_pt>>, 
+	   map<wstring, vector<size_t>>> Section::last_lines( bool is_back, double end ) {
 	map<wstring, vector<triangle_pt>> ret;
+	map<wstring, vector<size_t>> extended;
 	for ( size_t i = 0; i < this->lines.size(); i++ )
 	{
 		const wstring& name = this->lnames[i];
-		if ( name == L"" ) 
+		if ( name == L"" )
 		{
 			continue;
 		}
+		// Avoid extending more than one fault plane per name.
+		if ( ret.find( name ) != ret.end() ) 
+		{	
+			continue;
+		}
+
 		for ( size_t j = 1; j < this->lines[i].size(); j++ ) {
 			point3 p0(gx(this->lines[i][j-1]), gy(this->lines[i][j-1]), end);
 			point3 p1(gx(this->lines[i][j]),   gy(this->lines[i][j]),   end);
@@ -200,8 +208,17 @@ map<wstring, vector<triangle_pt>> Section::last_lines( bool is_back, double end 
 			ret[name].push_back(t1);
 			ret[name].push_back(t2);
 		}
+		if ( this->anchored_lines.find( std::make_pair(i, true) ) != this->anchored_lines.end() ) {
+			extended[name].push_back(0);
+			extended[name].push_back(1);
+		}
+		if ( this->anchored_lines.find( std::make_pair(i, false) ) != this->anchored_lines.end() ) {
+			size_t n = ret[name].size();
+			extended[name].push_back(n-2);
+			extended[name].push_back(n-1);
+		}
 	}
-	return ret;
+	return std::make_tuple(ret, extended);
 }
 
 void extend_line( bool beg, const bbox2& bbox, line& l ) {
@@ -224,7 +241,6 @@ void extend_line( bool beg, const bbox2& bbox, line& l ) {
 		geometry::subtract_point(vct, pt);
 		pt = l[l.size()-1];
 	}
-	
 	double x;
 	double minx = std::numeric_limits<double>::infinity();
 	if ( std::fabs( gx( vct ) ) > tolerance ) {
@@ -263,6 +279,11 @@ void extend_line( bool beg, const bbox2& bbox, line& l ) {
 	geometry::multiply_value(vct, minx);
 	geometry::add_point(pt, vct);
 	
+	// Check that the point falls inside (or very close to) the bounding box.
+	if ( not ( gx( pt )-g0(g0(bbox)) >= -tolerance and gx(pt)-g0(g1(bbox)) <= tolerance and
+	     gy(pt)-g1(g0(bbox)) >= -tolerance and gy(pt)-g1(g1(bbox)) <= tolerance ) ) {
+		throw GeomodelrException("The point is not inside the bounding box.");
+	}
 	if ( beg ) {
 		l.insert( l.begin(), pt );
 	} else {

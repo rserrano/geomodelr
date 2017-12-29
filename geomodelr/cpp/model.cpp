@@ -75,8 +75,7 @@ void Model::clear_matches() {
 void Model::make_matches() {
 	this->clear_matches();
 	
-	auto& faults = this->global_faults; 
-	
+	auto& faults = this->global_faults;
 	// Converts to global points.
 	auto global_point = [&]( const point3& pt ) {
 		point2 p(gx(pt), gy(pt));
@@ -89,13 +88,19 @@ void Model::make_matches() {
 	};
 	
 	// Converts to global coordinates and pushes to faults.
-	auto add_to_faults = [&]( map<wstring, vector<triangle_pt>>& m ) {
+	auto add_to_faults = [&]( std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>>& tup ) {
+		auto& m = g0( tup );
+		auto& e = g1( tup );
 		for ( auto it = m.begin(); it != m.end(); it++ ) {
 			// Transform to global coordinates.
 			vector<triangle_pt>& trs = it->second;
 			std::transform( trs.begin(), trs.end(), trs.begin(), global_triangle );
 			// Push into the faults.
 			auto& f = faults[it->first];
+			auto& o = this->extended_faults[it->first];
+			for ( size_t& c: e[it->first] ) {
+				o.push_back( c + f.size() );
+			}
 			f.reserve(f.size() + it->second.size());
 			f.insert(f.end(), it->second.begin(), it->second.end());
 		}
@@ -106,20 +111,20 @@ void Model::make_matches() {
 		// Match the polygons.
 		this->match.back()->match_polygons();
 		// Get the matching faults.
-		map<wstring, vector<triangle_pt>> m = this->match.back()->match_lines();
+		auto m = this->match.back()->match_lines();
 		add_to_faults(m);
 	}
 	
 	// Get the extended faults from the begining.
 	if ( this->sections.size() and (this->sections[0]->cut - this->cuts_range.first) > tolerance ) {
-		map<wstring, vector<triangle_pt>> m = this->sections[0]->last_lines(true, this->cuts_range.first);
+		auto m = this->sections[0]->last_lines(true, this->cuts_range.first);
 		add_to_faults(m);
 	}
 	
 	// Get the extended faults from the end.
 	if ( this->sections.size() and (this->cuts_range.second - this->sections.back()->cut) > tolerance ) {
 		// Get the extended faults from the end.
-		map<wstring, vector<triangle_pt>> m = this->sections.back()->last_lines(false, this->cuts_range.second);
+		auto m = this->sections.back()->last_lines(false, this->cuts_range.second);
 		add_to_faults(m);
 	}
 }
@@ -754,6 +759,37 @@ pydict ModelPython::get_faults() const {
 	for ( auto it = this->global_faults.begin(); it != this->global_faults.end(); it++ ) {
 		pylist tris;
 		for ( const triangle_pt& t: it->second ) {
+			pytuple tr = python_triangle( t );
+			tris.append( tr );
+		}
+		ret[it->first] = tris;
+	}
+	
+	return ret;
+}
+
+pydict ModelPython::get_not_extended() const {
+	auto python_point = [&]( const point3& pt ) {
+		return python::make_tuple(gx(pt), gy(pt), gz(pt));
+	};
+	
+	auto python_triangle = [python_point]( const triangle_pt& tr ) {
+		return python::make_tuple(python_point(g0(tr)), python_point(g1(tr)), python_point(g2(tr)));
+	};
+	
+	// Now convert faults to python and return.
+	pydict ret;
+	for ( auto it = this->global_faults.begin(); it != this->global_faults.end(); it++ ) {
+		pylist tris;
+		const auto ef = this->extended_faults.find(it->first);
+		for ( size_t i = 0; i < it->second.size(); i++ ) {
+			if ( ef != this->extended_faults.end() ) {
+				const vector<size_t>& vct = ef->second;
+				if ( std::find(vct.begin(), vct.end(), i) != vct.end() ) {
+					continue;
+				}
+			}
+			const triangle_pt& t = it->second[i];
 			pytuple tr = python_triangle( t );
 			tris.append( tr );
 		}

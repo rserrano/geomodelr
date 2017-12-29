@@ -112,7 +112,8 @@ public:
 		return std::make_pair(minidx, mindist); 
 	}
 	std::pair<int, double> closest( const point2& ) const;
-	map<wstring, vector<triangle_pt>> last_lines(bool is_back, double end);
+
+	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> last_lines(bool is_back, double end);
 	Section( const wstring& name, double cut, const bbox2& bbox );
 	virtual ~Section();
 };
