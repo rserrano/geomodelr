@@ -19,6 +19,10 @@
 
 import numpy as np
 import flopy as fp
+from math import ceil,floor
+
+from datetime import datetime
+import time
 
 class LENGTH_UNIT:
     UNDEFINED = 0
@@ -41,7 +45,7 @@ class ALGORITHM:
 def create_modflow_inputs(name, model, units_data,
     length_units=LENGTH_UNIT.METERS, rows=100, cols=100, layers=100,
     bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.SECONDS, 
-    algorithm=ALGORITHM.REGULAR):
+    algorithm=ALGORITHM.REGULAR,faults_data={}):
     """
     Generates the DIS, BAS, LPF and NAM files, which are used by classical
     MODFLOW processors. The user has to import the NAM file from his MODFLOW
@@ -107,10 +111,10 @@ def create_modflow_inputs(name, model, units_data,
 
 
     Z_top_min = np.min(Z_top)
-
+    
     if ((Z_top_min-bottom_min)/layers < dz_min):
         layers = int((Z_top_min-bottom_min)/dz_min)
-    
+
     if (algorithm == 'regular'):
 
         Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
@@ -122,7 +126,22 @@ def create_modflow_inputs(name, model, units_data,
             bottom_min,units_data,angle,dz_min)
 
     K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
-        units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY)
+        units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
+
+    start_time = datetime.now()
+    name_f = u'Fault_4'
+    faults = model.faults[name_f]
+    faults_2 = []
+    #for k in range(120,135):
+    #    faults_2.append(faults[k])
+    fault_1 = {name_f:faults}
+    fault_1 = model.faults
+    faults_intersections(fault_1,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
+        dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound)
+
+    end_time = datetime.now()
+    total_time = end_time - start_time
+    print 'Total time: ', total_time.total_seconds(), ' s'
 
     #  ------- Flowpy Packages ----
     # Grid
@@ -152,6 +171,103 @@ def create_modflow_inputs(name, model, units_data,
     return(output)
 
 # ===================== AUXILIAR FUNCTIONS ========================
+
+def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
+    dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound):    
+
+    corner  = np.array([X_inf,Y_inf,0.0])
+    count_tri = -1
+    cell =np.array([[-dX/2,-dY/2,0],[dX/2,-dY/2,0],[dX/2,dY/2,0],[-dX/2,dY/2,0],
+        [-dX/2,-dY/2,0],[dX/2,-dY/2,0],[dX/2,dY/2,0],[-dX/2,dY/2,0]])
+    h_xyz = np.array([dX,dY,0])/2.0
+
+    epsilon = 1e-5
+    #count = -1
+    for name,fault in faults.iteritems():
+        Data = faults_data[name]
+        for plane in fault:
+            fplane = np.array(plane)
+
+            #count_tri += 1
+            x0 = fplane[0]-corner; B = fplane[1]-corner; C = fplane[2]-corner
+            nv = np.cross(B-x0,C-x0); nv /= np.linalg.norm(nv)
+            nv_abs = np.abs(nv)
+            normal_vecs = [B-x0, C-B, x0-C]
+            normal_vecs[0] /= np.linalg.norm(normal_vecs[0])
+            normal_vecs[1] /= np.linalg.norm(normal_vecs[1])
+            normal_vecs[2] /= np.linalg.norm(normal_vecs[2])
+
+            max_vals = np.max(fplane,0) - corner
+            min_vals = np.min(fplane,0) - corner
+
+            j_min = int(max(ceil(min_vals[0]/dX),1)); j_max = int(min(ceil(max_vals[0]/dX),cols))            
+            i_min = int(max(ceil(min_vals[1]/dY),1)); i_max = int(min(ceil(max_vals[1]/dY),rows))
+
+            for i in range(i_min-1,i_max):
+                yc = (i)*dY
+                I = rows - (i+1)
+                for j in range(j_min-1,j_max):
+                    xc = (j)*dX
+
+                    for L in range(layers):
+                        if L>0:
+                            z_up = Z_bottoms[L-1,I,j]; z_low = Z_bottoms[L,I,j]
+                        else:
+                            z_up = Z_top[I,j]; z_low = Z_bottoms[0,I,j]
+
+                        if max(z_low,min_vals[2]) < min(z_up,max_vals[2]):
+
+                            center_cell = np.array([xc+dX/2,yc+dY/2,(z_up+z_low)/2.0])
+                            D = np.dot(x0-center_cell,nv)
+                                                        
+                            h_xyz[2] = (z_up-z_low)/2.0
+                            r = np.dot(nv_abs,h_xyz)
+                            
+                            if abs(D)<=r+epsilon:
+                                a_cell = x0-center_cell
+                                b_cell = B-center_cell
+                                c_cell = C-center_cell
+                                for p in range(3):
+                                    nv_tri = normal_vecs[p]
+                                    for q in range(3):                                        
+                                        bool_cross = eval_prot(a_cell, b_cell, c_cell,cross_e(q,nv_tri),h_xyz,epsilon)
+
+                                        if bool_cross:
+                                            break
+
+                                    if bool_cross:
+                                            break
+
+                                if not(bool_cross):
+                                    K_ver[L,I,j] = Data[2]
+                                    K_hor[L,I,j] = Data[0]
+                                    
+                                    #if count!=count_tri:
+                                    #    print count_tri, L+1, j+1, I+1
+                                    #    count=count_tri
+
+   
+def cross_e(k,vec):
+    if k==0:
+        return np.array([0,-vec[2],vec[1]])
+    elif k==1:
+        return np.array([vec[2],0,-vec[0]])
+    else:
+        return np.array([-vec[1],vec[0],0])
+
+def eval_prot(a,b,c,vec,h_xyz,epsilon):
+    
+    pa = np.dot(a,vec)
+    pb = np.dot(b,vec)
+    pc = np.dot(c,vec)
+    r = np.dot(np.abs(vec),h_xyz)
+    b1 = min(pa,pb,pc)>r+epsilon
+    b2 = max(pa,pb,pc)< -(r+epsilon)
+    if b1 | b2:
+        return True
+    else:
+        return False
+
 
 def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,
     dX,dY,bottom_min, units_data):
@@ -333,7 +449,7 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
     return((Z_bottoms,layers))
 
 def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,
-    dX,dY):
+    dX,dY,faults_data):
     """
     Generates the hidraulic conductivy and I_bound (active or not active) matrices.
     
@@ -358,7 +474,7 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
         
     """
 
-    aux_data=np.array(units_data.values())
+    aux_data=np.array(units_data.values() + faults_data.values())
     anisotropy_bool = np.max(aux_data[:,1])==np.min(aux_data[:,1])
     ibound_bool = np.max(aux_data[:,3])==np.min(aux_data[:,3])
 
