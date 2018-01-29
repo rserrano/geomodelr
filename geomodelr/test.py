@@ -539,11 +539,7 @@ class TestGeoModelR(unittest.TestCase):
     
     def test_faults_above(self):
         this_dir, this_filename = os.path.split(__file__)
-        m = model.model_from_file(os.path.join(this_dir, 'test_files', 'Modelo_Argos.json'))
-        self.assertEqual( [ len(m.faults[k]) for k in sorted(m.faults.keys()) ], [171, 131, 229, 137] )
-        self.assertEqual( [ len(m.not_extended_faults[k]) for k in sorted(m.faults.keys()) ], [141, 112, 229, 137] )
-        
-        
+        m = model.model_from_file(os.path.join(this_dir, 'test_files', 'Modelo_Hidro.json'))
         
     # Test that you can load and test aburra Valley. Test grids and volumes.
     def test_aburra_valley(self):
