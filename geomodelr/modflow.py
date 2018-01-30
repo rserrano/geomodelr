@@ -23,6 +23,7 @@ from math import ceil,floor
 
 from datetime import datetime
 import time
+from copy import deepcopy
 
 class LENGTH_UNIT:
     UNDEFINED = 0
@@ -39,13 +40,13 @@ class TIME_UNIT:
     YEARS = 5
 
 class ALGORITHM:
-    REGULAR = 'regular'
-    ADAPTIVE = 'adaptive'
+    REGULAR = u'regular'
+    ADAPTIVE = u'adaptive'
 
 def create_modflow_inputs(name, model, units_data,
     length_units=LENGTH_UNIT.METERS, rows=100, cols=100, layers=100,
     bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.SECONDS, 
-    algorithm=ALGORITHM.REGULAR,faults_data={}):
+    algorithm=ALGORITHM.REGULAR,faults_data={},faults_method=u'regular'):
     """
     Generates the DIS, BAS, LPF and NAM files, which are used by classical
     MODFLOW processors. The user has to import the NAM file from his MODFLOW
@@ -102,7 +103,15 @@ def create_modflow_inputs(name, model, units_data,
 
     bottom_min = bbox[2] + 1E-5
 
+    if faults_method!=u'regular':
+        faults_keys = faults_data.keys()
+        faults_v = faults_data.values()
+        faults_data_aux = { faults_keys[k]: (faults_v[k][0],np.random.rand(),faults_v[k][1],faults_v[k][2]) for k in range(len(faults_data)) }
+        faults_data = deepcopy(faults_data_aux)
+        del(faults_data_aux)
+
     # Define Z-top
+    print 'Topography'
     for i in np.arange(rows):
         yp = Y_sup - (2*i+1)*dY/2.0
         for j in np.arange(cols):
@@ -111,10 +120,11 @@ def create_modflow_inputs(name, model, units_data,
 
 
     Z_top_min = np.min(Z_top)
-    
+
     if ((Z_top_min-bottom_min)/layers < dz_min):
         layers = int((Z_top_min-bottom_min)/dz_min)
 
+    print 'Grid'
     if (algorithm == 'regular'):
 
         Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
@@ -125,23 +135,16 @@ def create_modflow_inputs(name, model, units_data,
         Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
             bottom_min,units_data,angle,dz_min)
 
+    print 'Properties'
     K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
         units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
 
-    start_time = datetime.now()
-    name_f = u'Fault_4'
-    faults = model.faults[name_f]
-    faults_2 = []
-    #for k in range(120,135):
-    #    faults_2.append(faults[k])
-    fault_1 = {name_f:faults}
-    fault_1 = model.faults
-    faults_intersections(fault_1,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
-        dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound)
+    print 'Faults'
+    if len(faults_data)>0:
+        faults_intersections(model.faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
+            dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method)
 
-    end_time = datetime.now()
-    total_time = end_time - start_time
-    print 'Total time: ', total_time.total_seconds(), ' s'
+    print 'Flopy'
 
     #  ------- Flowpy Packages ----
     # Grid
@@ -155,8 +158,6 @@ def create_modflow_inputs(name, model, units_data,
     dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
         top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
         itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
-
-    #dis.sr=geo
 
     # Variables for the BAS package
     bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
@@ -173,7 +174,7 @@ def create_modflow_inputs(name, model, units_data,
 # ===================== AUXILIAR FUNCTIONS ========================
 
 def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
-    dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound):    
+    dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method):    
 
     corner  = np.array([X_inf,Y_inf,0.0])
     count_tri = -1
@@ -182,7 +183,10 @@ def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_i
     h_xyz = np.array([dX,dY,0])/2.0
 
     epsilon = 1e-5
-    #count = -1
+    
+    anisotropy_bool = not(np.isscalar(K_anisotropy_hor))
+    ibound_bool = not(np.isscalar(I_bound))
+
     for name,fault in faults.iteritems():
         Data = faults_data[name]
         for plane in fault:
@@ -191,6 +195,7 @@ def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_i
             #count_tri += 1
             x0 = fplane[0]-corner; B = fplane[1]-corner; C = fplane[2]-corner
             nv = np.cross(B-x0,C-x0); nv /= np.linalg.norm(nv)
+            fdata = get_fault_Hydro_data(Data,nv,faults_method)
             nv_abs = np.abs(nv)
             normal_vecs = [B-x0, C-B, x0-C]
             normal_vecs[0] /= np.linalg.norm(normal_vecs[0])
@@ -239,13 +244,12 @@ def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_i
                                             break
 
                                 if not(bool_cross):
-                                    K_ver[L,I,j] = Data[2]
-                                    K_hor[L,I,j] = Data[0]
-                                    
-                                    #if count!=count_tri:
-                                    #    print count_tri, L+1, j+1, I+1
-                                    #    count=count_tri
-
+                                    K_ver[L,I,j] = fdata[2]
+                                    K_hor[L,I,j] = fdata[0]
+                                    if anisotropy_bool:
+                                        K_anisotropy_hor[L,I,j] = fdata[1]
+                                    if ibound_bool:
+                                        I_bound[L,I,j] *= fdata[3]
    
 def cross_e(k,vec):
     if k==0:
@@ -267,6 +271,26 @@ def eval_prot(a,b,c,vec,h_xyz,epsilon):
         return True
     else:
         return False
+
+def get_fault_Hydro_data(data,nv,f_method):
+
+    if f_method==u'regular':
+        return data
+    else:
+        eps_angle = 0.98480775301220802 # cos(10)
+        Kh = data[0]; Kv = data[1]; ibound = data[2]
+
+        if abs(nv[0])>eps_angle:
+            return (Kv,Kh/Kv,Kh,ibound)
+        elif abs(nv[1])>eps_angle:
+            return (Kh,Kv/Kh,Kh,ibound)
+        elif abs(nv[2])>eps_angle:
+            return (Kh,1,Kv,ibound)
+        else:
+            bus_v = np.cross(nv,np.array([nv[1],-nv[0],0.]))
+            bus_v /= np.linalg.norm(bus_v)
+            data_aprox = Kh*np.abs(bus_v)+Kv*np.abs(nv)
+            return (data_aprox[0],data_aprox[1]/data_aprox[0],data_aprox[2],ibound)
 
 
 def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,
@@ -372,14 +396,11 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
 
             xp = X_inf + (2*j+1)*dX/2.0
             z_max = Z_top[i,j]
-
-            dz = (z_max - bottom_min)/layers
-            
+            dz = (z_max - bottom_min)/layers            
             zl = z_max-dz
 
-            z_mean,change = find_unit_limits(model, xp, yp, z_max,
-                zl, 1E-3)
-
+            #z_mean,change = find_unit_limits(model, xp, yp, z_max, zl, 1E-3)
+            z_mean,change = find_unit_limits_CPP(model, xp, yp, z_max, zl, 1E-3)
             Z_Bool_Top[i,j] = change
 
             if change:
@@ -405,15 +426,13 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
 
             for j in np.arange(cols):
 
-                xp = X_inf + (2*j+1)*dX/2.0
-                
+                xp = X_inf + (2*j+1)*dX/2.0                
                 zp = Z_bottoms[Count_Lay][i,j]
                 #zl = zp - (zp- bottom_min)/(layers-L)
                 zl = (Z_top[i,j]*(layers-(L+1)) + bottom_min*(L+1))/layers
                 
-
-                z_mean,change = find_unit_limits(model, xp, yp, zp, zl,
-                    1E-3)
+                #z_mean,change = find_unit_limits(model, xp, yp, zp, zl,1E-3)
+                z_mean,change = find_unit_limits_CPP(model, xp, yp, zp, zl, 1E-3)
 
                 if (change) & (not(Z_Bool_Top[i,j])):
                     Pos_List.append((i,j))
@@ -520,8 +539,13 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
                     I_bound[L,i,j] = Data[3]
 
     return((K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var))
+    
+def find_unit_limits_CPP(model, xp, yp, z_max, z_min, eps):
+    return model.find_unit_limits(xp, yp, z_max, z_min, eps)    
 
 def find_unit_limits(model, xp, yp, z_max, z_min, eps):
+
+    #return model.find_unit_limits(xp, yp, z_max, z_min, eps)
     """
     Given two points with the same x and y coordinates, and different z
     coordinates, it determines if exist a unit change between these points.
@@ -560,7 +584,7 @@ def find_unit_limits(model, xp, yp, z_max, z_min, eps):
                 z_min = z_mean
             else:
                 z_min = z_mean
-                Unit_min == Unit_mean
+                Unit_min = Unit_mean
 
             z_mean = (z_max+z_min)/2.0
             Unit_mean = model.closest([xp, yp, z_mean])[0]

@@ -22,6 +22,7 @@
 #include "section.hpp"
 #include "match.hpp"
 #include "faults.hpp"
+#include "speed_up.hpp"
 
 class Topography {
 protected:
@@ -201,6 +202,8 @@ public:
 	map<wstring,vector<line>> intersect_topography(const vector<vector<double>>& topography_array, double z_max, double z_min,
 		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
+	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
+
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const vector< std::tuple< std::tuple<wstring, wstring>, vector<std::pair<int, int>> > >& matching);
@@ -317,6 +320,7 @@ public:
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;
 	pydict intersect_topography(const pydict& topography_info) const;
+	pytuple find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
 
 	pydict info() const;
 	double height(const pyobject& pt) const;

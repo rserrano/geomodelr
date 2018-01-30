@@ -15,14 +15,28 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef GEOMODELR_GEOMODEL_HPP
-#define GEOMODELR_GEOMODEL_HPP
-
-#include "basic.hpp"
-#include "section.hpp"
-#include "match.hpp"
-#include "model.hpp"
-#include "faults.hpp"
 #include "speed_up.hpp"
+#include <algorithm>    // std::min_element, std::max_elemen
+#include <stdlib.h>
+#include <iomanip>
 
-#endif
+std::pair<double, bool> find_unit_limits_cpp(const Model* model, double xp, double yp,
+	double z_max, double z_min, double eps) {
+  
+	wstring unit_max = g0(model->closest(point3(xp,yp,z_max)));
+
+	if ( unit_max.compare(g0(model->closest(point3(xp,yp,z_min))))==0 ){
+		return std::make_pair( z_min, false );
+	}    
+    do {
+    	double z_mean = (z_max+z_min)/2.0;
+    	if ( unit_max.compare( g0(model->closest(point3(xp, yp, z_mean)))) == 0 ) {
+    		z_max = z_mean;
+    	}
+		else {
+    		z_min = z_mean;
+    	}
+    } while( (z_max-z_min)>eps );
+
+    return std::make_pair( z_min, true );
+}

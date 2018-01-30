@@ -15,14 +15,16 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef GEOMODELR_GEOMODEL_HPP
-#define GEOMODELR_GEOMODEL_HPP
+#ifndef GEOMODELR_SPEED_UP_HPP
+#define GEOMODELR_SPEED_UP_HPP
 
 #include "basic.hpp"
-#include "section.hpp"
-#include "match.hpp"
 #include "model.hpp"
-#include "faults.hpp"
-#include "speed_up.hpp"
+#include <math.h>
 
-#endif
+using std::cout;
+using std::endl;
+
+std::pair<double, bool> find_unit_limits_cpp(const Model* model,double xp, double yp,
+	double z_max, double z_min, double eps);
+#endif //GEOMODELR_SPEED_UP_HPP

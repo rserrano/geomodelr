@@ -425,6 +425,10 @@ map<wstring,vector<line>> Model::intersect_plane(const line_3d& plane) const{
 	return find_faults_multiple_planes_intersection(this->global_faults, vector<line_3d>(1, plane));
 }
 
+std::pair<double, bool> Model::find_unit_limits(double xp, double yp,double z_max, double z_min, double eps) const{
+	return  find_unit_limits_cpp(this, xp, yp, z_max, z_min, eps);
+}
+
 vector<std::tuple<wstring, double, double>> Model::possible_closest( const point3& pt ) const {
 	if ( not this->sections.size() ) {
 		return vector<std::tuple<wstring, double, double>>();
@@ -596,6 +600,13 @@ pydict ModelPython::intersect_plane(const pylist& plane) const{
 	// Now convert intersections to python and return.
 	return (map_to_pydict(((Model *)this)->intersect_plane(plane_cpp)));
 }
+
+pytuple ModelPython::find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const{
+
+	std::pair<double, bool> output = ((Model *)this)->find_unit_limits(xp, yp, z_max, z_min, eps);
+	return python::make_tuple(output.first,output.second);
+}
+
 
 double ModelPython::height( const pyobject& pt ) const {
 	double d0 = python::extract<double>(pt[0]);
