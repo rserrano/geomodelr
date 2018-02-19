@@ -111,7 +111,7 @@ void Model::make_matches() {
 		// Match the polygons.
 		this->match.back()->match_polygons();
 		// Get the matching faults.
-		auto m = this->match.back()->match_lines();
+		auto m = this->match.back()->match_lines( this->feature_types );
 		add_to_faults(m);
 	}
 	
@@ -425,6 +425,10 @@ map<wstring,vector<line>> Model::intersect_plane(const line_3d& plane) const{
 	return find_faults_multiple_planes_intersection(this->global_faults, vector<line_3d>(1, plane));
 }
 
+std::pair<double, bool> Model::find_unit_limits(double xp, double yp,double z_max, double z_min, double eps) const{
+	return  find_unit_limits_cpp(this, xp, yp, z_max, z_min, eps);
+}
+
 vector<std::tuple<wstring, double, double>> Model::possible_closest( const point3& pt ) const {
 	if ( not this->sections.size() ) {
 		return vector<std::tuple<wstring, double, double>>();
@@ -597,6 +601,13 @@ pydict ModelPython::intersect_plane(const pylist& plane) const{
 	return (map_to_pydict(((Model *)this)->intersect_plane(plane_cpp)));
 }
 
+pytuple ModelPython::find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const{
+
+	std::pair<double, bool> output = ((Model *)this)->find_unit_limits(xp, yp, z_max, z_min, eps);
+	return python::make_tuple(output.first,output.second);
+}
+
+
 double ModelPython::height( const pyobject& pt ) const {
 	double d0 = python::extract<double>(pt[0]);
 	double d1 = python::extract<double>(pt[1]);
@@ -670,7 +681,7 @@ double TopographyPython::height( const pyobject& pypt ) const {
 	return ((Topography *)this)->height( point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])) );
 }
 
-void ModelPython::fill_model( const pyobject& topography, const pylist& sections ) {
+void ModelPython::fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types ) {
 	if ( python::len(topography) > 0 ) {// Get all the information sent from python to build the topography.
 		
 		const pyobject& point = python::extract<pyobject>(topography["point"]);
@@ -703,11 +714,16 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 	for ( size_t i = 0; i < this->sections.size(); i++ ) {
 		this->cuts.push_back(this->sections[i]->cut);
 	}
+	pylist keys = feature_types.keys();
+	for ( int i = 0; i < python::len( keys ); i++ ) {
+		this->feature_types[python::extract<wstring>(keys[i])] = python::extract<wstring>(feature_types[keys[i]]);
+	}
 }
 
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point, 
 		    	 const pyobject& direction, const pyobject& map, 
-		    	 const pyobject& topography, const pylist& sections ): 
+		    	 const pyobject& topography, const pylist& sections, 
+			 const pydict& feature_types ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 		point2( python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
@@ -719,12 +735,13 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point,
 		pylist pl = python::extract<pylist>( sections[i] );
 		pl.insert( 2, sbbox );
 	}
-	this->fill_model( topography, sections );
+	this->fill_model( topography, sections, feature_types );
 }
 
 
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& map, 
-			  const pyobject& topography, const pylist& sections ): 
+			  const pyobject& topography, const pylist& sections,
+			  const pydict& feature_types ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))))
 {
@@ -734,18 +751,18 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& map,
 		pylist pl = python::extract<pylist>( sections[i] );
 		pl.insert( 2, sbbox );
 	}
-	this->fill_model( topography, sections );
+	
+	this->fill_model( topography, sections, feature_types );
 }
 
 
 void ModelPython::make_matches() {
 	// map<wstring, vector<triangle_pt>> faults = ((Model *)this)->make_matches();
-	
 	((Model *)this)->make_matches();
 	
 }
 
-pydict ModelPython::get_faults() const {
+pydict ModelPython::filter_lines( bool ext, const wstring& ft ) const {
 	auto python_point = [&]( const point3& pt ) {
 		return python::make_tuple(gx(pt), gy(pt), gz(pt));
 	};
@@ -756,31 +773,18 @@ pydict ModelPython::get_faults() const {
 	
 	// Now convert faults to python and return.
 	pydict ret;
-	for ( auto it = this->global_faults.begin(); it != this->global_faults.end(); it++ ) {
+	auto add_line_triangles = [&]( map<wstring, vector<triangle_pt>>::const_iterator it ) {
 		pylist tris;
 		for ( const triangle_pt& t: it->second ) {
 			pytuple tr = python_triangle( t );
 			tris.append( tr );
 		}
 		ret[it->first] = tris;
-	}
-	
-	return ret;
-}
-
-pydict ModelPython::get_not_extended() const {
-	auto python_point = [&]( const point3& pt ) {
-		return python::make_tuple(gx(pt), gy(pt), gz(pt));
 	};
 	
-	auto python_triangle = [python_point]( const triangle_pt& tr ) {
-		return python::make_tuple(python_point(g0(tr)), python_point(g1(tr)), python_point(g2(tr)));
-	};
-	
-	// Now convert faults to python and return.
-	pydict ret;
-	for ( auto it = this->global_faults.begin(); it != this->global_faults.end(); it++ ) {
+	auto add_line_triangles_not_ext = [&]( map<wstring, vector<triangle_pt>>::const_iterator it ) {
 		pylist tris;
+		// Find the extended lines of the given plane.
 		const auto ef = this->extended_faults.find(it->first);
 		for ( size_t i = 0; i < it->second.size(); i++ ) {
 			if ( ef != this->extended_faults.end() ) {
@@ -794,11 +798,38 @@ pydict ModelPython::get_not_extended() const {
 			tris.append( tr );
 		}
 		ret[it->first] = tris;
+	};
+	
+	for ( auto it = this->global_faults.begin(); it != this->global_faults.end(); it++ ) {
+		if ( ft != L"ALL" ) 
+		{
+			wstring lft = (this->feature_types.find(it->first))->second;
+			if ( lft != ft ) {
+				continue;
+			}
+		}
+		if ( not ext ) {
+			add_line_triangles_not_ext( it );
+		} else {
+			add_line_triangles( it );
+		}
 	}
 	
 	return ret;
 }
 
+// Direct methods to get different kinds of extruded lines.
+pydict ModelPython::get_lines() const { return this->filter_lines( true, L"ALL" ); }
+pydict ModelPython::get_not_extended_lines() const { return this->filter_lines( false, L"ALL" ); }
+
+pydict ModelPython::get_fracts( ) const { return this->filter_lines( true, L"FRACT" ); }
+pydict ModelPython::get_not_extended_fracts() const { return this->filter_lines( false, L"FRACT" ); }
+
+pydict ModelPython::get_faults( ) const { return this->filter_lines( true, L"FAULT" ); }
+pydict ModelPython::get_not_extended_faults() const { return this->filter_lines( false, L"FAULT" ); }
+
+pydict ModelPython::get_veins( ) const { return this->filter_lines( false, L"VEIN" ); }
+pydict ModelPython::get_not_extended_veins() const { return this->filter_lines( false, L"VEIN" ); }
 
 void ModelPython::set_matches( const pylist& matching ) {
 	this->clear_matches();
@@ -808,16 +839,13 @@ void ModelPython::set_matches( const pylist& matching ) {
 		const wstring& name1 = python::extract<wstring>(matching[i][0][0]);
 		const wstring& name2 = python::extract<wstring>(matching[i][0][1]);
 		vector<std::pair<int, int>> vmatch;
-		
 		size_t mmatch = python::len(matching[i][1]);
-		
 		for ( size_t j = 0; j < mmatch; j++ ) {
 			int a = python::extract<int>(matching[i][1][j][0]);
 			int b = python::extract<int>(matching[i][1][j][1]);
 			
 			vmatch.push_back(std::make_pair(a, b));
 		}
-		
 		cppmatching.push_back(std::make_tuple( std::make_tuple(name1, name2), vmatch ));
 	}
 	((Model *)this)->set_matches( cppmatching );

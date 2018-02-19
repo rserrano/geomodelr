@@ -49,7 +49,7 @@ public:
 	Match( const Section * a, const Section * b );
 	virtual ~Match();
 	void match_polygons();
-	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> match_lines();
+	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> match_lines( const map<wstring, wstring>& feature_types );
 	std::tuple<int, int, int> crosses_triangles(const point2& pt, double cut) const;
 	void set( const vector<std::pair<int, int>>& match );
 };

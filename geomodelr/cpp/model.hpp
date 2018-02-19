@@ -22,6 +22,7 @@
 #include "section.hpp"
 #include "match.hpp"
 #include "faults.hpp"
+#include "speed_up.hpp"
 
 class Topography {
 protected:
@@ -54,8 +55,12 @@ protected:
 	vector<Section *> sections;
 	vector<Match *> match;
 	vector<double> cuts;
+	
+	
 	map<wstring, vector<triangle_pt>> global_faults;
 	map<wstring, vector<size_t>> extended_faults;
+	map<wstring, wstring> feature_types;
+	
 	Topography * topography;
 	bool horizontal;
 	
@@ -201,6 +206,8 @@ public:
 	map<wstring,vector<line>> intersect_topography(const vector<vector<double>>& topography_array, double z_max, double z_min,
 		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
+	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
+
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const vector< std::tuple< std::tuple<wstring, wstring>, vector<std::pair<int, int>> > >& matching);
@@ -226,8 +233,8 @@ public:
 		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
 		
 		size_t a_idx = it - this->cuts.begin();
-		// If it's behind the last or above the first, return the closest in the section.
 		
+		// If it's behind the last or above the first, return the closest in the section.
 		auto closest_single = [&](const Section& s) {
 			std::pair<int, double> cls = s.closest(mp.first, predicates);
 			if ( cls.first == -1 ) {
@@ -236,13 +243,16 @@ public:
 			wstring unit = s.units[cls.first];
 			return std::make_tuple(unit, cls.second);
 		};
+		
 		// For a cut below the lowest or above the highest.
 		if ( a_idx <= 0 ) {
 			return closest_single(*this->sections.front());
 		}
+		
 		if ( a_idx  >= this->sections.size() ) {
 			return closest_single(*this->sections.back());
 		}
+		
 		auto closest_middle = [&]( const point2& pt_a, const point2& pt_b ) {
 			// Finally evaluate the full transition.
 			std::tuple<int, int, double> clst = this->closest_between(a_idx, pt_a, pt_b, mp.second, predicates);
@@ -260,11 +270,11 @@ public:
 			}
 			return std::make_tuple(unit, std::get<2>(clst));
 		};
-	
-	
+		
 		// Check if it crosses a fault and then, evaluate the cross section in the side normally, but move the point to the fault in the other.
 		a_idx--;
 		std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(mp.first, mp.second);
+		
 		if ( g0(crosses) < 0 ) {
 			std::tuple<point2, double> closest_in_line = point_line_projection( mp.first, this->sections[a_idx+1]->lines[g2(crosses)] );
 			return closest_middle( mp.first, g0(closest_in_line) );
@@ -272,6 +282,7 @@ public:
 			std::tuple<point2, double> closest_in_line = point_line_projection( mp.first, this->sections[a_idx]->lines[g1(crosses)] );
 			return closest_middle( g0(closest_in_line), mp.first );
 		}
+		
 		return closest_middle( mp.first, mp.first );
 	}
 	std::tuple<wstring, double> closest(const point3& pt) const;
@@ -281,42 +292,61 @@ public:
 };
 
 class ModelPython : public Model {
+	pydict filter_lines( bool ext, const wstring& ft ) const;
 public:
+	
 	ModelPython(const pyobject& bbox,
 	            const pyobject& map, 
 	            const pyobject& topography,
-	            const pylist& sections);
+	            const pylist& sections,
+		    const pydict& lines);
 	
 	ModelPython(const pyobject& bbox,
 	            const pyobject& basepoint,
 	            const pyobject& direction,
 	            const pyobject& map, 
 	            const pyobject& topography,
-	            const pylist& sections);
+	            const pylist& sections,
+		    const pydict& lines);
 	
 	// fill geological model.
-	void fill_model( const pyobject& topography, const pylist& sections );
+	void fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types );
 	
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
 	void set_matches(const pylist& matching);
-	pydict get_faults() const;
-	pydict get_not_extended() const;
+	
+	pydict get_lines( ) const;
+	pydict get_not_extended_lines() const;
+	
+	pydict get_fracts( ) const;
+	pydict get_not_extended_fracts() const;
+	
+	pydict get_faults( ) const;
+	pydict get_not_extended_faults() const;
+	
+	pydict get_veins( ) const;
+	pydict get_not_extended_veins() const;
 	
 	pylist get_matches() const;
+	
 	// Methods to query matches.
 	pylist possible_closest(const pyobject& pt) const;
 	pylist pybbox() const;
+	
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;
 	pytuple closest(const pyobject& pt) const;
 	pytuple closest_topo(const pyobject& pt) const;
+	
 	double signed_distance( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_bounded( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const;
+	
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;
 	pydict intersect_topography(const pydict& topography_info) const;
+	pytuple find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
 
 	pydict info() const;
 	double height(const pyobject& pt) const;

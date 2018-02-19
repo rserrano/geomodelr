@@ -21,6 +21,7 @@ import datetime
 import numpy as np
 import sys
 import cpp
+from versions import upgrade_model
 
 from numpy import linalg as la
 
@@ -79,11 +80,15 @@ class GeologicalModel(cpp.Model):
             import geomodelr
             mfile = open('/path/to/your/version.json')
             geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
-
+        
         Args:
             (dict) geolojson: The Geological JSON.
         """
+        
         self.geojson = geolojson
+        
+        upgrade_model( self.geojson )
+
         sections = []
         
         geomap = []
@@ -140,12 +145,14 @@ class GeologicalModel(cpp.Model):
                     sect = [feature['name'], feature['transform']['height'], cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
                     sections.append(sect) 
         
+
         # Obtain the possible farthest cuts to add triangles towards them.
         bbox = self.geojson['bbox']
+        lines = self.geojson['properties']['lines']
         if orientation == 'horizontal':
-            super(GeologicalModel, self).__init__(bbox, geomap, topography, sections)
+            super(GeologicalModel, self).__init__(bbox, geomap, topography, sections, lines)
         else:
-            super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections)
+            super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections, lines)
         
         self.make_matches()
         

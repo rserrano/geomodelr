@@ -19,6 +19,11 @@
 
 import numpy as np
 import flopy as fp
+from math import ceil,floor
+
+from datetime import datetime
+import time
+from copy import deepcopy
 
 class LENGTH_UNIT:
     UNDEFINED = 0
@@ -35,13 +40,13 @@ class TIME_UNIT:
     YEARS = 5
 
 class ALGORITHM:
-    REGULAR = 'regular'
-    ADAPTIVE = 'adaptive'
+    REGULAR = u'regular'
+    ADAPTIVE = u'adaptive'
 
 def create_modflow_inputs(name, model, units_data,
     length_units=LENGTH_UNIT.METERS, rows=100, cols=100, layers=100,
     bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.SECONDS, 
-    algorithm=ALGORITHM.REGULAR):
+    algorithm=ALGORITHM.REGULAR,faults_data={},faults_method=u'regular'):
     """
     Generates the DIS, BAS, LPF and NAM files, which are used by classical
     MODFLOW processors. The user has to import the NAM file from his MODFLOW
@@ -77,6 +82,14 @@ def create_modflow_inputs(name, model, units_data,
 
         (string) algorithm: grid generation algorithm (see: class ALGORITHM)
 
+        (dict) faults_data: the dictionary keys correpond to the fault names
+        and the items are tuples with 4 values: (Kh_x,ani,Kv,i_bound).
+
+        (unicode) faults_method: it is equal to "regular" if the hydraulic conductivity
+        values of the fault are aligned with the XYZ axes (princial axes) or
+        it is equal to "vectorial" if the hydraulic conductivity values of
+        the fault are aligned with the fault plane.
+
     """
 
     if (bbox is None):
@@ -98,6 +111,13 @@ def create_modflow_inputs(name, model, units_data,
 
     bottom_min = bbox[2] + 1E-5
 
+    if (len(faults_data))>0 and (faults_method!=u'regular'):
+        faults_keys = faults_data.keys()
+        faults_v = faults_data.values()
+        faults_data_aux = { faults_keys[k]: (faults_v[k][0],np.random.rand(),faults_v[k][1],faults_v[k][2]) for k in range(len(faults_data)) }
+        faults_data = deepcopy(faults_data_aux)
+        del(faults_data_aux)
+
     # Define Z-top
     for i in np.arange(rows):
         yp = Y_sup - (2*i+1)*dY/2.0
@@ -110,7 +130,7 @@ def create_modflow_inputs(name, model, units_data,
 
     if ((Z_top_min-bottom_min)/layers < dz_min):
         layers = int((Z_top_min-bottom_min)/dz_min)
-    
+
     if (algorithm == 'regular'):
 
         Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
@@ -122,7 +142,14 @@ def create_modflow_inputs(name, model, units_data,
             bottom_min,units_data,angle,dz_min)
 
     K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
-        units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY)
+        units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
+
+    if len(faults_data)>0:
+        faults_intersections(model.faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
+            dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method)
+
+    if not(np.isscalar(I_bound)):
+        cells_checker(I_bound,rows,cols,layers)
 
     #  ------- Flowpy Packages ----
     # Grid
@@ -137,8 +164,6 @@ def create_modflow_inputs(name, model, units_data,
         top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
         itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
 
-    #dis.sr=geo
-
     # Variables for the BAS package
     bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
 
@@ -152,6 +177,258 @@ def create_modflow_inputs(name, model, units_data,
     return(output)
 
 # ===================== AUXILIAR FUNCTIONS ========================
+
+def neighboring_cells(i,j,k,layers,rows,cols,I_bound):
+
+    """
+    checks if a cell has only one cell connected at the most.
+    
+    Args:
+        (int) i,j,k : position of the given cell.
+
+        (int) rows: number of rows in the MODFLOW model.
+
+        (int) cols: number of cols in the MODFLOW model.
+
+        (int) layers: number of layers in the MODFLOW model.
+
+        (numpy.array) I_bound: 3D-block array of the ibound data.
+    """
+
+    cell_ibound = np.zeros(6)
+    if (j>0):
+        cell_ibound[0] = I_bound[k,i,j-1]
+    if (j<cols-2):
+        cell_ibound[1] = I_bound[k,i,j+1]
+    if (i>0):
+        cell_ibound[2] = I_bound[k,i-1,j]
+    if (i<rows-2):
+        cell_ibound[3] = I_bound[k,i+1,j]
+    if (k>0):
+        cell_ibound[4] = I_bound[k-1,i,j]
+    if (k<layers-2):
+        cell_ibound[5] = I_bound[k+1,i,j]
+
+    return np.sum(cell_ibound)
+
+def cells_checker(I_bound,rows,cols,layers):
+    """
+    deactivates some cells which are hydraulically isolated or have
+    just one connected cell.
+    
+    Args:
+        (numpy.array) I_bound: 3D-block array of the ibound data.
+
+        (int) rows: number of rows in the MODFLOW model.
+
+        (int) cols: number of cols in the MODFLOW model.
+
+        (int) layers: number of layers in the MODFLOW model.
+    """
+    for i in range(rows):
+        for j in range(cols):
+            for k in range(layers):
+                if neighboring_cells(i,j,k,layers,rows,cols,I_bound) < 2:
+                    I_bound[k,i,j]=0
+
+
+def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
+    dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method):
+
+    """
+    Intersecets the faults of the model with cells of the grid.
+    
+    Args:
+        (dict) faults: dictionary of the faults geometry.
+
+        (dict) faults_data: the dictionary keys correpond to the fault names
+        and the items are tuples with 4 values: (Kh_x,ani,Kv,i_bound).
+
+        (int) rows: number of rows in the MODFLOW model.
+
+        (int) cols: number of cols in the MODFLOW model.
+
+        (int) layers: number of layers in the MODFLOW model.
+
+        (numpy.array) Z_top: topogrphy of the grid model.
+
+        (numpy.array) Z_bottoms: bottoms of the layers.
+
+        (float) X_inf: x coordinate of lower left corner of the grid.
+
+        (float) Y_inf: y coordinate of lower left corner of the grid.
+
+        (float) dX: spacings along a col.
+
+        (float) dY: spacings along a row.
+
+        (numpy.array) K_hor: 3D-block array of the horizontal hydraulic conductivity.
+
+        (numpy.array) K_ver: 3D-block array of the vertical hydraulic conductivity.
+
+        (numpy.array) K_anisotropy_hor: 3D-block array of the horizontal anisotropy.
+
+        (numpy.array) I_bound: 3D-block array of the ibound data.
+
+        (unicode) faults_method: it is equal to "regular" if the hydraulic conductivity
+        values of the fault are aligned with the XYZ axes (princial axes) or
+        it is equal to "vectorial" if the hydraulic conductivity values of
+        the fault are aligned with the fault plane.
+
+
+    """
+
+    corner  = np.array([X_inf,Y_inf,0.0])
+    count_tri = -1
+    cell =np.array([[-dX/2,-dY/2,0],[dX/2,-dY/2,0],[dX/2,dY/2,0],[-dX/2,dY/2,0],
+        [-dX/2,-dY/2,0],[dX/2,-dY/2,0],[dX/2,dY/2,0],[-dX/2,dY/2,0]])
+    h_xyz = np.array([dX,dY,0])/2.0
+
+    epsilon = 1e-5
+    
+    anisotropy_bool = not(np.isscalar(K_anisotropy_hor))
+    ibound_bool = not(np.isscalar(I_bound))
+
+    for name,fault in faults.iteritems():
+        Data = faults_data[name]
+        for plane in fault:
+            fplane = np.array(plane)
+
+            #count_tri += 1
+            x0 = fplane[0]-corner; B = fplane[1]-corner; C = fplane[2]-corner
+            nv = np.cross(B-x0,C-x0); nv /= np.linalg.norm(nv)
+            fdata = get_fault_Hydro_data(Data,nv,faults_method)
+            nv_abs = np.abs(nv)
+            normal_vecs = [B-x0, C-B, x0-C]
+            normal_vecs[0] /= np.linalg.norm(normal_vecs[0])
+            normal_vecs[1] /= np.linalg.norm(normal_vecs[1])
+            normal_vecs[2] /= np.linalg.norm(normal_vecs[2])
+
+            max_vals = np.max(fplane,0) - corner
+            min_vals = np.min(fplane,0) - corner
+
+            j_min = int(max(ceil(min_vals[0]/dX),1)); j_max = int(min(ceil(max_vals[0]/dX),cols))            
+            i_min = int(max(ceil(min_vals[1]/dY),1)); i_max = int(min(ceil(max_vals[1]/dY),rows))
+
+            for i in range(i_min-1,i_max):
+                yc = (i)*dY
+                I = rows - (i+1)
+                for j in range(j_min-1,j_max):
+                    xc = (j)*dX
+
+                    for L in range(layers):
+                        if L>0:
+                            z_up = Z_bottoms[L-1,I,j]; z_low = Z_bottoms[L,I,j]
+                        else:
+                            z_up = Z_top[I,j]; z_low = Z_bottoms[0,I,j]
+
+                        if max(z_low,min_vals[2]) < min(z_up,max_vals[2]):
+
+                            center_cell = np.array([xc+dX/2,yc+dY/2,(z_up+z_low)/2.0])
+                            D = np.dot(x0-center_cell,nv)
+                                                        
+                            h_xyz[2] = (z_up-z_low)/2.0
+                            r = np.dot(nv_abs,h_xyz)
+                            
+                            if abs(D)<=r+epsilon:
+                                a_cell = x0-center_cell
+                                b_cell = B-center_cell
+                                c_cell = C-center_cell
+                                for p in range(3):
+                                    nv_tri = normal_vecs[p]
+                                    for q in range(3):                                        
+                                        bool_cross = eval_proy(a_cell, b_cell, c_cell,cross_e(q,nv_tri),h_xyz,epsilon)
+
+                                        if bool_cross:
+                                            break
+
+                                    if bool_cross:
+                                            break
+
+                                if not(bool_cross):
+                                    K_ver[L,I,j] = fdata[2]
+                                    K_hor[L,I,j] = fdata[0]
+                                    if anisotropy_bool:
+                                        K_anisotropy_hor[L,I,j] = fdata[1]
+                                    if ibound_bool:
+                                        I_bound[L,I,j] = fdata[3]
+   
+def cross_e(k,vec):
+    """
+    cross product between the canonical vector ek and a given vector, i.e,
+    ek x vec.
+    
+    Args:
+        (int) k: integer of the canonical vector, e.g, e1 = (1,0,0)
+
+        (numpy.array) vec: vector.
+    """
+    if k==0:
+        return np.array([0,-vec[2],vec[1]])
+    elif k==1:
+        return np.array([vec[2],0,-vec[0]])
+    else:
+        return np.array([-vec[1],vec[0],0])
+
+def eval_proy(a,b,c,vec,h_xyz,epsilon):
+    """
+    Determines if a triangle and a box have a separeted axis.
+    (See Seperating Axis Therom or SAT)
+    
+    Args:
+        (numpy.array) a,b,c: corners of the triangle.
+
+        (numpy.array) vec: vector of the axis.
+
+        (numpy.array) h_xyz: size of the box (hx, hy, hz).
+
+        (float) epsilon: numerical error allowed.
+
+    """
+    
+    pa = np.dot(a,vec)
+    pb = np.dot(b,vec)
+    pc = np.dot(c,vec)
+    r = np.dot(np.abs(vec),h_xyz)
+    b1 = min(pa,pb,pc)>r+epsilon
+    b2 = max(pa,pb,pc)< -(r+epsilon)
+    if b1 or b2:
+        return True
+    else:
+        return False
+
+def get_fault_Hydro_data(data,nv,f_method):
+
+    """
+    Gets the hydraulic parameters of a triangle of a fault depending of f_method.
+    
+    Args:
+        (tuple) data: hydraulic parameters (Kh_x,ani,Kv,i_bound)
+
+        (numpy.array) nv: normal vector of a triangle plane.
+
+        (unicode) f_method: faults method.
+
+    """
+
+    if f_method==u'regular':
+        return data
+    else:
+        eps_angle = 0.98480775301220802 # cos(10)
+        Kh = data[0]; Kv = data[2]; ibound = data[3]
+
+        if abs(nv[0])>eps_angle:
+            return (Kv,Kh/Kv,Kh,ibound)
+        elif abs(nv[1])>eps_angle:
+            return (Kh,Kv/Kh,Kh,ibound)
+        elif abs(nv[2])>eps_angle:
+            return (Kh,1,Kv,ibound)
+        else:
+            bus_v = np.cross(nv,np.array([nv[1],-nv[0],0.]))
+            bus_v /= np.linalg.norm(bus_v)
+            data_aprox = Kh*np.abs(bus_v)+Kv*np.abs(nv)
+            return (data_aprox[0],data_aprox[1]/data_aprox[0],data_aprox[2],ibound)
+
 
 def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,
     dX,dY,bottom_min, units_data):
@@ -256,14 +533,11 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
 
             xp = X_inf + (2*j+1)*dX/2.0
             z_max = Z_top[i,j]
-
-            dz = (z_max - bottom_min)/layers
-            
+            dz = (z_max - bottom_min)/layers            
             zl = z_max-dz
 
-            z_mean,change = find_unit_limits(model, xp, yp, z_max,
-                zl, 1E-3)
-
+            #z_mean,change = find_unit_limits(model, xp, yp, z_max, zl, 1E-3)
+            z_mean,change = find_unit_limits_CPP(model, xp, yp, z_max, zl, 1E-3)
             Z_Bool_Top[i,j] = change
 
             if change:
@@ -289,24 +563,23 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
 
             for j in np.arange(cols):
 
-                xp = X_inf + (2*j+1)*dX/2.0
-                
+                xp = X_inf + (2*j+1)*dX/2.0                
                 zp = Z_bottoms[Count_Lay][i,j]
                 #zl = zp - (zp- bottom_min)/(layers-L)
                 zl = (Z_top[i,j]*(layers-(L+1)) + bottom_min*(L+1))/layers
                 
+                #z_mean,change = find_unit_limits(model, xp, yp, zp, zl,1E-3)
+                z_mean,change = find_unit_limits_CPP(model, xp, yp, zp, zl, 1E-3)
 
-                z_mean,change = find_unit_limits(model, xp, yp, zp, zl,
-                    1E-3)
-
-                if (change) & (not(Z_Bool_Top[i,j])):
+                if (change) and (not(Z_Bool_Top[i,j])):
                     Pos_List.append((i,j))
 
                 Z_Bool_Bot[i,j] = change
                 Z_Layer_L[i,j] = min(z_mean - zp,-dz_min) + zp
 
 
-        if (np.sum(Z_Bool_Top & Z_Bool_Bot) == 0):
+        #if (np.sum(Z_Bool_Top & Z_Bool_Bot) == 0):
+        if not(np.any(Z_Bool_Top & Z_Bool_Bot)):
 
             Z_bottoms[Count_Lay][Z_Bool_Bot | np.logical_not(Z_Bool_Top)] = Z_Layer_L[Z_Bool_Bot | np.logical_not(Z_Bool_Top)]
             Z_Bool_Top = Z_Bool_Top | Z_Bool_Bot
@@ -333,7 +606,7 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
     return((Z_bottoms,layers))
 
 def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,
-    dX,dY):
+    dX,dY,faults_data):
     """
     Generates the hidraulic conductivy and I_bound (active or not active) matrices.
     
@@ -358,7 +631,7 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
         
     """
 
-    aux_data=np.array(units_data.values())
+    aux_data=np.array(units_data.values() + faults_data.values())
     anisotropy_bool = np.max(aux_data[:,1])==np.min(aux_data[:,1])
     ibound_bool = np.max(aux_data[:,3])==np.min(aux_data[:,3])
 
@@ -404,8 +677,13 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
                     I_bound[L,i,j] = Data[3]
 
     return((K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var))
+    
+def find_unit_limits_CPP(model, xp, yp, z_max, z_min, eps):
+    return model.find_unit_limits(xp, yp, z_max, z_min, eps)    
 
 def find_unit_limits(model, xp, yp, z_max, z_min, eps):
+
+    #return model.find_unit_limits(xp, yp, z_max, z_min, eps)
     """
     Given two points with the same x and y coordinates, and different z
     coordinates, it determines if exist a unit change between these points.
@@ -432,7 +710,7 @@ def find_unit_limits(model, xp, yp, z_max, z_min, eps):
     z_mean = (z_max+z_min)/2.0
     Unit_mean = model.closest([xp, yp, z_mean])[0]
 
-    if (Unit_max == Unit_mean) & (Unit_min == Unit_mean):
+    if (Unit_max == Unit_mean) and (Unit_min == Unit_mean):
         change = False
     else:
         change = True
@@ -444,7 +722,7 @@ def find_unit_limits(model, xp, yp, z_max, z_min, eps):
                 z_min = z_mean
             else:
                 z_min = z_mean
-                Unit_min == Unit_mean
+                Unit_min = Unit_mean
 
             z_mean = (z_max+z_min)/2.0
             Unit_mean = model.closest([xp, yp, z_mean])[0]
@@ -496,7 +774,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
         if i>0:
             I = i-1
 
-            if not(Z_Bool_Top[I,j]) | (Mat_Order[i,j]<Mat_Order[I,j]):
+            if not(Z_Bool_Top[I,j]) or (Mat_Order[i,j]<Mat_Order[I,j]):
                 
                 dz=Z_Bottoms[Layer][i,j]-Z_Bottoms[Layer][I,j]
 
@@ -517,7 +795,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
         if i< (Rows-1):
             I = i +1
 
-            if not(Z_Bool_Top[I,j]) | (Mat_Order[i,j]<Mat_Order[I,j]):
+            if not(Z_Bool_Top[I,j]) or (Mat_Order[i,j]<Mat_Order[I,j]):
 
                 dz=Z_Bottoms[Layer][i,j]-Z_Bottoms[Layer][I,j]
 
@@ -538,7 +816,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
         if j>0:
             J = j-1
 
-            if not(Z_Bool_Top[i,J]) | (Mat_Order[i,j]<Mat_Order[i,J]):
+            if not(Z_Bool_Top[i,J]) or (Mat_Order[i,j]<Mat_Order[i,J]):
 
                 dz=Z_Bottoms[Layer][i,j]-Z_Bottoms[Layer][i,J]
 
@@ -559,7 +837,7 @@ def Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_Bottoms,Layer,
         if j<Cols-1:
             J = j+1
 
-            if not(Z_Bool_Top[i,J]) | (Mat_Order[i,j]<Mat_Order[i,J]):
+            if not(Z_Bool_Top[i,J]) or (Mat_Order[i,j]<Mat_Order[i,J]):
                 
                 dz=Z_Bottoms[Layer][i,j]-Z_Bottoms[Layer][i,J]
 

@@ -23,5 +23,6 @@
 #include "match.hpp"
 #include "model.hpp"
 #include "faults.hpp"
+#include "speed_up.hpp"
 
 #endif
