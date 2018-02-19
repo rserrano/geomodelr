@@ -23,6 +23,7 @@
 // ====================== AUXILIAR FUNCTIONS =================================
 // Converts the python dictionary of faults into a C++ map.
 //      faults_python: python dictionary of faults.
+
 map<wstring, vector<triangle_pt> > pydict_to_map(const pydict& faults_python){
 
     pylist dict_keys = faults_python.keys();

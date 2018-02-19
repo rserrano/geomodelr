@@ -220,9 +220,9 @@ BOOST_PYTHON_MODULE(cpp)
 	
 	// Main exported class, Model.
 	python::class_<ModelPython>("Model", python::init<const pylist&, const pyobject&, const pyobject&, const pyobject&,
-					         const pyobject&, pylist&>())
+					         const pyobject&, pylist&, pydict&>())
 					    .def(python::init<const pylist&, const pyobject&,
-					    	 const pyobject&, pylist&>())
+					    	 const pyobject&, pylist&, pydict&>())
 					    .def("make_matches", &ModelPython::make_matches)
 					    .def("possible_closest", &ModelPython::possible_closest, python::args("point"), doc_possible_closest)
 					    .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
@@ -240,8 +240,14 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("info", &ModelPython::info)
 					    .add_property("bbox", &ModelPython::pybbox)
 					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches)
+					    .add_property("lines", &ModelPython::get_lines)
+					    .add_property("not_extended_lines", &ModelPython::get_not_extended_lines)
 					    .add_property("faults", &ModelPython::get_faults)
-					    .add_property("not_extended_faults", &ModelPython::get_not_extended);
+					    .add_property("not_extended_faults", &ModelPython::get_not_extended_faults)
+					    .add_property("fracts", &ModelPython::get_fracts)
+					    .add_property("not_extended_fracts", &ModelPython::get_not_extended_fracts)
+					    .add_property("veins", &ModelPython::get_veins)
+					    .add_property("not_extended_veins", &ModelPython::get_not_extended_veins);
 
 }
 

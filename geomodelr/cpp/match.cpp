@@ -265,7 +265,7 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	return test_start( l_a, l_b, true  );
 }
 
-std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Match::match_lines()
+std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Match::match_lines( const map<wstring, wstring>& feature_types )
 {
 	/*
 	Creates the fault planes given the cross sections with faults with the same name.
@@ -373,6 +373,11 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 	}
 	vector<value_f> envelopes;
 	for ( auto it = this->faults.begin(); it != this->faults.end(); it++ ) {
+		wstring ft = feature_types.find(it->first)->second;
+		if ( ft != L"FAULT" ) {
+			// Don't check other types that are not faults.
+			continue;
+		}
 		const auto& triangles = it->second;
 		for ( size_t i = 0; i < triangles.size(); i++ ) {
 			const auto& tr = triangles[i];
