@@ -62,6 +62,13 @@ geomodelr.model module
          boost::python::tuple closest_topo(ModelPython
          {lvalue},boost::python::api::object)
 
+   **find_unit_limits((Model)arg1, (float)arg2, (float)arg3,
+   (float)arg4, (float)arg5, (float)arg6) -> tuple :**
+
+      C++ signature :
+         boost::python::tuple find_unit_limits(ModelPython
+         {lvalue},double,double,double,double,double)
+
    **height((Model)arg1, (object)point) -> float :**
 
       Returns: the height at the given point at the topography.
@@ -86,12 +93,12 @@ geomodelr.model module
       C++ signature :
          boost::python::dict info(ModelPython {lvalue})
 
-   **intersect_plane(plane)**
+   **intersect_plane((Model)arg1, (list)arg2) -> dict :**
 
       Intersects a plane with the faults of the Geological Model.
 
       Takes a plane represented with its four corners and returns the
-      set  of lines that intersect that plane with the faults.
+      set of lines that intersect that plane with the faults.
 
       Args:
          (list) plane: list with the four corners of the plane that we
@@ -99,27 +106,39 @@ geomodelr.model module
 
       Returns:
          (dict): a dictionary with fault names as keys, and lines,
-         (list of points) as values. The coordinates go from the
-         lower left corner, (0.0, 0.0).
+         (list of points) as values. The coordinates go from the lower
+         left corner, (0.0, 0.0).
 
-   **intersect_planes(planes)**
+      C++ signature :
+         boost::python::dict intersect_plane(ModelPython
+         {lvalue},boost::python::list)
+
+   **intersect_planes((Model)arg1, (list)arg2) -> dict :**
 
       Intersects a set of planes with the faults of the Geological
-      Model.
-
-      Takes a set of plane represented with its four corners and
-      returns the set  of lines that intersect that plane with the
+      Model. Takes a set of plane represented with its four corners
+      and returns the set of lines that intersect that plane with the
       faults. The coordinates start from the first plane lower corner,
       and increase by dist(plane[i][0], plane[i][1]) for the next
       plane.
 
       Args:
          (list) plane: List with planes. Each plane has a list with
-         four corners  that we want to intersect the fault with.
+         four corners that we want to intersect the fault with.
 
       Returns:
          (dict): a dictionary with fault names as keys, and lines,
-         (list of points)  as values.
+         (list of points) as values.
+
+      C++ signature :
+         boost::python::dict intersect_planes(ModelPython
+         {lvalue},boost::python::list)
+
+   **intersect_topography((Model)arg1, (dict)arg2) -> dict :**
+
+      C++ signature :
+         boost::python::dict intersect_topography(ModelPython
+         {lvalue},boost::python::dict)
 
    **inverse_point((Model)arg1, (object)internal_point) -> tuple :**
 
@@ -209,6 +228,7 @@ geomodelr.model module
 
       Args:
          (string) unit: The unit to measure the signed distance to
+
          (tuple) point: The three coordinates (esting, norting,
          altitute a.s.l) of the point in the given coordinate system.
 
@@ -236,6 +256,7 @@ geomodelr.model module
 
       Args:
          (string) unit: The unit to measure the signed distance to
+
          (tuple) point: The three coordinates (esting, norting,
          altitute a.s.l) of the point in the given coordinate system.
 
@@ -263,6 +284,7 @@ geomodelr.model module
 
       Args:
          (string) unit: The unit to measure the signed distance to
+
          (tuple) point: The three coordinates (esting, norting,
          altitute a.s.l) of the point in the given coordinate system.
 
@@ -297,12 +319,38 @@ geomodelr.model module
 geomodelr.cpp module
 ====================
 
+**geomodelr.cpp.calculate_section_bbox((object)arg1, (object)arg2,
+(object)arg3, (float)arg4) -> tuple :**
+
+   C++ signature :
+      boost::python::tuple
+      calculate_section_bbox(boost::python::api::object,boost::python::api::object,boost::python::api::object,double)
+
+**geomodelr.cpp.extend_line((bool)arg1, (object)arg2, (list)arg3) ->
+list :**
+
+   C++ signature :
+      boost::python::list
+      extend_line(bool,boost::python::api::object,boost::python::list)
+
 **geomodelr.cpp.faultplane_for_lines((list)arg1, (list)arg2) -> list
 :**
 
    C++ signature :
       boost::python::list
       faultplane_for_lines(boost::python::list,boost::python::list)
+
+**geomodelr.cpp.find_faults_intersection((dict)arg1, (list)arg2) ->
+dict :**
+
+   C++ signature :
+      boost::python::dict
+      find_faults_intersection(boost::python::dict,boost::python::list)
+
+**geomodelr.cpp.join_lines_tree_test((list)arg1) -> list :**
+
+   C++ signature :
+      boost::python::list join_lines_tree_test(boost::python::list)
 
 **geomodelr.cpp.set_verbose((bool)verbose) -> None :**
 
@@ -317,6 +365,13 @@ geomodelr.cpp module
 
    C++ signature :
       void set_verbose(bool)
+
+**geomodelr.cpp.topography_intersection((dict)arg1, (dict)arg2) ->
+dict :**
+
+   C++ signature :
+      boost::python::dict
+      topography_intersection(boost::python::dict,boost::python::dict)
 
 
 geomodelr.utils module
