@@ -803,7 +803,12 @@ pydict ModelPython::filter_lines( bool ext, const wstring& ft ) const {
 	for ( auto it = this->global_faults.begin(); it != this->global_faults.end(); it++ ) {
 		if ( ft != L"ALL" ) 
 		{
-			wstring lft = (this->feature_types.find(it->first))->second;
+			auto itf = this->feature_types.find(it->first);
+			// Avoid seg fault, but should not happen.
+			if ( itf == this->feature_types.end() ) {
+				continue;
+			}
+			wstring lft = itf->second;
 			if ( lft != ft ) {
 				continue;
 			}
