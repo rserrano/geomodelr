@@ -157,8 +157,8 @@ def create_modflow_inputs(name, model, units_data,
     #geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
         #lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
 
-    mf_handle = fp.modflow.mf.Modflow(modelname=name,namefile_ext='nam',
-        version='mf2005')
+    mf_handle = fp.modflow.mf.Modflow(modelname=name,namefile_ext='nam')
+    
     # Variables for the Dis package
     dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
         top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
@@ -289,8 +289,9 @@ def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_i
     anisotropy_bool = not(np.isscalar(K_anisotropy_hor))
     ibound_bool = not(np.isscalar(I_bound))
 
-    for name,fault in faults.iteritems():
-        Data = faults_data[name]
+    #for name,fault in faults.iteritems():
+    for name,Data in faults_data.iteritems():
+        fault = faults[name]
         for plane in fault:
             fplane = np.array(plane)
 
@@ -580,8 +581,8 @@ def adaptive_grid(model,rows,cols,layers, Z_top,X_inf,Y_sup,
 
         #if (np.sum(Z_Bool_Top & Z_Bool_Bot) == 0):
         if not(np.any(Z_Bool_Top & Z_Bool_Bot)):
-
-            Z_bottoms[Count_Lay][Z_Bool_Bot | np.logical_not(Z_Bool_Top)] = Z_Layer_L[Z_Bool_Bot | np.logical_not(Z_Bool_Top)]
+            Z_bool_aux = Z_Bool_Bot | np.logical_not(Z_Bool_Top)
+            Z_bottoms[Count_Lay][Z_bool_aux] = Z_Layer_L[Z_bool_aux]
             Z_Bool_Top = Z_Bool_Top | Z_Bool_Bot
 
             Layer_Correction(Pos_List,Mat_Order,Z_Bool_Top,Z_top,Z_bottoms,
