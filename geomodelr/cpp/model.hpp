@@ -227,7 +227,7 @@ public:
 		if ( this->match.size()+1 != this->sections.size() ) {
 			throw GeomodelrException("You need to call make_matches before using this function.");
 		}
-		
+
 		std::pair<point2, double> mp = this->model_point(pt);
 		
 		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
@@ -243,7 +243,7 @@ public:
 			wstring unit = s.units[cls.first];
 			return std::make_tuple(unit, cls.second);
 		};
-		
+
 		// For a cut below the lowest or above the highest.
 		if ( a_idx <= 0 ) {
 			return closest_single(*this->sections.front());

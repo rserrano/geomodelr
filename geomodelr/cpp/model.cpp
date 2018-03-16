@@ -30,6 +30,7 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 	point2 b1(g0(g1(bbox)), g1(g1(bbox)));
 	point2 b2(g0(g0(bbox)), g1(g1(bbox)));
 	point2 b3(g0(g1(bbox)), g1(g0(bbox)));
+
 	auto cut = [base_point, direction]( point2& v ) {
 		geometry::subtract_point(v, base_point);
 		double norm = std::sqrt(gx(v)*gx(v) + gy(v)*gy(v));

@@ -17,8 +17,10 @@
 */
 #ifndef GEOMODELR_SECTION_HPP
 #define GEOMODELR_SECTION_HPP
+
+#include "speed_up.hpp"
 #include "basic.hpp"
-#include<set>
+#include <set>
 
 class Model;
 class Match;
@@ -43,6 +45,8 @@ protected:
 	std::set<line_anchor> anchored_lines;
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.
+	vector<rtree_seg *> poly_lines;
+	vector<rtree_seg *> fault_lines;
 	
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
@@ -55,7 +59,9 @@ protected:
 				it != this->polidx->qend(); it++ ) {
 				// Check the actual distance to a polygon.
 				int idx = g2(*it);
+				// Esta funcion también
 				double poldist = geometry::distance(this->polygons[idx], pt);
+				//double auxxx = distace_point_geometry(pt, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -64,6 +70,29 @@ protected:
 		return ret;
 	}
 public:
+
+	double point_poly_distance(const point2& pt, const polygon& poly, const line& poly_lines) const{
+		return geometry::distance(pt, poly_lines);
+	}
+
+	geometry::model::multi_polygon<polygon> intersected_point(const point2& pt, int npts, double rad) const{
+
+		// Declare the point_circle strategy
+	    geometry::strategy::buffer::point_circle point_strategy(npts);
+
+	    // Declare other strategies
+	    geometry::strategy::buffer::distance_symmetric<double> distance_strategy(rad);
+	    geometry::strategy::buffer::join_round join_strategy;
+	    geometry::strategy::buffer::end_round end_strategy;
+	    geometry::strategy::buffer::side_straight side_strategy;
+
+	    // Create the buffer of a multi point
+	    geometry::model::multi_polygon<polygon> result;
+	    geometry::buffer(pt, result, distance_strategy, side_strategy, join_strategy, end_strategy, point_strategy);
+
+	    return result;
+	}
+
 	template<typename Predicates>
 	std::pair<int, double> closest( const point2& p, const Predicates& predicates ) const {
 		if ( this->polidx == nullptr )
@@ -77,9 +106,11 @@ public:
 		
 		bool new_to_check;
 		std::set<int> checked;
+
 		
 		do {
 			new_to_check = false;
+			// Chequear esta funcion poniendole salidas
 			for ( auto it = this->polidx->qbegin( geometry::index::nearest(p, knear) and geometry::index::satisfies(predicates) );
 				it != this->polidx->qend(); it++ ) {
 				// Skip already checked.
@@ -98,7 +129,9 @@ public:
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
+				
 				double dist = geometry::distance(p, this->polygons[idx]);
+				//double auxxx = distace_point_geometry(p, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
 				if ( dist < mindist ) {
 					mindist = dist;
 					minidx = idx;
