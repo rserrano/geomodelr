@@ -16,6 +16,7 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 #include "speed_up.hpp"
+#include "model.hpp"
 #include <algorithm>    // std::min_element, std::max_elemen
 #include <stdlib.h>
 #include <iomanip>

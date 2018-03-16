@@ -19,11 +19,13 @@
 #define GEOMODELR_SPEED_UP_HPP
 
 #include "basic.hpp"
-#include "model.hpp"
+//#include "model.hpp"
 #include <math.h>
 
 using std::cout;
 using std::endl;
+
+class Model;
 
 std::pair<double, bool> find_unit_limits_cpp(const Model* model,double xp, double yp,
 	double z_max, double z_min, double eps);
