@@ -343,6 +343,41 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(pos_cls[0][2], 0.0)
         self.assertAlmostEqual(pos_cls[1][2], 0.25)
         self.assertAlmostEqual(pos_cls[2][2], 1.0)
+
+    def test_closest_fault(self):
+
+        xy = np.array([0,1,2])
+        points=[]
+        for i in range(3):
+            for j in range(3):
+                points.append([xy[j],xy[i]])
+
+        polygons_1 = [[[3,4,7,6]],[[0,1,4,3]],[[1,2,5,8,7,4]]]
+        polygons_2 = [[[3,4,7,6]],[[4,5,8,7]],[[0,1,4,3]],[[1,2,5,4]]]
+
+        units_1 = ['unit1', 'unit2', 'unit3']
+        units_2 = ['unit1', 'unit2', 'unit2', 'unit3']
+        lines = [[1,4,7]]
+        #lines=[]
+        lnames = ['fault1']
+        #lanmes = []
+        model = cpp.Model([0,0,0,2,1,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
+            ["B-B", 1., points, polygons_2, units_2, lines, lnames, []]], { "fault1": "FAULT" })
+        model.make_matches()
+
+        y_line = lambda u,v: np.sqrt((u-1)**2 + (v-1)**2)/( v-1 + np.sqrt((u-1)**2 + (v-1)**2))
+
+        n = 10000
+
+        for k in range(n):
+            p_xz = np.random.rand(2)+1.0
+            py = np.random.rand()
+            y_val = y_line(p_xz[0],p_xz[1])
+            unit = model.closest([p_xz[0],py,p_xz[1]])[0]
+            # if py>y_val:
+            #     self.assertEqual(unit,u'unit2')
+            # else:
+            #     self.assertEqual(unit,u'unit3')
     
     # Test the inverse point, plus other possible_closest and closest tests.
     def test_point_inverse(self):
@@ -653,7 +688,7 @@ class TestGeoModelR(unittest.TestCase):
         Bounding_Box = geo_model.bbox
         file_name = 'Files_Test'
 
-        if True:
+        if False:
             modflow.create_modflow_inputs(file_name,geo_model,units_data,
             length_units=2, rows=Rows, cols=Cols,layers=Layers,
             bbox  = Bounding_Box, angle = Angle, dz_min=DZ, time_units=4,
@@ -768,16 +803,20 @@ class TestGeoModelR(unittest.TestCase):
         total_time = end_time - start_time
         #print 'Total plane time HIDRO: ', total_time.total_seconds(), ' s'        
         faults_size=[5,3,4,3]
-        lines_size=[[9,5,23,61,19],[16,10,12],[4,13,18,30],[58,39,60]]
+        #lines_size=[[9,5,23,61,19],[16,10,12],[4,13,18,30],[58,39,60]]
+        lines_size=[[9,5,23,61,19],[16,10,12],[3,13,15,30],[58,39,60]]
         c_fp=-1
         for name,fp in Fault_int.iteritems():
             c_fp+=1
-            self.assertEqual(len(fp),faults_size[c_fp])
+            #print '\n', len(fp)
+            self.assertEqual(len(fp),faults_size[c_fp])            
             c_ls=0
             for ls in fp:
+                #print len(ls),
                 self.assertEqual(len(ls),lines_size[c_fp][c_ls])
                 c_ls+=1
  
+        print '\n'
         # topography
         topo = geo_model.geojson[u'features'][0][u'transform']
         start_time = datetime.now()
@@ -786,13 +825,15 @@ class TestGeoModelR(unittest.TestCase):
         total_time = end_time - start_time
         #print 'Total topography time HIDRO: ', total_time.total_seconds(), ' s', '\n'
         faults_size=[7,8,1,1]
-        lines_size=[[898,35,44,3,153,11,47],[12,39,40,9,27,7,126,10],[587],[1077]]
+        lines_size=[[898,35,44,3,153,11,47],[12,39,40,9,27,7,126,10],[565],[1077]]
         c_fp=-1
         for name,fp in Fault_int.iteritems():
             c_fp+=1
-            self.assertEqual(len(fp),faults_size[c_fp])
+            #print '\n', len(fp)
+            self.assertEqual(len(fp),faults_size[c_fp])            
             c_ls=0
             for ls in fp:
+                #print len(ls),
                 self.assertEqual(len(ls),lines_size[c_fp][c_ls])
                 c_ls+=1
 
