@@ -105,7 +105,7 @@ double distance_point_geometry(const point2& pt, const polygon& poly,const rtree
     line ray = circle_line_intersection(pt, poly_dist, returned_values[0]);
     double ray_length = geometry::length(ray);
 
-    /*std::cerr << "Resultados: " <<std::setprecision(10) << poly_dist << "\t" << geometry::length(ray) << std::endl << std::endl;
+    /*std::cerr << "Resultados: " <<std::setprecision(10) << poly_dist << "\t" << geometry::length(ray) << std::endl;
     std::cerr << "Rayo: " << geometry::wkt(ray) << std::endl;*/
 
     for (auto& fault_line: faults){
