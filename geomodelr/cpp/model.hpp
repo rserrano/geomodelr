@@ -48,6 +48,7 @@ protected:
 	
 	std::pair<double, double> cuts_range;
 	bbox3 bbox;
+	bbox3 abbox;
 	
 	point2 base_point;
 	point2 direction;
@@ -164,7 +165,7 @@ protected:
 	vector<Possible> all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const;
 	
 	template<typename Predicates>
-	std::tuple<int, int, double> closest_between( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut, const Predicates& predicates ) const {
+	std::tuple<int, int, double> closest_identified_sections( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut, const Predicates& predicates ) const {
 		/* Returns the closest formation to a model. */
 		double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
 		double cut_rem = cut - this->cuts[a_idx];
@@ -188,37 +189,9 @@ protected:
 		}
 		return std::make_tuple(possible[minidx].a_match, possible[minidx].b_match, mindist);
 	}
-	std::tuple<int, int, double> closest_between( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut ) const;
 	
-public:
-	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox, const point2& basepoint, const point2& direction); // Sections perpendicular to surface.
-	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox); // Horizontal sections.
-	virtual ~Model();
-	
-	double signed_distance( const wstring& unit, const point3& pt ) const;
-	// In this case the bounding box bounds all the solids.
-	double signed_distance_bounded( const wstring& unit, const point3& pt ) const;
-	// In this case the solids are not bounded by the bounding box, only by the topography.
-	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
-
-	map<wstring,vector<line>> intersect_plane(const line_3d& plane) const;
-	map<wstring,vector<line>> intersect_planes(const vector<line_3d>& planes) const;
-	map<wstring,vector<line>> intersect_topography(const vector<vector<double>>& topography_array, double z_max, double z_min,
-		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
-
-	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
-
-	// Methods to create matches or load them from files.
-	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
-	void set_matches(const vector< std::tuple< std::tuple<wstring, wstring>, vector<std::pair<int, int>> > >& matching);
-	
-	// Methods to query matches.
-	vector<std::tuple<wstring, double, double>> possible_closest(const point3& pt) const;
-	std::pair<point2, double> model_point(const point3& pt) const;
-
-	point3 inverse_point(const point2& pt, double cut) const;
 	template<typename Predicates>
-	std::tuple<wstring, double> closest( const point3& pt, const Predicates& predicates ) const {
+	std::tuple<wstring, double> closest_basic( const point2& ft, double sd, const Predicates& predicates ) const {
 		
 		if ( not this->sections.size() ) {
 			return std::make_tuple(wstring(L"NONE"), std::numeric_limits<double>::infinity());
@@ -228,15 +201,13 @@ public:
 			throw GeomodelrException("You need to call make_matches before using this function.");
 		}
 
-		std::pair<point2, double> mp = this->model_point(pt);
-		
-		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
+		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);
 		
 		size_t a_idx = it - this->cuts.begin();
 		
 		// If it's behind the last or above the first, return the closest in the section.
 		auto closest_single = [&](const Section& s) {
-			std::pair<int, double> cls = s.closest(mp.first, predicates);
+			std::pair<int, double> cls = s.closest(ft, predicates);
 			if ( cls.first == -1 ) {
 				return std::make_tuple(wstring(L"NONE"), cls.second);
 			}
@@ -255,7 +226,7 @@ public:
 		
 		auto closest_middle = [&]( const point2& pt_a, const point2& pt_b ) {
 			// Finally evaluate the full transition.
-			std::tuple<int, int, double> clst = this->closest_between(a_idx, pt_a, pt_b, mp.second, predicates);
+			std::tuple<int, int, double> clst = this->closest_identified_sections(a_idx, pt_a, pt_b, sd, predicates);
 			int a_match = std::get<0>(clst);
 			int b_match = std::get<1>(clst);
 			wstring unit;
@@ -273,21 +244,80 @@ public:
 		
 		// Check if it crosses a fault and then, evaluate the cross section in the side normally, but move the point to the fault in the other.
 		a_idx--;
-		std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(mp.first, mp.second);
+		std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(ft, sd);
 		
 		if ( g0(crosses) < 0 ) {
-			std::tuple<point2, double> closest_in_line = point_line_projection( mp.first, this->sections[a_idx+1]->lines[g2(crosses)] );
-			return closest_middle( mp.first, g0(closest_in_line) );
+			std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx+1]->lines[g2(crosses)] );
+			return closest_middle( ft, g0(closest_in_line) );
 		} else if ( g0(crosses) > 0 ) {
-			std::tuple<point2, double> closest_in_line = point_line_projection( mp.first, this->sections[a_idx]->lines[g1(crosses)] );
-			return closest_middle( g0(closest_in_line), mp.first );
+			std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx]->lines[g1(crosses)] );
+			return closest_middle( g0(closest_in_line), ft );
 		}
 		
-		return closest_middle( mp.first, mp.first );
+		return closest_middle( ft, ft );
 	}
-	std::tuple<wstring, double> closest(const point3& pt) const;
 	
+	// Returns the closest unit in the coordinate system of parallel cross sections ( u, z, v ).
+	template<typename Predicates>
+	std::tuple<wstring, double> closest_aligned( const point3& pt, const Predicates& predicates ) const {
+		point2 p( gx(pt), gy(pt) );
+		double s = gz(pt);
+		return this->closest_basic( p, s, predicates );
+	}
+	// Returns the closest unit in the coordinate system defined for the model (x, y, z).
+	template<typename Predicates>
+	std::tuple<wstring, double> closest( const point3& pt, const Predicates& predicates ) const {
+		std::pair<point2, double> mp = this->model_point(pt);
+		return this->closest_basic( mp.first, mp.second, predicates );
+	}
+
+public:
+	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
+              const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox,
+	      const point2& basepoint, const point2& direction); // Sections perpendicular to surface.
+	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
+	      const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox); // Horizontal sections.
+	virtual ~Model();
+	
+	map<wstring,vector<line>> intersect_plane(const line_3d& plane) const;
+	map<wstring,vector<line>> intersect_planes(const vector<line_3d>& planes) const;
+	map<wstring,vector<line>> intersect_topography(const vector<vector<double>>& topography_array, double z_max, double z_min,
+		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
+
+	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
+
+	// Methods to create matches or load them from files.
+	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
+	void set_matches(const vector< std::tuple< std::tuple<wstring, wstring>, vector<std::pair<int, int>> > >& matching);
+	
+	std::pair<point2, double> model_point(const point3& pt) const;
+
+	point3 inverse_point(const point2& pt, double cut) const;
+	
+	// CLOSES FUNCTIONS.
+	// Returns the closest unit with its distance in the coordinate system of the model.
+	std::tuple<wstring, double> closest( const point3& pt ) const;
+	// Returns the closest unit with its distance in the coordinate system aligned to the cross sections.
+	std::tuple<wstring, double> closest_aligned( const point3& pt ) const;
+	// Returns the closest but also air if there's topography in the coordinate system of the model.
 	std::tuple<wstring, double> closest_topo(const point3& pt) const;
+	// Returns the closest but also air if there's topography in the cs aligned to the cross sections.
+	std::tuple<wstring, double> closest_topo_aligned(const point3& pt) const;
+	
+	// In this case the signed distance is not bounded by anything.
+	double signed_distance( const wstring& unit, const point3& pt ) const;
+	// In this case the bounding box bounds all the solids.
+	double signed_distance_bounded( const wstring& unit, const point3& pt ) const;
+	// In this case the solids are not bounded by the bounding box, only by the topography.
+	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
+	
+	// In this case the signed distance is not bounded by anything. cs of cross sections.
+	double signed_distance_aligned( const wstring& unit, const point3& pt ) const;
+	// In this case the bounding box bounds all the solids. cs of cross sections.
+	double signed_distance_bounded_aligned( const wstring& unit, const point3& pt ) const;
+	// In this case the solids are not bounded by the bounding box, only by the topography. cs of cross sections.
+	double signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const;
+	
 	double height(const point2& pt) const;
 };
 
@@ -296,12 +326,14 @@ class ModelPython : public Model {
 public:
 	
 	ModelPython(const pyobject& bbox,
+		    const pyobject& abbox,
 	            const pyobject& map, 
 	            const pyobject& topography,
 	            const pylist& sections,
 		    const pydict& lines);
 	
 	ModelPython(const pyobject& bbox,
+		    const pyobject& abbox,
 	            const pyobject& basepoint,
 	            const pyobject& direction,
 	            const pyobject& map, 
@@ -330,18 +362,24 @@ public:
 	
 	pylist get_matches() const;
 	
-	// Methods to query matches.
-	pylist possible_closest(const pyobject& pt) const;
 	pylist pybbox() const;
-	
+	pylist pyabbox() const;
+
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;
+	// Methods to query matches.
 	pytuple closest(const pyobject& pt) const;
+	pytuple closest_aligned(const pyobject& pt) const;
 	pytuple closest_topo(const pyobject& pt) const;
-	
+	pytuple closest_topo_aligned(const pyobject& pt) const;
+
 	double signed_distance( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_bounded( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const;
+	
+	double signed_distance_aligned( const wstring& unit, const pyobject& pt ) const;
+	double signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const;
+	double signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const;
 	
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;

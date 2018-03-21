@@ -23,8 +23,10 @@
 #include <iostream>
 #include <array>
 
-Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, const point2& base_point, const point2& direction )
-: bbox(bbox), base_point(base_point), direction(direction), topography(nullptr), horizontal(false)
+Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, 
+              const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox,
+	      const point2& base_point, const point2& direction )
+: bbox(bbox), abbox(abbox), base_point(base_point), direction(direction), topography(nullptr), horizontal(false)
 {
 	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
 	point2 b1(g0(g1(bbox)), g1(g1(bbox)));
@@ -46,8 +48,9 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 	this->cuts_range = std::make_pair(cuts[0], cuts[3]);
 }
 
-Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox )
-: bbox(bbox), base_point(), direction(), topography(nullptr), horizontal(true)
+Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox,
+              const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox)
+: bbox(bbox), abbox(abbox), base_point(), direction(), topography(nullptr), horizontal(true)
 {
 	this->cuts_range = std::make_pair(g2(g0(bbox)), g2(g1(bbox)));
 }
@@ -275,6 +278,79 @@ double Model::signed_distance_unbounded( const wstring& unit, const point3& pt )
 	return std::max(sdist, distz);
 }
 
+double Model::signed_distance_aligned( const wstring& unit, const point3& pt ) const {
+	
+	auto all_except = [unit](const value_f& v) {
+		const wstring& s = g1(v);
+		return s != unit;
+	};
+	
+	auto just = [unit](const value_f& v) {
+		const wstring& s = g1(v);
+		return s == unit;
+	};
+	
+	std::tuple<wstring, double> inside = this->closest_aligned( pt, just );
+	std::tuple<wstring, double> outside = this->closest_aligned( pt, all_except );
+	if ( g0(inside) == L"NONE" ) {
+		return g1(inside);
+	}
+	return g1(inside) - g1(outside);
+}
+
+double Model::signed_distance_bounded_aligned( const wstring& unit, const point3& pt ) const {
+	double sdist = this->signed_distance_aligned( unit, pt );
+	bool outside = false;
+	double odist = 0.0;
+	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
+	
+	double x = gx(pt);
+	double y = gy(pt);
+	double z = gz(pt);
+	
+	double minx = g0(g0(this->abbox));
+	double miny = g1(g0(this->abbox));
+	double minz = g2(g0(this->abbox));
+	
+	double maxx = g0(g1(this->abbox));
+	double maxy = g1(g1(this->abbox));
+	
+	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
+	double maxz = this->height( point2( gx(in), gy(in) ) );
+	
+	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
+	
+	for ( size_t i = 0; i < 6; i++ ) {
+		if ( dists[i] >= 0 ) {
+			outside = true;
+			odist += dists[i]*dists[i];
+		} else {
+			idist = std::max(idist, dists[i]);
+		}
+	}
+	
+	if ( outside ) {
+		return std::max(sdist, std::sqrt(odist));
+	}
+	return std::max(sdist, idist);
+}
+double Model::signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const {
+	double sdist = this->signed_distance_aligned( unit, pt );
+	
+	double x = gx(pt);
+	double y = gy(pt);
+	double z = gz(pt);
+	
+	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
+	double maxz = this->height( point2( gx(in), gy(in) ) );
+	double distz = z - maxz;
+	
+	if ( distz >= 0 ) {
+		return std::max(sdist, distz);
+	}
+	
+	return std::max(sdist, distz);
+}
 
 vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
 	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, always_true);
@@ -430,45 +506,18 @@ std::pair<double, bool> Model::find_unit_limits(double xp, double yp,double z_ma
 	return  find_unit_limits_cpp(this, xp, yp, z_max, z_min, eps);
 }
 
-vector<std::tuple<wstring, double, double>> Model::possible_closest( const point3& pt ) const {
-	if ( not this->sections.size() ) {
-		return vector<std::tuple<wstring, double, double>>();
-	}
-	if ( this->match.size()+1 != this->sections.size() ) {
-		throw GeomodelrException("You need to call make_matches before using this function.");
-	}
-	std::pair<point2, double> mp = this->model_point(pt);
-	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), mp.second);
-	size_t a_idx = it - this->cuts.begin();
-	// If it's behind the last or above the first, return the closest in the section.
-	
-	if ( a_idx <= 0 or a_idx >= this->sections.size() ) {
-		const Section& s = ( a_idx <=0 ) ? *(this->sections.front()) : *(this->sections.back());
-		std::pair<int, double> cls = s.closest(mp.first, always_true);
-		wstring unit = s.units[cls.first];
-		vector<std::tuple<wstring, double, double>> ret = { std::make_tuple(unit, cls.second, cls.second) };
-		return ret;
-	}
-	
-	a_idx--;
-	
-	vector<Model::Possible> ap = this->all_closest(a_idx, mp.first, mp.first);
-	
-	vector<std::tuple<wstring, double, double>> ret;
-	
-	for ( size_t i = 0; i < ap.size(); i++ ) {
-		int a_match = ap[i].a_match;
-		int b_match = ap[i].b_match;
-		wstring unit = ( a_match != -1 ) ? this->sections[a_idx]->units[a_match] : this->sections[a_idx+1]->units[b_match];
-		ret.push_back(std::make_tuple(unit, ap[i].a_dist, ap[i].b_dist));
-	}
-	
-	return ret;
-
-}
-
 std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
 	if ( this->topography != nullptr ) {
+		if ( this->height(point2(gx(pt), gy(pt))) < gz(pt) ) {
+			return std::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
+		}
+	}
+	return this->closest(pt);
+}
+
+std::tuple<wstring, double> Model::closest_topo_aligned( const point3& pt ) const {
+	if ( this->topography != nullptr ) {
+		point3 in = this->inverse_point(point2(gx(pt), gy(pt)), gz(pt));
 		if ( this->height(point2(gx(pt), gy(pt))) < gz(pt) ) {
 			return std::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
 		}
@@ -480,6 +529,10 @@ std::tuple<wstring, double> Model::closest( const point3& pt ) const {
 	return this->closest(pt, always_true);
 }
 
+std::tuple<wstring, double> Model::closest_aligned( const point3& pt ) const {
+	return this->closest_aligned(pt, always_true);
+}
+
 double Model::height( const point2& pt ) const {
 	if ( this->topography != nullptr ) {
 		return this->topography->height(pt);
@@ -487,25 +540,19 @@ double Model::height( const point2& pt ) const {
 	return std::numeric_limits<double>::infinity();
 }
 
-pylist ModelPython::possible_closest(const pyobject& pypt) const {
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& p2 = python::extract<double>(pypt[2]);
-	point3 pt(p0, p1, p2);
-	vector<std::tuple<wstring, double, double>> possible = ((Model *)this)->possible_closest(pt);
-	pylist ret;
-	for ( size_t i = 0; i < possible.size(); i++ ) {
-		ret.append(python::make_tuple(g0(possible[i]), g1(possible[i]), g2(possible[i])));
-	}
-	return ret;
-}
-
-
 pytuple ModelPython::closest_topo( const pyobject& pypt ) const {
 	double p0 = python::extract<double>(pypt[0]);
 	double p1 = python::extract<double>(pypt[1]);
 	double p2 = python::extract<double>(pypt[2]);
 	std::tuple<wstring, double> ret = ((Model *)this)->closest_topo( point3( p0, p1, p2 ) );
+	return python::make_tuple(g0(ret), g1(ret));
+}
+
+pytuple ModelPython::closest_topo_aligned( const pyobject& pypt ) const {
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
+	std::tuple<wstring, double> ret = ((Model *)this)->closest_topo_aligned( point3( p0, p1, p2 ) );
 	return python::make_tuple(g0(ret), g1(ret));
 }
 
@@ -549,6 +596,16 @@ pytuple ModelPython::closest(const pyobject& pypt) const {
 	const double& p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
 	std::tuple<wstring, double> res = ((Model *)this)->closest( pt );
+	return python::make_tuple(g0(res), g1(res));
+}
+
+pytuple ModelPython::closest_aligned(const pyobject& pypt) const {
+	// python exposed functions to search for the closest formation.
+	const double& p0 = python::extract<double>(pypt[0]);
+	const double& p1 = python::extract<double>(pypt[1]);
+	const double& p2 = python::extract<double>(pypt[2]);
+	point3 pt(p0, p1, p2);
+	std::tuple<wstring, double> res = ((Model *)this)->closest_aligned( pt );
 	return python::make_tuple(g0(res), g1(res));
 }
 
@@ -691,7 +748,9 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 		const pylist& heights = python::extract<pylist>(topography["heights"]);
 		this->topography = new TopographyPython(point, sample, dims, heights);
 	}
+
 	size_t nsects = python::len(sections);
+	
 	for ( size_t i = 0; i < nsects; i++ ) {
 		// Get all the information sent from python to create each cross section.
 		if ( python::len( sections[i] ) != 9 ) {
@@ -715,18 +774,22 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 	for ( size_t i = 0; i < this->sections.size(); i++ ) {
 		this->cuts.push_back(this->sections[i]->cut);
 	}
+	
 	pylist keys = feature_types.keys();
 	for ( int i = 0; i < python::len( keys ); i++ ) {
 		this->feature_types[python::extract<wstring>(keys[i])] = python::extract<wstring>(feature_types[keys[i]]);
 	}
 }
 
-ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point, 
+// Model python for VERTICAL cross sections
+ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& base_point, 
 		    	 const pyobject& direction, const pyobject& map, 
 		    	 const pyobject& topography, const pylist& sections, 
 			 const pydict& feature_types ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
+	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
+			 std::tuple<double, double, double>(python::extract<double>(abbox[3]),python::extract<double>(abbox[4]),python::extract<double>(abbox[5]))),
 		point2( python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
 		point2( python::extract<double>(direction[0]),  python::extract<double>(direction[1])  ))
 {
@@ -739,12 +802,14 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& base_point,
 	this->fill_model( topography, sections, feature_types );
 }
 
-
-ModelPython::ModelPython( const pyobject& bbox, const pyobject& map, 
+// Model python for HORIZONTAL cross sections.
+ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& map, 
 			  const pyobject& topography, const pylist& sections,
 			  const pydict& feature_types ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
-			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))))
+			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
+	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
+			 std::tuple<double, double, double>(python::extract<double>(abbox[3]),python::extract<double>(abbox[4]),python::extract<double>(abbox[5]))))
 {
 	pytuple sbbox = python::make_tuple( bbox[0], bbox[1], bbox[3], bbox[4] );
 	
@@ -878,16 +943,39 @@ pylist ModelPython::pybbox( ) const {
 	return p;
 }
 
+pylist ModelPython::pyabbox( ) const {
+	pylist p;
+	p.append( g0( g0( this->abbox ) ) );
+	p.append( g1( g0( this->abbox ) ) );
+	p.append( g2( g0( this->abbox ) ) );
+	p.append( g0( g1( this->abbox ) ) );
+	p.append( g1( g1( this->abbox ) ) );
+	p.append( g2( g1( this->abbox ) ) );
+	return p;
+}
+
 double ModelPython::signed_distance( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 	
+double ModelPython::signed_distance_aligned( const wstring& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
 double ModelPython::signed_distance_bounded( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_bounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
+double ModelPython::signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance_bounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
 double ModelPython::signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_unbounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
+double ModelPython::signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const {
+	return ((Model *)this)->signed_distance_unbounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
 pytuple calculate_section_bbox( const pyobject& bbox, const pyobject& point, const pyobject& direction, double cut ) {
@@ -935,5 +1023,4 @@ pytuple calculate_section_bbox( const pyobject& bbox, const pyobject& point, con
 	}
 	throw GeomodelrException("The vector direction is invalid.");
 }
-
 

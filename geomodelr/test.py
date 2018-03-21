@@ -209,7 +209,7 @@ class TestGeoModelR(unittest.TestCase):
         polygons_2 = [[[0, 1, 2, 3], [7, 6, 5, 4]], [[4, 5, 6, 7]], [[1, 10, 8]], [[1, 9, 10]], [[8, 10, 11, 2]]]
         units_2 = ["unit1", "unit2", "unit3", "unit1", "unit4"]
         
-        model = cpp.Model([0,0,0,2,2,2],[1, 0], [0, 1], {}, {}, [["A-A", 11, points_1, polygons_1, units_1, [], [], []], ["B-B", 12, points_2, polygons_2, units_2, [], [], []]], {})
+        model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[1, 0], [0, 1], {}, {}, [["A-A", 11, points_1, polygons_1, units_1, [], [], []], ["B-B", 12, points_2, polygons_2, units_2, [], [], []]], {})
         
         model.make_matches()
         self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (0, 3), (2, 2), (3, 4)])])
@@ -233,14 +233,17 @@ class TestGeoModelR(unittest.TestCase):
         units_1 = ["unit1", "unit2"]
         units_2 = ["unit1"]
         
-        model = cpp.Model([0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_2, units_2, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_2, units_2, [], [], []]], {})
         model.make_matches()
         self.assertEqual(model.model_point([1.5, 0.1, 1.5]), (1.5, 1.5, 0.1))
-        pos_cls = model.possible_closest((1.5, 1.1, 1.5))
-        self.assertEqual(pos_cls[0][0], 'unit1')
         cls = model.closest((1.5, 1.1, 1.5))
         self.assertEqual(cls[0], 'unit2')
-
+        self.assertAlmostEqual(cls[1], 0.1)
+        ip = model.inverse_point((1.5, 1.1, 1.5))
+        clsa = model.closest_aligned(ip)
+        self.assertEqual(clsa[0], 'unit2')
+        self.assertAlmostEqual(clsa[1], 0.1)
+        
 
     # Test the possible closest, all the units that can be a match given a line.
     def test_possible_closest(self):
@@ -251,32 +254,10 @@ class TestGeoModelR(unittest.TestCase):
         polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
         units_1 = ["unit1", "unit2", "unit3"]
         
-        model = cpp.Model([0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_1, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_1, [], [], []]], {})
         model.make_matches()
         self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (1, 1), (2, 2)])])
         self.assertEqual(model.model_point([1.5, 1.5, 1.5]), (1.5, 1.5, 1.5))
-        pos_cls = model.possible_closest([1.5, 1.5, 1.6])
-        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit2', 'unit3'])
-        self.assertAlmostEqual(pos_cls[0][1], 0.0)
-        self.assertAlmostEqual(pos_cls[0][2], 0.5)
-        self.assertAlmostEqual(pos_cls[1][1], 0.5)
-        self.assertAlmostEqual(pos_cls[1][2], 0.0)
-        
-        pos_cls = model.possible_closest([1.5, 1.5, 1.4])
-        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit2', 'unit3'])
-        self.assertAlmostEqual(pos_cls[0][1], 0.0)
-        self.assertAlmostEqual(pos_cls[0][2], 0.5)
-        self.assertAlmostEqual(pos_cls[1][1], 0.5)
-        self.assertAlmostEqual(pos_cls[1][2], 0.0)
-        
-        pos_cls = model.possible_closest([1.5, 1.5, 1.2])
-        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit1', 'unit2', 'unit3'])
-        self.assertAlmostEqual(pos_cls[0][1], 0.2)
-        self.assertAlmostEqual(pos_cls[0][2], 0.2)
-        self.assertAlmostEqual(pos_cls[1][1], 0.0)
-        self.assertAlmostEqual(pos_cls[1][2], 0.5)
-        self.assertAlmostEqual(pos_cls[2][1], 0.5)
-        self.assertAlmostEqual(pos_cls[2][2], 0.0)
         
         cls_1 = model.closest([1.5, 1.1, 1.2])
         cls_2 = model.closest([1.5, 1.5, 1.2])
@@ -297,7 +278,7 @@ class TestGeoModelR(unittest.TestCase):
         units_1 = ["unit1", "unit2", "unit3"]
         units_2 = ["unit4", "unit5", "unit6"]
         
-        model = cpp.Model([0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
         model.make_matches()
         
         cls_1 = model.closest([1.5, 1.1, 1.2])
@@ -317,36 +298,16 @@ class TestGeoModelR(unittest.TestCase):
         self.assertEqual(cls_5[0], "unit1")
         self.assertAlmostEqual(cls_3[1], 0.1)
         
-        pos_cls = model.possible_closest([1.5, 1.5, 1.2])
-        self.assertEqual(pos_cls[0][0], 'unit6')
-        self.assertEqual(pos_cls[1][0], 'unit2')
-        self.assertAlmostEqual(pos_cls[0][1], 1.0)
-        self.assertAlmostEqual(pos_cls[1][1], 0.0)
-        self.assertAlmostEqual(pos_cls[0][2], 0.0)
-        self.assertAlmostEqual(pos_cls[1][2], 1.0)
-        
         # Evaluate a shared unit, and the rest single units.
         units_1 = ["unit1", "unit2", "unit3"]
         units_2 = ["unit1", "unit5", "unit6"]
         
-        model = cpp.Model([0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
         model.make_matches()
-        pos_cls = model.possible_closest([1.5, 1.5, 1.25])
         
-        self.assertEqual(pos_cls[0][0], 'unit6')
-        self.assertEqual(pos_cls[1][0], 'unit1')
-        self.assertEqual(pos_cls[2][0], 'unit2')
-        self.assertAlmostEqual(pos_cls[0][1], 1.0)
-        self.assertAlmostEqual(pos_cls[1][1], 0.25)
-        self.assertAlmostEqual(pos_cls[2][1], 0.0)
-        
-        self.assertAlmostEqual(pos_cls[0][2], 0.0)
-        self.assertAlmostEqual(pos_cls[1][2], 0.25)
-        self.assertAlmostEqual(pos_cls[2][2], 1.0)
-    
     # Test the inverse point, plus other possible_closest and closest tests.
     def test_point_inverse(self):
-        model = cpp.Model([0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["A-A", 1, [], [], [], [], [], []], ["B-B", 2, [], [], [], [], [], []]], {})
+        model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["A-A", 1, [], [], [], [], [], []], ["B-B", 2, [], [], [], [], [], []]], {})
         
         self.assertAlmostEqual(model.model_point([1,2,3]), (1,3,2))
         self.assertAlmostEqual(model.model_point([3,2,1]), (3,1,2))
@@ -360,14 +321,12 @@ class TestGeoModelR(unittest.TestCase):
         
         model.make_matches()
         self.assertEqual(model.closest([1.5,1.5,1.5]), ('NONE', float('inf')))
-        self.assertEqual(model.possible_closest([1.5, 1.5, 1.5]), [])
         n = la.norm([-1,1])
         
-        model = cpp.Model([0,0,0,2,2,2],[1, 1], list(np.array([-1, 1])/n), {}, {}, [], {})
+        model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[1, 1], list(np.array([-1, 1])/n), {}, {}, [], {})
         model.make_matches()
         
         self.assertEqual(model.closest([1,1,1]), ("NONE", float('inf')))
-        self.assertEqual(model.possible_closest([-1,0,-1]), [])
         mp = model.model_point([1.5,0.5,0.5])
         self.assertAlmostEqual(mp[0], -n/2)
         self.assertAlmostEqual(mp[1], 0.5)
@@ -392,7 +351,7 @@ class TestGeoModelR(unittest.TestCase):
         polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
         units_1 = [u"unít1", u"unót2", u"unét3"]
         
-        model = cpp.Model([0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [[u"A-Á", 1, points_1, polygons_1, units_1, [], [], []], [u"Ñ-Ñ", 2, points_2, polygons_1, units_1, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [[u"A-Á", 1, points_1, polygons_1, units_1, [], [], []], [u"Ñ-Ñ", 2, points_2, polygons_1, units_1, [], [], []]], {})
         model.make_matches()
        	self.assertEqual(model.closest([1.5, 1.5, 1.5])[0], u"unót2")
     
@@ -406,7 +365,7 @@ class TestGeoModelR(unittest.TestCase):
         
         units = ["unit1", "unit1", "unit2", "unit2", "unit3", "unit3", "unit4"]
         
-        model = cpp.Model([0,0,0,3,3,0],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, [], [], []], ["s2", 2, points_2, pols_2, units, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,0],[0,0,0,3,3,0],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, [], [], []], ["s2", 2, points_2, pols_2, units, [], [], []]], {})
         model.make_matches()
         self.assertEqual(model.matches, [((u's1', u's2'), [(0, 0), (1, 0), (1, 1), (2, 2), (3, 2), (3, 3), (4, 4), (5, 4), (5, 5), (6, 6)])])
         
@@ -421,7 +380,7 @@ class TestGeoModelR(unittest.TestCase):
         faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
         faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
         fname = ["F1"]
-        model = cpp.Model([0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" })
+        model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" })
         model.make_matches()
         
         # print [points_1[n] for n in faults_1[0]]
@@ -444,32 +403,10 @@ class TestGeoModelR(unittest.TestCase):
         polygons_1 = [[[0, 1, 4, 3, 2]], [[2, 3, 6, 5]], [[3, 4, 7, 6]]]
         units_1 = ["unit1", "unit2", "unit3"]
         
-        model = cpp.Model([0,0,0,3,3,3], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_1, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_1, [], [], []]], {})
         model.make_matches()
         self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (1, 1), (2, 2)])])
         self.assertEqual(model.model_point([1.5, 1.5, 1.5]), (1.5, 1.5, 1.5))
-        pos_cls = model.possible_closest([1.5, 1.6, 1.5])
-        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit2', 'unit3'])
-        self.assertAlmostEqual(pos_cls[0][1], 0.0)
-        self.assertAlmostEqual(pos_cls[0][2], 0.5)
-        self.assertAlmostEqual(pos_cls[1][1], 0.5)
-        self.assertAlmostEqual(pos_cls[1][2], 0.0)
-        
-        pos_cls = model.possible_closest([1.5, 1.4, 1.5])
-        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit2', 'unit3'])
-        self.assertAlmostEqual(pos_cls[0][1], 0.0)
-        self.assertAlmostEqual(pos_cls[0][2], 0.5)
-        self.assertAlmostEqual(pos_cls[1][1], 0.5)
-        self.assertAlmostEqual(pos_cls[1][2], 0.0)
-        
-        pos_cls = model.possible_closest([1.5, 1.2, 1.5])
-        self.assertEqual(map(lambda v: v[0], pos_cls), ['unit1', 'unit2', 'unit3'])
-        self.assertAlmostEqual(pos_cls[0][1], 0.2)
-        self.assertAlmostEqual(pos_cls[0][2], 0.2)
-        self.assertAlmostEqual(pos_cls[1][1], 0.0)
-        self.assertAlmostEqual(pos_cls[1][2], 0.5)
-        self.assertAlmostEqual(pos_cls[2][1], 0.5)
-        self.assertAlmostEqual(pos_cls[2][2], 0.0)
         
         cls_1 = model.closest([1.5, 1.2, 1.1])
         cls_2 = model.closest([1.5, 1.2, 1.5])
@@ -490,7 +427,7 @@ class TestGeoModelR(unittest.TestCase):
         units_1 = ["unit1", "unit2", "unit3"]
         units_2 = ["unit4", "unit5", "unit6"]
         
-        model = cpp.Model([0,0,0,3,3,3],{}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],{}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
         model.make_matches()
         
         cls_1 = model.closest([1.5, 1.2, 1.1])
@@ -510,33 +447,13 @@ class TestGeoModelR(unittest.TestCase):
         self.assertEqual(cls_5[0], "unit1")
         self.assertAlmostEqual(cls_3[1], 0.1)
         
-        pos_cls = model.possible_closest([1.5, 1.2, 1.5])
-        self.assertEqual(pos_cls[0][0], 'unit6')
-        self.assertEqual(pos_cls[1][0], 'unit2')
-        self.assertAlmostEqual(pos_cls[0][1], 1.0)
-        self.assertAlmostEqual(pos_cls[1][1], 0.0)
-        self.assertAlmostEqual(pos_cls[0][2], 0.0)
-        self.assertAlmostEqual(pos_cls[1][2], 1.0)
-        
         # Evaluate a shared unit, and the rest single units.
         units_1 = ["unit1", "unit2", "unit3"]
         units_2 = ["unit1", "unit5", "unit6"]
         
-        model = cpp.Model([0,0,0,3,3,3], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
         model.make_matches()
-        pos_cls = model.possible_closest([1.5, 1.25, 1.5])
         
-        self.assertEqual(pos_cls[0][0], 'unit6')
-        self.assertEqual(pos_cls[1][0], 'unit1')
-        self.assertEqual(pos_cls[2][0], 'unit2')
-        self.assertAlmostEqual(pos_cls[0][1], 1.0)
-        self.assertAlmostEqual(pos_cls[1][1], 0.25)
-        self.assertAlmostEqual(pos_cls[2][1], 0.0)
-        
-        self.assertAlmostEqual(pos_cls[0][2], 0.0)
-        self.assertAlmostEqual(pos_cls[1][2], 0.25)
-        self.assertAlmostEqual(pos_cls[2][2], 1.0)
-    
     def test_faults_above(self):
         this_dir, this_filename = os.path.split(__file__)
         m = model.model_from_file(os.path.join(this_dir, 'test_files', 'Modelo_Hidro.json'))
@@ -929,7 +846,7 @@ class TestGeoModelR(unittest.TestCase):
         faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
         faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
         fname = ["F1"]
-        model = cpp.Model([0,0,0,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False]]], 
+        model = cpp.Model([0,0,0,4,4,4],[0,0,0,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False]]], 
                                                                  ["s2", 2, points_2, pols_2, units, faults_2, fname, [[0, False]]]], { "F1": "FAULT" })
         model.make_matches()
         
@@ -942,7 +859,7 @@ class TestGeoModelR(unittest.TestCase):
         sfau = set(sum(map(list,fau), []))
         self.assertEqual(len( sfau - sext ), 2)
         self.assertEqual(len( sext ), 28)
-        model = cpp.Model([-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False]]], 
+        model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False]]], 
                                                                     ["s2", 2, points_2, pols_2, units, faults_2, fname, [[0, False]]]], { "F1": "FAULT" })
         model.make_matches()
         ext2 = model.not_extended_faults["F1"]
@@ -951,13 +868,13 @@ class TestGeoModelR(unittest.TestCase):
         sext2 = set(sum(map(list,ext2), []))
         self.assertEqual(len(sext2), 28)
         
-        model = cpp.Model([-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False]]], 
+        model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False]]], 
                                                                     ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" })
         model.make_matches()
         self.assertEqual(len(model.not_extended_faults["F1"]), 36)
         self.assertEqual(len(model.faults["F1"]), 39)
         
-        model = cpp.Model([-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], 
+        model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], 
                                                                     ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" })
         model.make_matches()
         
@@ -968,26 +885,47 @@ class TestGeoModelR(unittest.TestCase):
         faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
         faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
         fname = ["F1"]
-        model = cpp.Model([-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, 
+        model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, 
                           [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False], [0, True]]], 
                            ["s2", 2, points_2, pols_2, units, faults_2, fname, [[0, False], [0, True]]]], { "F1": "FAULT" })
         model.make_matches()
         self.assertEqual(len(model.not_extended_faults["F1"]), 36)
         self.assertEqual(len(model.faults["F1"]), 48)
         
-        model = cpp.Model([-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False], [0, True]]], 
+        model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False], [0, True]]], 
                                                                     ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" })
         model.make_matches()
         
         self.assertEqual(len(model.not_extended_faults["F1"]), 35)
         self.assertEqual(len(model.faults["F1"]), 42)
         
-        model = cpp.Model([-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" } )
+        model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" } )
         model.make_matches()
         
         self.assertEqual(len(model.not_extended_faults["F1"]), 36)
         self.assertEqual(len(model.faults["F1"]), 36)
         
+    def test_aligned(self):
+        # Evaluate a model that has a hole in the middle.
+        points_1 = [[0, 0], [3, 0], [3, 3], [0, 3], [1, 1], [2, 1], [2, 2], [1, 2]]
+        points_2 = [[0, 0], [3, 0], [3, 3], [0, 3]]
+        
+        polygons_1 = [[[0, 1, 2, 3], [7, 6, 5, 4]], [[4, 5, 6, 7]]]
+        polygons_2 = [[[0, 1, 2, 3]]] 
+        
+        units_1 = ["unit1", "unit2"]
+        units_2 = ["unit1"]
+        
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 3], [math.sqrt(2)/2.0, math.sqrt(2)/2.0], {}, {}, [["A-A", -1, points_1, polygons_1, units_1, [], [], []], ["B-B", 1, points_2, polygons_2, units_2, [], [], []]], {})
+        model.make_matches()
+        self.assertEqual(model.model_point([1.5, 0.1, 1.5]), (1.5, 1.5, 0.1))
+        cls = model.closest((1.5, 1.1, 1.5))
+        self.assertEqual(cls[0], 'unit2')
+        self.assertAlmostEqual(cls[1], 0.1)
+        ip = model.inverse_point((1.5, 1.1, 1.5))
+        clsa = model.closest_aligned(ip)
+        self.assertEqual(clsa[0], 'unit2')
+        self.assertAlmostEqual(clsa[1], 0.1)
 
 def main(args=None):
     unittest.main()

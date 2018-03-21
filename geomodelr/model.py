@@ -133,11 +133,19 @@ class GeologicalModel(cpp.Model):
         else:
             base_point = None
             direction = None
-        
+        abbox = [ float('inf'), float('inf'), float('inf'), -float('inf'), -float('inf'), -float('inf') ]
         for idx, feature in enumerate(self.geojson['features']):
             if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
                 if orientation == 'vertical':
                     cut, cs = shared.cross_idx_repr( feature, base_line )
+                    
+                    # To calculate aligned bounding box.
+                    bds = shared.calc_line_bounds( feature['transform']['line'], base_line )
+                    abbox[0] = min( bds[0], abbox[0] )
+                    abbox[3] = max( bds[1], abbox[3] )
+                    abbox[2] = min( cut, abbox[2] )
+                    abbox[5] = max( cut, abbox[5] )
+
                     sect = [feature['name'], cut, cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
                     sections.append(sect)
                 else:
@@ -145,14 +153,20 @@ class GeologicalModel(cpp.Model):
                     sect = [feature['name'], feature['transform']['height'], cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
                     sections.append(sect) 
         
-
         # Obtain the possible farthest cuts to add triangles towards them.
         bbox = self.geojson['bbox']
+        if orientation == 'horizontal':
+            abbox = bbox
+        else:
+            abbox[1] = bbox[2]
+            abbox[4] = bbox[5]
+            
+
         lines = self.geojson['properties']['lines']
         if orientation == 'horizontal':
-            super(GeologicalModel, self).__init__(bbox, geomap, topography, sections, lines)
+            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines)
         else:
-            super(GeologicalModel, self).__init__(bbox, list(base_point), list(direction), geomap, topography, sections, lines)
+            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines)
         
         self.make_matches()
         
