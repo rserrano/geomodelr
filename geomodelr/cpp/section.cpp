@@ -116,9 +116,6 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		this->units.push_back(unit);
 	}
 
-	/*if (poly_segments.size()>0){
-		this->poly_lines = new rtree_l(poly_segments);
-	}*/
 	// Build the rtree.
 	if ( envelopes.size() > 0 ) {
 		this->polidx = new rtree_f( envelopes );
@@ -132,41 +129,14 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		vector<line_segment> fault_segments;
 		for ( size_t j = 0; j < nnodes; j++ ) {
 			pylist pypt = pylist(points[lines[i][j]]);
-			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
-			lin.push_back(aux);
-
-			pypt = pylist(points[lines[i][(j+1)%nnodes]]);
-			point2 aux2 = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
-			fault_segments.push_back(line_segment(aux,aux2));
+			lin.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
 		}
 		if ( not geometry::is_valid(lin) or not geometry::is_simple(lin) ) {
 			continue;
 		}
-		fault_segments.pop_back();
-		this->fault_lines.push_back(new rtree_seg(fault_segments));
 		this->lines.push_back(lin);
 		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
 	}
-
-
-	/*for (auto aux: this->poly_lines){
-		box bx = aux->bounds();
-		for ( auto it = aux->qbegin( geometry::index::intersects(bx)); it != aux->qend(); it++ ) {
-			std::cerr << geometry::wkt((*it)) << std::endl;
-		}
-		std::cerr << "==================================" << std::endl;
-	}*/
-
-	/*for (const auto aux: this->fault_lines){
-		for (auto it = aux->qbegin(geometry::index::contains(aux->bounds())); it != aux->qend(); it++ ) {
-			std::cerr << geometry::wkt((*it)) << std::endl;
-		}
-		std::cerr << "==================================" << std::endl;
-	}*/
-
-	/*if (nlines>0){
-		this->fault_lines = new rtree_l(fault_segments);
-	}*/
 	
 	// Add which are the anchors, (for signaling later), but also extend the previously added lines.
 	size_t nanchs = python::len(anchored_lines);

@@ -304,9 +304,6 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	double odist = 0.0;
 	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
 	
-	double x = gx(pt);
-	double y = gy(pt);
-	double z = gz(pt);
 	
 	double minx = g0(g0(this->abbox));
 	double miny = g1(g0(this->abbox));
@@ -316,7 +313,12 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	double maxy = g1(g1(this->abbox));
 	
 	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
-	double maxz = this->height( point2( gx(in), gy(in) ) );
+
+	double x = gx(in);
+	double y = gy(in);
+	double z = gz(in);
+	
+	double maxz = this->height( point2( x, y ) );
 	
 	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
 	
@@ -337,12 +339,14 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 double Model::signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const {
 	double sdist = this->signed_distance_aligned( unit, pt );
 	
-	double x = gx(pt);
-	double y = gy(pt);
-	double z = gz(pt);
 	
 	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
-	double maxz = this->height( point2( gx(in), gy(in) ) );
+	
+	double x = gx(in);
+	double y = gy(in);
+	double z = gz(in);
+	
+	double maxz = this->height( point2( x, y ) );
 	double distz = z - maxz;
 	
 	if ( distz >= 0 ) {

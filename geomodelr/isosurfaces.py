@@ -105,7 +105,7 @@ def calculate_normals(vertices, simplices):
     v2 = vertices[simplices[:,2]] - vertices[simplices[:,0]]
     return np.cross(v1, v2)
 
-def calculate_isosurface(model, unit, grid_divisions, bounded=True, aligned=False, filter_by_normal=False, normal_upwards=True):
+def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=True ):
     """
     Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in skimage.measure.
     
@@ -128,7 +128,6 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, aligned=Fals
 
         (list) triangles: The list of triangles indexes to vertexes.
     """
-    print "testing"
     bbox = list(model.bbox) if not aligned else list(model.abbox) # Copy so original is not modified.
     if aligned:
         if bounded:
@@ -201,7 +200,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, aligned=Fals
         return outp
     
     if aligned:
-        real_pt = lambda p: model.inverse_point( real_pt_simple( s ) )
+        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
     else:
         real_pt = real_pt_simple
     
