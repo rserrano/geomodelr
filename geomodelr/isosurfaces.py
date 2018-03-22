@@ -105,7 +105,7 @@ def calculate_normals(vertices, simplices):
     v2 = vertices[simplices[:,2]] - vertices[simplices[:,0]]
     return np.cross(v1, v2)
 
-def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=True ):
+def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=False ):
     """
     Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in skimage.measure.
     
