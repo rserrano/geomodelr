@@ -305,12 +305,12 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
 	
 	
-	double minx = g0(g0(this->abbox));
-	double miny = g1(g0(this->abbox));
-	double minz = g2(g0(this->abbox));
+	double minx = g0(g0(this->bbox));
+	double miny = g1(g0(this->bbox));
+	double minz = g2(g0(this->bbox));
 	
-	double maxx = g0(g1(this->abbox));
-	double maxy = g1(g1(this->abbox));
+	double maxx = g0(g1(this->bbox));
+	double maxy = g1(g1(this->bbox));
 	
 	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
 
