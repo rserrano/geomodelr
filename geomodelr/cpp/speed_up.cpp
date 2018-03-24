@@ -42,7 +42,7 @@ std::pair<double, bool> find_unit_limits_cpp(const Model* model, double xp, doub
     return std::make_pair( z_min, true );
 }
 
-line circle_line_intersection(const point2& pt, double R, const line_segment& poly_s){
+line ray_intersection(const point2& pt, double R, const line_segment& poly_s){
 
     double x1 = gx(poly_s.first) - gx(pt); double y1 = gy(poly_s.first) - gy(pt);
     double x2 = gx(poly_s.second) - gx(pt); double y2 = gy(poly_s.second) - gy(pt);
@@ -89,40 +89,20 @@ line circle_line_intersection(const point2& pt, double R, const line_segment& po
 }
 
 double distance_point_geometry(const point2& pt, const polygon& poly,const rtree_seg* poly_seg_tree,
-    const vector<line>& faults){
+    const vector<rtree_seg *>& fault_lines){
 
     double poly_dist = geometry::distance(poly, pt);
 
-    if ((poly_dist==0) or (faults.size()==0)){
+    if ((poly_dist==0) or (fault_lines.size()==0)){
         return poly_dist;
     }
-
     std::vector<line_segment> returned_values;
     poly_seg_tree->query(geometry::index::nearest(pt,1), std::back_inserter(returned_values));
+    line ray = ray_intersection(pt, poly_dist, returned_values[0]);
 
-    //line_segment poly_s = returned_values[0];
-    //returned_values.clear();
-    line ray = circle_line_intersection(pt, poly_dist, returned_values[0]);
-    double ray_length = geometry::length(ray);
-
-    /*std::cerr << "Resultados: " <<std::setprecision(10) << poly_dist << "\t" << geometry::length(ray) << std::endl;
-    std::cerr << "Rayo: " << geometry::wkt(ray) << std::endl;*/
-
-    for (auto& fault_line: faults){
-        /*std::cerr << "Distance fault-polygon: " << std::setprecision(20) << geometry::distance(fault_line,pt) << "\t" << poly_dist << "\t"<< 
-            ray_length  << "\t T_F: " << (geometry::distance(fault_line,pt)<poly_dist) << "\t T_F: " <<
-            (geometry::distance(fault_line,pt) < ray_length) << std::endl;*/
-
-        if (geometry::distance(fault_line,pt)<ray_length){
-            vector<point2> intersect_pt;
-            geometry::intersection(ray,fault_line,intersect_pt);
-            /*std::cerr << "Intersection size: " << intersect_pt.size() << std::endl;
-            for (point2 pt_i:intersect_pt ){
-                std::cerr << geometry::wkt(pt_i)<< std::endl;
-            }*/
-            if (intersect_pt.size()>0){
-                return std::numeric_limits<double>::infinity();
-            }
+    for (auto fault_tree: fault_lines){
+        for ( auto it = fault_tree->qbegin( geometry::index::intersects(ray)); it != fault_tree->qend(); it++ ) {
+            return std::numeric_limits<double>::infinity();
         }
     }
     return poly_dist;

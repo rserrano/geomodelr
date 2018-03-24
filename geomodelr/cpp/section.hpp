@@ -46,6 +46,7 @@ protected:
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.
 	vector<rtree_seg *> poly_lines;
+	vector<rtree_seg *> fault_lines;
 	
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
@@ -63,7 +64,7 @@ protected:
 				std::wcerr << this->units[idx] << std::endl;
 				std::cerr << geometry::wkt(pt) << std::endl;*/
 				//double poldist = geometry::distance(this->polygons[idx], pt);
-				double poldist = distance_point_geometry(pt, this->polygons[idx],this->poly_lines[idx],this->lines);
+				double poldist = distance_point_geometry(pt, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
 				//std::cerr << "distance: " << poldist << std::endl << std::endl;
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
@@ -115,7 +116,7 @@ public:
 				std::wcerr << this->units[idx] << std::endl;
 				std::cerr << geometry::wkt(p) << std::endl;*/
 				//double dist = geometry::distance(p, this->polygons[idx]);
-				double dist = distance_point_geometry(p, this->polygons[idx],this->poly_lines[idx],this->lines);
+				double dist = distance_point_geometry(p, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
 				//std::cerr << "distance: " << dist << std::endl << std::endl;;
 				if ( dist < mindist ) {
 					mindist = dist;

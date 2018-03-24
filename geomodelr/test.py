@@ -323,23 +323,57 @@ class TestGeoModelR(unittest.TestCase):
         #lines=[]
         lnames = ['fault1']
         #lanmes = []
-        model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,2,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
+        model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
             ["B-B", 1., points, polygons_2, units_2, lines, lnames, []]], { "fault1": "FAULT" })
         model.make_matches()
 
         y_line = lambda u,v: np.sqrt((u-1)**2 + (v-1)**2)/( v-1 + np.sqrt((u-1)**2 + (v-1)**2))
 
         n = 10000
-
+        epsilon = 1e-5;
         for k in range(n):
-            p_xz = np.random.rand(2)+1.0
-            py = np.random.rand()
+            p_xz = np.random.rand(2)*(1-2*epsilon) + epsilon +1.0
+            py = np.random.rand()*(1-2*epsilon) + epsilon
             y_val = y_line(p_xz[0],p_xz[1])
             unit = model.closest([p_xz[0],py,p_xz[1]])[0]
-            # if py>y_val:
-            #     self.assertEqual(unit,u'unit2')
-            # else:
-            #     self.assertEqual(unit,u'unit3')
+            if py>y_val:
+                self.assertEqual(unit,u'unit2')
+            else:
+                self.assertEqual(unit,u'unit3')
+
+        # crosses fault
+
+        X = [0, 0.5, 1.5, 2.]
+        Y = [0., 1., 2.]
+        points=[]
+        for i in range(3):
+            for j in range(4):
+                points.append([X[j],Y[i]])
+
+        polygons_1 = [[[4,5,9,8]],[[0,1,5,4]],[[1,3,11,9]]]
+        polygons_2 = [[[4,6,10,8]],[[6,7,11,10]],[[0,2,6,4]],[[2,3,7,6]]]
+
+        lines_1 = [[1,5,9]]
+        lines_2 = [[2,6,10]]
+
+        model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines_1, lnames, []],
+            ["B-B", 1., points, polygons_2, units_2, lines_2, lnames, []]], { "fault1": "FAULT" })
+        model.make_matches()
+
+        for k in range(n):
+            px = np.random.rand()*(2-2*epsilon) + epsilon
+            py = np.random.rand()*(1-2*epsilon) + epsilon
+            pz = np.random.rand()*(1-2*epsilon) + epsilon + 1.0
+            y1 = px - 0.5
+            y2 = 1/pz
+            #print px, py, pz
+            unit = model.closest([px,py,pz])[0]
+            if py>y1:
+                self.assertEqual(unit,u'unit1')
+            elif py>y2:
+                self.assertEqual(unit,u'unit2')
+            else:
+                self.assertEqual(unit,u'unit3')
     
     # Test the inverse point, plus other possible_closest and closest tests.
     def test_point_inverse(self):

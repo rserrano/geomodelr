@@ -31,6 +31,6 @@ std::pair<double, bool> find_unit_limits_cpp(const Model* model,double xp, doubl
 	double z_max, double z_min, double eps);
 
 double distance_point_geometry(const point2& pt, const polygon& poly,const rtree_seg* poly_seg_tree,
-    const vector<line>& faults);
+    const vector<rtree_seg *>& fault_lines);
 
 #endif //GEOMODELR_SPEED_UP_HPP

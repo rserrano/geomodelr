@@ -129,13 +129,23 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		vector<line_segment> fault_segments;
 		for ( size_t j = 0; j < nnodes; j++ ) {
 			pylist pypt = pylist(points[lines[i][j]]);
-			lin.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
+			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
+			lin.push_back(aux);
+
+			pypt = pylist(points[lines[i][(j+1)%nnodes]]);
+			point2 aux2 = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
+			fault_segments.push_back(line_segment(aux,aux2));
 		}
 		if ( not geometry::is_valid(lin) or not geometry::is_simple(lin) ) {
 			continue;
 		}
 		this->lines.push_back(lin);
 		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
+
+		fault_segments.pop_back();
+		if (fault_segments.size()>0){
+			this->fault_lines.push_back(new rtree_seg(fault_segments));
+		}
 	}
 	
 	// Add which are the anchors, (for signaling later), but also extend the previously added lines.
