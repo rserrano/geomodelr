@@ -244,6 +244,22 @@ def cross_idx_repr(geojson, base_line):
     cut = line_side(base_line, line)
     return ( cut, pi )
 
+# Returns the bounds of the cross sections to calculate an aligned bbox.
+def calc_line_bounds(cs_line, base_line):
+    section_dir = np.array(base_line[1])-np.array(base_line[0])
+    nsect = la.norm(section_dir)
+    nvsect = section_dir/nsect
+    v  = np.array(cs_line[0])-np.array(base_line[0])
+    n  = la.norm(v)
+    if n < 1e-10:
+        b0 = 0
+    else:
+        nv = v/n
+        s = nvsect[0]*nv[0] + nvsect[1] * nv[1]
+        b0 = s*n
+    b1 = la.norm(np.array(base_line[1])-np.array(base_line[0])) + b0
+    return (b0, b1)
+
 # returns an encoded string from a unicode, forcing it
 # reaaaally forcing it.
 # This is probably the ugliest function ever.
