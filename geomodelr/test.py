@@ -305,75 +305,6 @@ class TestGeoModelR(unittest.TestCase):
         
         model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 0], [1, 0], {}, {}, [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_1, units_2, [], [], []]], {})
         model.make_matches()
-        
-    def test_closest_fault(self):
-
-        xy = np.array([0,1,2])
-        points=[]
-        for i in range(3):
-            for j in range(3):
-                points.append([xy[j],xy[i]])
-
-        polygons_1 = [[[3,4,7,6]],[[0,1,4,3]],[[1,2,5,8,7,4]]]
-        polygons_2 = [[[3,4,7,6]],[[4,5,8,7]],[[0,1,4,3]],[[1,2,5,4]]]
-
-        units_1 = ['unit1', 'unit2', 'unit3']
-        units_2 = ['unit1', 'unit2', 'unit2', 'unit3']
-        lines = [[1,4,7]]
-        #lines=[]
-        lnames = ['fault1']
-        #lanmes = []
-        model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
-            ["B-B", 1., points, polygons_2, units_2, lines, lnames, []]], { "fault1": "FAULT" })
-        model.make_matches()
-
-        y_line = lambda u,v: np.sqrt((u-1)**2 + (v-1)**2)/( v-1 + np.sqrt((u-1)**2 + (v-1)**2))
-
-        n = 10000
-        epsilon = 1e-5;
-        for k in range(n):
-            p_xz = np.random.rand(2)*(1-2*epsilon) + epsilon +1.0
-            py = np.random.rand()*(1-2*epsilon) + epsilon
-            y_val = y_line(p_xz[0],p_xz[1])
-            unit = model.closest([p_xz[0],py,p_xz[1]])[0]
-            if py>y_val:
-                self.assertEqual(unit,u'unit2')
-            else:
-                self.assertEqual(unit,u'unit3')
-
-        # crosses fault
-
-        X = [0, 0.5, 1.5, 2.]
-        Y = [0., 1., 2.]
-        points=[]
-        for i in range(3):
-            for j in range(4):
-                points.append([X[j],Y[i]])
-
-        polygons_1 = [[[4,5,9,8]],[[0,1,5,4]],[[1,3,11,9]]]
-        polygons_2 = [[[4,6,10,8]],[[6,7,11,10]],[[0,2,6,4]],[[2,3,7,6]]]
-
-        lines_1 = [[1,5,9]]
-        lines_2 = [[2,6,10]]
-
-        model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines_1, lnames, []],
-            ["B-B", 1., points, polygons_2, units_2, lines_2, lnames, []]], { "fault1": "FAULT" })
-        model.make_matches()
-
-        for k in range(n):
-            px = np.random.rand()*(2-2*epsilon) + epsilon
-            py = np.random.rand()*(1-2*epsilon) + epsilon
-            pz = np.random.rand()*(1-2*epsilon) + epsilon + 1.0
-            y1 = px - 0.5
-            y2 = 1/pz
-            #print px, py, pz
-            unit = model.closest([px,py,pz])[0]
-            if py>y1:
-                self.assertEqual(unit,u'unit1')
-            elif py>y2:
-                self.assertEqual(unit,u'unit2')
-            else:
-                self.assertEqual(unit,u'unit3')
     
     # Test the inverse point, plus other possible_closest and closest tests.
     def test_point_inverse(self):
@@ -576,7 +507,7 @@ class TestGeoModelR(unittest.TestCase):
         rt = { v: k for k, v in t.iteritems() }
         
         srt = sorted(usum.items(), key = lambda i: rt[i[0]])
-        self.assertEqual(map( lambda x: x[1], srt ),[117, 43, 68, 7, 43, 5, 1, 52, 1, 6])
+        self.assertEqual(map( lambda x: x[1], srt ),[116, 43, 68, 4, 43, 5, 1, 52, 3, 8])
        
         # Then test the fdm refined grid.
         ref_grid = utils.generate_fdm_grid(query_func, bbox, 5, 5)
@@ -592,23 +523,23 @@ class TestGeoModelR(unittest.TestCase):
         
         # Calculate bounded.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50 )
-        self.assertEqual(len(verts), 11054)
-        self.assertEqual(len(triangs), 22104)
+        self.assertEqual(len(verts), 11030)
+        self.assertEqual(len(triangs), 22056)
         
         # Calculate unbounded
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False )
-        self.assertEqual(len(verts), 8892)
-        self.assertEqual(len(triangs), 17386)
+        self.assertEqual(len(verts), 8869)
+        self.assertEqual(len(triangs), 17340)
         
         # Filter by normal.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
-        self.assertEqual(len(verts), 5864)
-        self.assertEqual(len(triangs), 10529)
+        self.assertEqual(len(verts), 4674)
+        self.assertEqual(len(triangs), 8877)
         
         # Filter by normal, negative.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
-        self.assertEqual(len(verts), 4612)
-        self.assertEqual(len(triangs), 8546)
+        self.assertEqual(len(verts), 4483)
+        self.assertEqual(len(triangs), 8463)
 
     def test_modflow(self):
         
