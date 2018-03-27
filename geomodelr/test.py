@@ -914,8 +914,9 @@ class TestGeoModelR(unittest.TestCase):
         
     def test_aligned(self):
         # Evaluate a model that has a hole in the middle.
-        points_1 = [[0, 0], [3, 0], [3, 3], [0, 3], [1, 1], [2, 1], [2, 2], [1, 2]]
-        points_2 = [[0, 0], [3, 0], [3, 3], [0, 3]]
+        hsq = math.sqrt(2)/2
+        points_1 = [[0, 0], [3*hsq, 0], [3*hsq, 3], [0, 3], [hsq, 1], [2*hsq, 1], [2*hsq, 2], [hsq, 2]]
+        points_2 = [[0, 0], [3*hsq, 0], [3*hsq, 3], [0, 3]]
         
         polygons_1 = [[[0, 1, 2, 3], [7, 6, 5, 4]], [[4, 5, 6, 7]]]
         polygons_2 = [[[0, 1, 2, 3]]] 
@@ -923,16 +924,54 @@ class TestGeoModelR(unittest.TestCase):
         units_1 = ["unit1", "unit2"]
         units_2 = ["unit1"]
         
-        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 3], [math.sqrt(2)/2.0, math.sqrt(2)/2.0], {}, {}, [["A-A", -1, points_1, polygons_1, units_1, [], [], []], ["B-B", 1, points_2, polygons_2, units_2, [], [], []]], {})
+        model = cpp.Model([0,0,0,3,3,3],[-3*hsq/2,0,-3*hsq/2,3*hsq/2,3,3*hsq/2],[0.75, 2.25], [hsq, -hsq], {}, {}, 
+                          [["A-A", -3*hsq/2, points_1, polygons_1, units_1, [], [], []],
+                           ["B-B",  3*hsq/2, points_2, polygons_2, units_2, [], [], []]], {})
+        
         model.make_matches()
-        self.assertEqual(model.model_point([1.5, 0.1, 1.5]), (1.5, 1.5, 0.1))
-        cls = model.closest((1.5, 1.1, 1.5))
-        self.assertEqual(cls[0], 'unit2')
-        self.assertAlmostEqual(cls[1], 0.1)
-        ip = model.inverse_point((1.5, 1.1, 1.5))
-        clsa = model.closest_aligned(ip)
-        self.assertEqual(clsa[0], 'unit2')
-        self.assertAlmostEqual(clsa[1], 0.1)
+        
+        # Test model_point, inverse_point.
+        self.assertAlmostEqual( model.model_point([1.5, 1.5, 0]), (3*hsq/2, 0, 0) )
+        self.assertAlmostEqual( model.model_point([0, 1.5, 0]), (0, 0, -3*hsq/2) )
+        self.assertAlmostEqual( model.inverse_point([0, 0, 0]), (0.75, 2.25, 0) )
+        self.assertAlmostEqual( model.inverse_point((3*hsq, 0, 0)), (2.25,0.75,0) )
+        
+        # Test closest, and closest aligned.
+        dp5 = math.sqrt( 2 * ( 0.05**2 ) )
+        self.assertAlmostEqual(model.closest_aligned(( 3*hsq/2, 1.5,-3*hsq/2+0 )), (u'unit2', 0.0))
+        self.assertAlmostEqual(model.closest_aligned(( 3*hsq/2, 1.5,-3*hsq/2+1*dp5)), (u'unit2', 0.07071067811865475))
+        self.assertAlmostEqual(model.closest_aligned(( 3*hsq/2, 1.5,-3*hsq/2+2*dp5)), (u'unit2', 0.1414213562373095))
+        self.assertAlmostEqual(model.closest_aligned(( 3*hsq/2, 1.5,-3*hsq/2+3*dp5)), (u'unit2', 0.21213203435596423))
+        
+        # Test signed_distance_aligned
+        self.assertAlmostEqual(model.signed_distance_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2+0 )),    0.353553390593)
+        self.assertAlmostEqual(model.signed_distance_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2+1*dp5)), 0.271057599455)
+        self.assertAlmostEqual(model.signed_distance_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2+2*dp5)), 0.188561808316)
+        self.assertAlmostEqual(model.signed_distance_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2+3*dp5)), 0.106066017178)
+        self.assertAlmostEqual(model.signed_distance_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2+0 )),    -0.353553390593)
+        self.assertAlmostEqual(model.signed_distance_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2+1*dp5)), -0.271057599455)
+        self.assertAlmostEqual(model.signed_distance_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2+2*dp5)), -0.188561808316)
+        self.assertAlmostEqual(model.signed_distance_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2+3*dp5)), -0.106066017178)
+        # Test aligned bboxes unbounded.
+        self.assertAlmostEqual(model.abbox, [-3*hsq/2,0,-3*hsq/2,3*hsq/2,3,3*hsq/2])
+        
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-0 )), hsq/2)
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-1*dp5)), hsq/2)
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-2*dp5)), hsq/2)
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-3*dp5)), hsq/2)
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-0 )),-hsq/2)
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-1*dp5)),-hsq/2)
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-2*dp5)),-hsq/2)
+        self.assertAlmostEqual(model.signed_distance_unbounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-3*dp5)),-hsq/2)
+        # Test aligned bboxes bounded.
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-0 )),    hsq/2)
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-3*dp5)), hsq/2)
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-6*dp5)), 6*dp5)
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit1", ( 3*hsq/2, 1.5,-3*hsq/2-9*dp5)), 9*dp5)
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-0 )),    0)
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-1*dp5)), 1*dp5)
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-2*dp5)), 2*dp5)
+        self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-3*dp5)), 3*dp5)
 
 def main(args=None):
     unittest.main()
