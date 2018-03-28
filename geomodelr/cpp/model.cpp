@@ -305,23 +305,27 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
 	
 	
-	double minx = g0(g0(this->bbox));
-	double miny = g1(g0(this->bbox));
-	double minz = g2(g0(this->bbox));
+	double minu = g0(g0(this->abbox));
+	double minv = g1(g0(this->abbox));
+	double minw = g2(g0(this->abbox));
 	
-	double maxx = g0(g1(this->bbox));
-	double maxy = g1(g1(this->bbox));
+	double maxu = g0(g1(this->abbox));
+	double maxv = g1(g1(this->abbox));
+	double maxw = g2(g1(this->abbox));
+	
+	double u = gx(pt);
+	double v = gy(pt);
+	double w = gz(pt);
 	
 	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
-
-	double x = gx(in);
-	double y = gy(in);
-	double z = gz(in);
+	double maxh = this->height( point2( gx(in), gy(in) ) );
+	if ( this->horizontal ) {
+		maxw = maxh;
+	} else {
+		maxv = maxh;
+	}
 	
-	double maxz = this->height( point2( x, y ) );
-	
-	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
-	
+	double dists[6] = { minu - u, minv - v, minw - w, u - maxu, v - maxv, w - maxw };
 	for ( size_t i = 0; i < 6; i++ ) {
 		if ( dists[i] >= 0 ) {
 			outside = true;
@@ -334,6 +338,7 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	if ( outside ) {
 		return std::max(sdist, std::sqrt(odist));
 	}
+	
 	return std::max(sdist, idist);
 }
 double Model::signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const {
