@@ -62,10 +62,12 @@ typedef std::pair<int, bool> line_anchor;
 //typedef std::pair<box, int> value;
 typedef std::tuple<box, wstring, int> value_f;
 typedef std::tuple<line_segment, int> value_l; // Value to search for surface lines, fault intersection.
+typedef std::tuple<line_segment, int, int> value_s; // Value to search for surface lines, fault intersection.
 //typedef std::tuple<line_segment> value_seg;
 //typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
 typedef geometry::index::rtree<value_f, geometry::index::quadratic<16>> rtree_f;
 typedef geometry::index::rtree<value_l, geometry::index::quadratic<16>> rtree_l; // Tree to search for surface line.
+typedef geometry::index::rtree<value_s, geometry::index::quadratic<16>> rtree_s;
 typedef geometry::index::rtree<line_segment, geometry::index::quadratic<16>> rtree_seg;
 
 typedef std::tuple<int, int, int> triangle;

@@ -45,6 +45,8 @@ protected:
 	std::set<line_anchor> anchored_lines;
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.
+	rtree_s * segidx; // To be initialized after polygons and lines.
+	vector<double> x_poly_crdte;
 	vector<rtree_seg *> poly_lines;
 	vector<rtree_seg *> fault_lines;
 	
@@ -58,14 +60,16 @@ protected:
 			for ( auto it = this->polidx->qbegin( geometry::index::intersects(bx) and geometry::index::satisfies(predicates) );
 				it != this->polidx->qend(); it++ ) {
 				// Check the actual distance to a polygon.
-				int idx = g2(*it);
-				/*std::wcerr << "------- SECTION -------> " << this->name << std::endl;
-				std::cerr << "Polygon: " << idx << " " ;
-				std::wcerr << this->units[idx] << std::endl;
-				std::cerr << geometry::wkt(pt) << std::endl;*/
-				//double poldist = geometry::distance(this->polygons[idx], pt);
-				double poldist = distance_point_geometry(pt, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
-				//std::cerr << "distance: " << poldist << std::endl << std::endl;
+				int idx = g2(*it);				
+				std::wcerr << "-- Section -- " << name << std::endl;
+				std::cerr << geometry::wkt(pt) << std::endl;
+				std::cerr << "Poligono: " << idx << " ---> ";
+				std::wcerr  << units[idx] << std::endl;
+				double poldist2 = geometry::distance(this->polygons[idx], pt);
+				//double poldist = distance_poly_fault_pt(pt, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
+				double poldist = distance_poly_fault_pt2(idx, pt, this->x_poly_crdte[idx], this->segidx,this->fault_lines);
+				std::cerr << "Distancias: " << poldist2 << " -- " << poldist << std::endl;
+				std::cerr << "x coordinate: " << this->x_poly_crdte[idx] << std::endl << std::endl;
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -110,14 +114,16 @@ public:
 				double boxdist = geometry::distance(p, g0(*it));
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
-				// Then check the minimum actual distance to a polygon.				
-				/*std::wcerr << "------- SECTION -------> " << this->name << std::endl;
-				std::cerr << "Polygon: " << idx << " " ;
-				std::wcerr << this->units[idx] << std::endl;
-				std::cerr << geometry::wkt(p) << std::endl;*/
-				//double dist = geometry::distance(p, this->polygons[idx]);
-				double dist = distance_point_geometry(p, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
-				//std::cerr << "distance: " << dist << std::endl << std::endl;;
+				// Then check the minimum actual distance to a polygon.
+				std::wcerr << "-- Section -- " << name << std::endl;
+				std::cerr << geometry::wkt(p) << std::endl;
+				std::cerr << "Poligono: " << idx << " ---> ";
+				std::wcerr  << units[idx] << std::endl;
+				double dist2 = geometry::distance(p, this->polygons[idx]);
+				//double dist = distance_poly_fault_pt(p, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
+				double dist = distance_poly_fault_pt2(idx, p, this->x_poly_crdte[idx], this->segidx,this->fault_lines);
+				std::cerr << "Distancias: " << dist2 << " -- " << dist << std::endl;
+				std::cerr << "x coordinate: " << this->x_poly_crdte[idx] << std::endl << std::endl;
 				if ( dist < mindist ) {
 					mindist = dist;
 					minidx = idx;

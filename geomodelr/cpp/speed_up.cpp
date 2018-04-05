@@ -88,7 +88,8 @@ line ray_intersection(const point2& pt, double R, const line_segment& poly_s){
     return output;
 }
 
-double distance_point_geometry(const point2& pt, const polygon& poly,const rtree_seg* poly_seg_tree,
+
+double distance_poly_fault_pt(const point2& pt, const polygon& poly,const rtree_seg* poly_seg_tree,
     const vector<rtree_seg *>& fault_lines){
 
     double poly_dist = geometry::distance(poly, pt);
@@ -106,4 +107,107 @@ double distance_point_geometry(const point2& pt, const polygon& poly,const rtree
         }
     }
     return poly_dist;
+}
+
+void clear_vector(double y0,vector<value_s>& results){
+
+    int c=0;
+    while (c<results.size()){
+        line_segment edge = g0(results[c]);
+        double y_max = std::max(gy(edge.first),gy(edge.second));        
+        if (std::abs(y0-y_max)<epsilon){
+            results.erase(results.begin()+c);
+            c--;            
+        }
+        c++;
+    }
+}
+
+std::pair<line_segment,double> cross_segment(const point2& pt, const line_segment& poly_edge){
+
+    std::cerr << "Punto 3.1" << std::endl;
+    std::cerr << geometry::wkt(pt) << std::endl;
+    std::cerr << geometry::wkt(poly_edge) << std::endl;
+    double x0 = gx(poly_edge.first); double y0 = gy(poly_edge.first);
+    double xf = gx(poly_edge.second); double yf = gy(poly_edge.second);
+    double xp = gx(pt); double yp = gy(pt);
+    std::cerr << "Punto 3.2" << std::endl;
+    double dx = xf-x0; double dy = yf-y0;
+    double t = ((xp-x0)*dx + (yp-y0)*dy)/(dx*dx + dy*dy);
+    std::cerr << "Punto 3.3" << std::endl;
+    point2 output;
+    if (t>=1.0){
+        output = point2(xf - xp, yf - yp);
+    } else if(t<=0.0){
+        output = point2(x0 - xp, y0 - yp);
+    } else{
+        output = point2(x0 + t*dx - xp, y0 +t *dy - yp);
+    }
+    std::cerr << "Punto 3.4" << std::endl;
+    double norm = std::sqrt(geometry::dot_product(output,output));
+    std::cerr << "Punto 3.5" << std::endl;
+    geometry::multiply_value(output,(norm + epsilon)/norm);
+    geometry::add_point(output,pt);
+    std::cerr << "Punto 3.6" << std::endl;
+    return std::make_pair(line_segment(pt,output),norm);
+
+}
+
+template<typename Predicates>
+std::pair<line_segment,double> distance_poly_pt(int idx, const line_segment& rigth_ray,
+    const rtree_s* poly_seg_tree, const Predicates& predicates){
+
+    vector<value_s> results;
+    poly_seg_tree->query(geometry::index::intersects(rigth_ray) and geometry::index::satisfies(predicates),
+        std::back_inserter(results));
+
+    std::cerr << "Right ray: " << geometry::wkt(rigth_ray) << std::endl;
+    std::cerr << "size segment vec NO: " << results.size() << std::endl;
+    if (results.size()>0){
+        clear_vector(gy(rigth_ray.first),results);
+    }
+    std::cerr << "size segment vec YES: " << results.size() << std::endl;
+
+    if (results.size()%2>0){
+        return std::make_pair(line_segment(),0.0);
+    }
+    else{
+        
+        results.clear();
+        poly_seg_tree->query(geometry::index::satisfies(predicates),std::back_inserter(results));
+        if (results.size()>0){
+            std::cerr << idx << ", " << g1(results[0]) << ", " << g2(results[0]) << std::endl;
+        }
+
+        results.clear();
+        poly_seg_tree->query(geometry::index::nearest(rigth_ray.first,1) and geometry::index::satisfies(predicates),
+            std::back_inserter(results));
+        std::cerr << results.size() << std::endl;
+        return cross_segment(rigth_ray.first, g0(results[0]));
+    }
+}
+
+double distance_poly_fault_pt2(int idx, const point2& pt, double x_rigth,const rtree_s* poly_seg_tree,
+    const vector<rtree_seg *>& fault_lines){
+
+    auto just_polidx = [idx](const value_s& seg) {
+        return (g1(seg)==idx) || (g2(seg)==idx);
+    };
+
+    std::pair<line_segment,double> ray_distance = distance_poly_pt(idx, line_segment(pt,point2(x_rigth,gy(pt))),
+        poly_seg_tree, just_polidx);
+
+    if (ray_distance.second==0.0){
+        return 0.0;
+    } else{
+
+        line_segment ray = ray_distance.first;
+        for (auto fault_tree: fault_lines){
+            for ( auto it = fault_tree->qbegin( geometry::index::intersects(ray)); it != fault_tree->qend(); it++ ) {
+                return std::numeric_limits<double>::infinity();
+            }
+        }
+    return ray_distance.second;
+    }
+
 }

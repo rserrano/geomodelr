@@ -547,6 +547,7 @@ class TestGeoModelR(unittest.TestCase):
         m.height([80000, 1100000])
         bbox = m.bbox
         t = {}
+
         def query_func(p):
             q = m.closest(p)[0]
             if q in t:

@@ -52,6 +52,7 @@ def generate_simple_grid(query_func, bbox, grid_divisions):
             for k in xrange(grid_divisions+1):
                 idx = [i,j,k]
                 grid[i,j,k,:] = [ bbox[l] + grid_sizes[l]*idx[l] for l in range(3) ]
+                print grid[i,j,k,:]
                 units[i,j,k] = query_func(grid[i,j,k,:])
     
     # Return the generated grid and formations.

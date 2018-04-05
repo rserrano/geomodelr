@@ -45,6 +45,7 @@ SectionPython::SectionPython(const wstring& name, double cut,
 	size_t npols = python::len(polygons);
 	vector<value_f> envelopes;
 
+	map<std::pair<size_t, size_t>, std::pair<size_t, size_t> > segidx_map;
 	for ( size_t i = 0; i < npols; i++ ) {
 		polygon pol;
 		wstring unit = python::extract<wstring>( units[i] );
@@ -67,6 +68,29 @@ SectionPython::SectionPython(const wstring& name, double cut,
 			poly_segments.push_back(line_segment(aux,aux2));
 		}
 
+		// Start filling the first ring.
+        for ( size_t k = 0; k < nnodes; k++ ) {
+            size_t n = (k+1)%nnodes;
+            size_t A = python::extract<size_t>(polygons[i][0][k]);
+            size_t B = python::extract<size_t>(polygons[i][0][n]);
+    		std::pair<size_t, size_t> seg = std::make_pair(A,B);
+            bool swaped = false;
+            if ( seg.first > seg.second ) {
+                    std::swap(seg.first, seg.second);
+                    swaped = true;
+            }
+            std::pair<size_t, size_t> pidx(-1, -1);
+            if ( segidx_map.find( seg ) != segidx_map.end() ) {
+                    pidx = segidx_map[seg];
+            } 
+            if ( swaped ) {
+                    segidx_map[seg] = std::make_pair( pidx.first, i );
+            } else {
+                    segidx_map[seg] = std::make_pair( i, pidx.second );
+            }
+        }
+
+
 		//this->poly_lines.push_back(new rtree_seg(poly_segments));
 		// Then fill the rest of the rings.
 		if ( nrings > 1 ) { 
@@ -85,6 +109,28 @@ SectionPython::SectionPython(const wstring& name, double cut,
 					point2 aux2 = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
 					poly_segments.push_back(line_segment(aux,aux2));
 				}
+
+		       	for ( size_t k = 0; k < nnodes; k++ ) {
+	                size_t n = (k+1)%nnodes;
+	                size_t A = python::extract<size_t>(polygons[i][j][k]);
+	                size_t B = python::extract<size_t>(polygons[i][j][n]);
+            		std::pair<size_t, size_t> seg = std::make_pair(A,B);
+	                bool swaped = false;
+	                if ( seg.first > seg.second ) {
+	                        std::swap(seg.first, seg.second);
+	                        swaped = true;
+	                }
+	                std::pair<size_t, size_t> pidx(size_t(-1), size_t(-1));
+	                if ( segidx_map.find( seg ) != segidx_map.end() ) {
+	                        pidx = segidx_map[seg];
+	                } 
+	                if ( swaped ) {
+	                        segidx_map[seg] = std::make_pair( pidx.first, i );
+	               
+	                } else {
+	                        segidx_map[seg] = std::make_pair( i, pidx.second );
+	                }
+        		}
 			}
 		}
 		if (poly_segments.size()>0){
@@ -109,11 +155,36 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		// Calculate the envelope and add it to build the rtree layer.
 		box env;
 		geometry::envelope(pol, env);
+		this->x_poly_crdte.push_back(env.max_corner().get<0>() + epsilon);
 		envelopes.push_back(std::make_tuple(env, unit, this->polygons.size()));
 		
 		// Now add the actual polygon and its unit.
 		this->polygons.push_back(pol);
 		this->units.push_back(unit);
+	}
+
+	vector<value_s> vec_segidx;
+	for ( auto it = segidx_map.begin(); it != segidx_map.end(); it++ ){
+		std::pair<size_t, size_t> segment_idx = it->first;
+		pylist x0 = pylist(points[segment_idx.first]);
+		pylist xf = pylist(points[segment_idx.second]);
+		line_segment seg = line_segment(point2(python::extract<double>(x0[0]),python::extract<double>(x0[1])),
+			point2(python::extract<double>(xf[0]),python::extract<double>(xf[1])));
+		
+		if (name==L"L-L"){
+			std::wcerr << name << std::endl;
+			std::cerr << "poligonos: " << (it->second).first << " " << (it->second).second << std::endl << std::endl;
+		}
+
+		vec_segidx.push_back(std::make_tuple(seg,(it->second).first,(it->second).second));        	
+	}
+
+	/*for (auto& auxL: vec_segidx){
+		std::cerr << geometry::wkt(g0(auxL)) << "\t" << g1(auxL) << "\t" << g2(auxL) << std::endl;
+	}*/
+
+	if (vec_segidx.size()>0){
+		this->segidx = new rtree_s( vec_segidx );
 	}
 
 	// Build the rtree.
