@@ -133,9 +133,6 @@ SectionPython::SectionPython(const wstring& name, double cut,
         		}
 			}
 		}
-		if (poly_segments.size()>0){
-			this->poly_lines.push_back(new rtree_seg(poly_segments));
-		}
 		
 		geometry::validity_failure_type failure;
 		if ( not geometry::is_valid(pol, failure) ) {
@@ -151,6 +148,13 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		}
 		if ( not geometry::is_simple(pol) ) {
 			continue;
+		}
+
+		if (nrings>0){
+			this->poly_trees.push_back(new Polygon(pol));
+		}
+		if (poly_segments.size()>0){
+			this->poly_lines.push_back(new rtree_seg(poly_segments));
 		}
 		// Calculate the envelope and add it to build the rtree layer.
 		box env;
@@ -171,17 +175,14 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		line_segment seg = line_segment(point2(python::extract<double>(x0[0]),python::extract<double>(x0[1])),
 			point2(python::extract<double>(xf[0]),python::extract<double>(xf[1])));
 		
-		if (name==L"L-L"){
+		/*if (name==L"L-L"){
 			std::wcerr << name << std::endl;
 			std::cerr << "poligonos: " << (it->second).first << " " << (it->second).second << std::endl << std::endl;
-		}
+		}*/
 
 		vec_segidx.push_back(std::make_tuple(seg,(it->second).first,(it->second).second));        	
 	}
 
-	/*for (auto& auxL: vec_segidx){
-		std::cerr << geometry::wkt(g0(auxL)) << "\t" << g1(auxL) << "\t" << g2(auxL) << std::endl;
-	}*/
 
 	if (vec_segidx.size()>0){
 		this->segidx = new rtree_s( vec_segidx );

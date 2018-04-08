@@ -20,10 +20,14 @@
 
 #include "speed_up.hpp"
 #include "basic.hpp"
+#include "polygon.hpp"
+#include <stdlib.h>
+#include <math.h> 
 #include <set>
 
 class Model;
 class Match;
+class Polygon;
 class ModelPython;
 class MatchPython;
 
@@ -49,6 +53,7 @@ protected:
 	vector<double> x_poly_crdte;
 	vector<rtree_seg *> poly_lines;
 	vector<rtree_seg *> fault_lines;
+	vector<Polygon *> poly_trees;
 	
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
@@ -61,15 +66,30 @@ protected:
 				it != this->polidx->qend(); it++ ) {
 				// Check the actual distance to a polygon.
 				int idx = g2(*it);				
-				std::wcerr << "-- Section -- " << name << std::endl;
+				/*std::wcerr << "-- Section -- " << name << std::endl;
 				std::cerr << geometry::wkt(pt) << std::endl;
 				std::cerr << "Poligono: " << idx << " ---> ";
-				std::wcerr  << units[idx] << std::endl;
-				double poldist2 = geometry::distance(this->polygons[idx], pt);
+				std::wcerr  << units[idx] << std::endl;*/
+				//double poldist = geometry::distance(this->polygons[idx], pt);
+				double poldist = poly_trees[idx]->distance_point(pt,this->fault_lines);
 				//double poldist = distance_poly_fault_pt(pt, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
-				double poldist = distance_poly_fault_pt2(idx, pt, this->x_poly_crdte[idx], this->segidx,this->fault_lines);
+				//std::cerr << "Dist normal: " << poldist << " -- ";
+				/*if (std::abs(poldist-poldist2)>epsilon  or (std::isinf(poldist)and not(std::isinf(poldist2))) or (std::isinf(poldist2)and not(std::isinf(poldist))) ){
+					std::cerr << " Dist poly: " << poldist << " -- ";
+					std::cerr << " Dist class poly: " << poldist2 << " diff = "  << poldist-poldist2 << std::endl;
+					std::cerr << "Poligono: " << idx << " ---> ";
+					std::wcerr  << units[idx] << std::endl;
+					std::cerr << geometry::wkt(pt) << std::endl;
+					std::cerr << geometry::distance(pt, this->polygons[idx]) << std::endl;
+					poly_trees[idx]->info(pt);
+					std::cerr << "\n";
+    				//exit (EXIT_FAILURE);
+				}*/
+				
+				//double poldist = distance_poly_fault_pt(pt, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
+				/*double poldist = distance_poly_fault_pt2(idx, pt, this->x_poly_crdte[idx], this->segidx,this->fault_lines);
 				std::cerr << "Distancias: " << poldist2 << " -- " << poldist << std::endl;
-				std::cerr << "x coordinate: " << this->x_poly_crdte[idx] << std::endl << std::endl;
+				std::cerr << "x coordinate: " << this->x_poly_crdte[idx] << std::endl << std::endl;*/
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -115,17 +135,31 @@ public:
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
-				std::wcerr << "-- Section -- " << name << std::endl;
+				/*std::wcerr << "-- Section -- " << name << std::endl;
 				std::cerr << geometry::wkt(p) << std::endl;
 				std::cerr << "Poligono: " << idx << " ---> ";
-				std::wcerr  << units[idx] << std::endl;
-				double dist2 = geometry::distance(p, this->polygons[idx]);
+				std::wcerr  << units[idx] << std::endl;*/
+				//double dist = geometry::distance(p, this->polygons[idx]);
+				double poldist = poly_trees[idx]->distance_point(p,this->fault_lines);
+				//double poldist = distance_poly_fault_pt(p, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
+				//std::cerr << "Dist normal: " << dist << " -- ";
+				/*if (std::abs(poldist-poldist2)>epsilon  or (std::isinf(poldist)and not(std::isinf(poldist2))) or (std::isinf(poldist2)and not(std::isinf(poldist))) ){
+					std::cerr << " Dist poly: " << poldist << " -- ";
+					std::cerr << " Dist class poly: " << poldist2 << " diff = "  << poldist-poldist2 << std::endl;
+					std::cerr << "Poligono: " << idx << " ---> ";
+					std::wcerr  << units[idx] << std::endl;
+					std::cerr << geometry::wkt(p) << std::endl;
+					std::cerr << geometry::distance(p, this->polygons[idx]) << std::endl;
+					poly_trees[idx]->info(p);
+					std::cerr << "\n";
+    				//exit (EXIT_FAILURE);
+				}*/
 				//double dist = distance_poly_fault_pt(p, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
-				double dist = distance_poly_fault_pt2(idx, p, this->x_poly_crdte[idx], this->segidx,this->fault_lines);
+				/*double dist = distance_poly_fault_pt2(idx, p, this->x_poly_crdte[idx], this->segidx,this->fault_lines);
 				std::cerr << "Distancias: " << dist2 << " -- " << dist << std::endl;
-				std::cerr << "x coordinate: " << this->x_poly_crdte[idx] << std::endl << std::endl;
-				if ( dist < mindist ) {
-					mindist = dist;
+				std::cerr << "x coordinate: " << this->x_poly_crdte[idx] << std::endl << std::endl;*/
+				if ( poldist < mindist ) {
+					mindist = poldist;
 					minidx = idx;
 				}
 			}
