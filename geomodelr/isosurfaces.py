@@ -258,7 +258,7 @@ def stl_mesh( vertices, simplices ):
             m.vectors[i][j] = vertices[f[j]]
     return m
 
-def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
+def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False ):
     """
     Saves the wireframe of a geological unit to the disk. It uses a marching cubes and a signed distance from
     the model.
@@ -281,13 +281,13 @@ def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal
         the triangles that look down.
     """
     assert MESH_AVAILABLE, "To be able to save units, you need the following packages installed: scipy, numpy-stl, scikit-image."
-    v, s = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards )
+    v, s = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned=False )
     m = stl_mesh( v, s )
     del v
     del s
     m.save(name)
 
-def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
+def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False ):
     """
     Triangulates a geological unit and returns it for further processing, (or saving it to the database).
     It uses a marching cubes and a signed distance from the model.
@@ -311,7 +311,7 @@ def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_norma
     """
     
     assert MESH_AVAILABLE, "To be able to triangulate units, you need the following packages installed: scipy, numpy-stl, scikit-image."
-    vertices, triangles = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards )
+    vertices, triangles = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned )
     m = stl_mesh( vertices, triangles )
     volume, cog, inertia = m.get_mass_properties()
     del m
