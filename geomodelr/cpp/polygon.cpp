@@ -126,8 +126,8 @@ double Polygon::distance_point( const point2& pt ,const vector<rtree_seg *>& fau
         line_segment ray = ray_dist_pair.first;
         for (auto fault_tree: fault_lines){
             for ( auto it = fault_tree->qbegin( geometry::index::intersects(ray)); it != fault_tree->qend(); it++ ) {
-                //return std::numeric_limits<double>::infinity();
-                return ray_dist_pair.second;
+                return std::numeric_limits<double>::infinity();
+                //return ray_dist_pair.second;
             }
         }
     return ray_dist_pair.second;
@@ -161,6 +161,7 @@ PolygonPython::PolygonPython(const pylist& points,const pylist& polygons){
 		outer.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
 	}
 
+	//this->num_segs = nnodes;
 	// Then fill the rest of the rings.
 	size_t nrings = python::len(polygons);
 	if ( nrings > 1 ) { 
@@ -168,7 +169,7 @@ PolygonPython::PolygonPython(const pylist& points,const pylist& polygons){
 		for ( size_t j = 1; j < nrings; j++ ) {
 			ring& inner = pol.inners()[j-1];// jth ring.
 			size_t nnodes = python::len(polygons[j]);
-			//poly_segments.clear();
+			//this->num_segs += nnodes;
 			for ( size_t k = 0; k < nnodes; k++ ) {
 				pylist pypt = pylist(points[polygons[j][k]]);
 				inner.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
@@ -189,10 +190,18 @@ PolygonPython::PolygonPython(const pylist& points,const pylist& polygons){
 	}
 
 	if (nrings>0){
-		/*this->poly_lines = poly_to_vecsegs(pol);		
 		box env;
 		geometry::envelope(pol, env);
-		this->x_corner = env.max_corner().get<0>() + epsilon;*/
-		Polygon(pol);
+		this->x_corner = env.max_corner().get<0>() + epsilon;
+		this->poly_lines = new rtree_seg( poly_to_vecsegs(pol) );
 	}
+}
+
+double PolygonPython::distance_poly_test(const pylist& pt) const{
+
+	double x = python::extract<double>(pt[0]);
+	double y = python::extract<double>(pt[1]);
+
+	vector<rtree_seg *> fault_lines(0);
+	return this->distance_point(point2(x,y),fault_lines);
 }

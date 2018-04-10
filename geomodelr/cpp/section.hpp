@@ -95,6 +95,7 @@ protected:
 				}
 			}
 		}
+		//if (ret.size()==0){std::cerr << "vector vacio" << std::endl;}
 		return ret;
 	}
 public:
@@ -139,7 +140,7 @@ public:
 				std::cerr << geometry::wkt(p) << std::endl;
 				std::cerr << "Poligono: " << idx << " ---> ";
 				std::wcerr  << units[idx] << std::endl;*/
-				//double dist = geometry::distance(p, this->polygons[idx]);
+				//double poldist = geometry::distance(p, this->polygons[idx]);
 				double poldist = poly_trees[idx]->distance_point(p,this->fault_lines);
 				//double poldist = distance_poly_fault_pt(p, this->polygons[idx],this->poly_lines[idx],this->fault_lines);
 				//std::cerr << "Dist normal: " << dist << " -- ";
@@ -168,6 +169,7 @@ public:
 			// Do it until none was checked or we have checked boxes beyond the closest polygon.
 		} while ( new_to_check && maxboxdist < mindist );
 		
+		//if (minidx==-1){std::cerr << "No hay poligono cerca" << std::endl;}
 		return std::make_pair(minidx, mindist); 
 	}
 	std::pair<int, double> closest( const point2& ) const;

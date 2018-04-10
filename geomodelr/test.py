@@ -36,6 +36,7 @@ import matplotlib.pyplot as plt
 from random import shuffle
 import copy
 import math
+from shapely.geometry import Polygon, Point
 
 
 class TestGeoModelR(unittest.TestCase):
@@ -376,6 +377,60 @@ class TestGeoModelR(unittest.TestCase):
                 self.assertEqual(unit,u'unit3')
     
     # Test the inverse point, plus other possible_closest and closest tests.
+
+    def test_polygon_dist(self):
+
+        # First polygon
+        N =200
+
+        points_ext = [[1,0.2],[1,1],[2,1.3],[2.5,0.5],[3,1.7],[3.5,1.7],[2.7,2.5],[3,2.75],[1.8,2.6],[1.8,2],[1,2],[1,2.6],[0.2,0.8]]
+        points_int1 = [[0.8,1.2],[0.7,1.5],[1.5,1.7],[1.6,1.4]]
+        points_int2 = [[2.3,1.3],[2,2],[2.3,2.5],[2.6,2.3]]
+        polygon_py= Polygon(points_ext,[points_int1,points_int2])
+
+        poly = [range(0,13),[13,14,15,16],[17,18,19,20]]
+        points_int1.extend(points_int2)
+        points_ext.extend(points_int1)
+        polygon_cpp = cpp.Polygon(points_ext, poly)
+
+        for k in range(N):
+            x=4*np.random.rand()
+            y=4*np.random.rand()        
+            dist_p = polygon_py.distance(Point(x,y))
+            dist_c = polygon_cpp.distance([x,y])
+            self.assertAlmostEqual(dist_p,dist_c)
+
+        # Second polygon
+        points_ext = [[2, 1.3],[2.4, 1.7],[2.8, 1.8],[3.4, 1.2],[3.7, 1.6],[3.4, 2],[4.1, 3],[5.3, 2.6],[5.4, 1.2],[4.9, 0.8],[2.9, 0.7],[2, 1.3]]
+        points_int = [[4.0, 2.0],[4.2, 1.4], [4.8, 1.9], [4.4, 2.2], [4.0, 2.0]]
+        polygon_py= Polygon(points_ext,[points_int])
+        poly = [range(len(points_ext)),range(len(points_ext),len(points_int) + len(points_ext))]
+        points_ext.extend(points_int)
+        polygon_cpp = cpp.Polygon(points_ext, poly)
+
+        for k in range(N):
+            x=6*np.random.rand()
+            y=3*np.random.rand()        
+            dist_p = polygon_py.distance(Point(x,y))
+            dist_c = polygon_cpp.distance([x,y])
+            self.assertAlmostEqual(dist_p,dist_c)
+            #print k, dist_p, dist_c
+
+        # Third polygon
+        points_ext = [[4.0, -0.5] , [3.5, 1.0] , [2.0, 1.5] , [3.5, 2.0] , [4.0, 3.5] , [4.5, 2.0] , [6.0, 1.5] , [4.5, 1.0] , [4.0, -0.5]]
+        polygon_py= Polygon(points_ext)
+        poly = [range(len(points_ext))]
+        polygon_cpp = cpp.Polygon(points_ext, poly)
+
+        for k in range(N):
+            x=6*np.random.rand() + 1.0
+            y=5*np.random.rand() - 1.0
+            dist_p = polygon_py.distance(Point(x,y))
+            dist_c = polygon_cpp.distance([x,y])
+            self.assertAlmostEqual(dist_p,dist_c)
+            #print k, dist_p, dist_c
+
+
     def test_point_inverse(self):
         model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["A-A", 1, [], [], [], [], [], []], ["B-B", 2, [], [], [], [], [], []]], {})
         

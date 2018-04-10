@@ -255,6 +255,10 @@ BOOST_PYTHON_MODULE(cpp)
 							      const pylist&, const pylist&, const pylist&>())
 							      .def("info", &SectionPython::info)
 							      .def("closest", &SectionPython::closest);
+
+  	// Single polygon class. Mainly exported for testing purposes.
+	python::class_<PolygonPython>("Polygon",python::init<const pylist& ,const pylist&>())
+							      .def("distance", &PolygonPython::distance_poly_test);
 	
 	// Main exported class, Model.
 	python::class_<ModelPython>("Model", python::init<const pylist&, const pylist&, const pyobject&, const pyobject&, const pyobject&,

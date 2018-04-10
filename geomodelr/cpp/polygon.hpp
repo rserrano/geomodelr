@@ -43,8 +43,9 @@ public:
 };
 
 class PolygonPython : public Polygon {
+
 public:
 	PolygonPython(const pylist& points,const pylist& polygon);
- 	python::tuple distance_poly_test(const pylist& pt);
+ 	double distance_poly_test(const pylist& pt) const;
 };
 #endif
