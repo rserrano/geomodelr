@@ -381,7 +381,7 @@ class TestGeoModelR(unittest.TestCase):
     def test_polygon_dist(self):
 
         # First polygon
-        N =200
+        N =500
 
         points_ext = [[1,0.2],[1,1],[2,1.3],[2.5,0.5],[3,1.7],[3.5,1.7],[2.7,2.5],[3,2.75],[1.8,2.6],[1.8,2],[1,2],[1,2.6],[0.2,0.8]]
         points_int1 = [[0.8,1.2],[0.7,1.5],[1.5,1.7],[1.6,1.4]]
@@ -400,6 +400,16 @@ class TestGeoModelR(unittest.TestCase):
             dist_c = polygon_cpp.distance([x,y])
             self.assertAlmostEqual(dist_p,dist_c)
 
+        # Points and epsilon
+        for k in range(5,16):
+            delta = 10**(-k-0.1)
+            pt = [1.0 + delta,2.0 + delta]
+            pt_p = Point(pt[0],pt[1])
+            dist_p = polygon_py.distance(pt_p)
+            dist_c = polygon_cpp.distance(pt)
+            self.assertAlmostEqual(dist_p,dist_c)
+            self.assertGreater(dist_c,0.0)
+
         # Second polygon
         points_ext = [[2, 1.3],[2.4, 1.7],[2.8, 1.8],[3.4, 1.2],[3.7, 1.6],[3.4, 2],[4.1, 3],[5.3, 2.6],[5.4, 1.2],[4.9, 0.8],[2.9, 0.7],[2, 1.3]]
         points_int = [[4.0, 2.0],[4.2, 1.4], [4.8, 1.9], [4.4, 2.2], [4.0, 2.0]]
@@ -416,6 +426,17 @@ class TestGeoModelR(unittest.TestCase):
             self.assertAlmostEqual(dist_p,dist_c)
             #print k, dist_p, dist_c
 
+        # Points and epsilon
+        for k in range(5,15):
+            delta = 10**(-k-0.1)
+            pt = [2.15 ,1.2 - delta]
+            pt_p = Point(pt[0],pt[1])
+            dist_p = polygon_py.distance(pt_p)
+            dist_c = polygon_cpp.distance(pt)
+            #print pt_p, dist_p, dist_c
+            self.assertAlmostEqual(dist_p,dist_c)
+            #self.assertGreater(dist_c,0.0)
+
         # Third polygon
         points_ext = [[4.0, -0.5] , [3.5, 1.0] , [2.0, 1.5] , [3.5, 2.0] , [4.0, 3.5] , [4.5, 2.0] , [6.0, 1.5] , [4.5, 1.0] , [4.0, -0.5]]
         polygon_py= Polygon(points_ext)
@@ -430,6 +451,30 @@ class TestGeoModelR(unittest.TestCase):
             self.assertAlmostEqual(dist_p,dist_c)
             #print k, dist_p, dist_c
 
+        # Rotates polygon
+        delta = 1e-12
+        for i in range(N):
+            points_ext = [[-3,-2],[3,-2],[3,0],[1,0],[0,2],[-1,0],[-3,0]]
+            
+            O = (np.random.rand()-0.5)*delta
+            C = np.cos(O); S = np.sin(O)
+            Xc = delta*(2*np.random.rand()-1.0)
+            Yc = delta*(2*np.random.rand()-1.0)
+
+            for k in range(len(points_ext)):
+                pt = points_ext[k]
+                x = C*pt[0] - S*pt[1]
+                y = S*pt[0] + C*pt[1]
+                points_ext[k] = [x,y]
+
+            polygon_py= Polygon(points_ext)
+            poly = [range(len(points_ext))]
+            polygon_cpp = cpp.Polygon(points_ext, poly)
+            
+            dist_p = polygon_py.distance(Point(Xc,Yc))
+            dist_c = polygon_cpp.distance([Xc,Yc])
+            self.assertAlmostEqual(dist_p,dist_c)
+            self.assertAlmostEqual(dist_c,0.0)
 
     def test_point_inverse(self):
         model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["A-A", 1, [], [], [], [], [], []], ["B-B", 2, [], [], [], [], [], []]], {})
