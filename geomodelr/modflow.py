@@ -20,6 +20,8 @@
 import numpy as np
 import flopy as fp
 from math import ceil,floor
+import meshio
+import meshzoo
 
 from datetime import datetime
 import time
@@ -131,6 +133,8 @@ def create_modflow_inputs(name, model, units_data,
     if ((Z_top_min-bottom_min)/layers < dz_min):
         layers = int((Z_top_min-bottom_min)/dz_min)
 
+    print "Crando Malla rectangular"
+
     if (algorithm == 'regular'):
 
         Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
@@ -141,40 +145,89 @@ def create_modflow_inputs(name, model, units_data,
         Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
             bottom_min,units_data,angle,dz_min)
 
-    K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
-        units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
+    # K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
+    #     units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
 
-    if len(faults_data)>0:
-        faults_intersections(model.faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
-            dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method)
+    # if len(faults_data)>0:
+    #     faults_intersections(model.faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
+    #         dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method)
 
-    if not(np.isscalar(I_bound)):
-        cells_checker(I_bound,rows,cols,layers)
+    # if not(np.isscalar(I_bound)):
+    #     cells_checker(I_bound,rows,cols,layers)
+
 
     #  ------- Flowpy Packages ----
     # Grid
 
-    #geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
-        #lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
+    # #geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
+    #     #lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
 
-    mf_handle = fp.modflow.mf.Modflow(modelname=name,namefile_ext='nam')
+    # mf_handle = fp.modflow.mf.Modflow(modelname=name,namefile_ext='nam')
     
-    # Variables for the Dis package
-    dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
-        top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
-        itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
+    # # Variables for the Dis package
+    # dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
+    #     top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
+    #     itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
 
-    # Variables for the BAS package
-    bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
+    # # Variables for the BAS package
+    # bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
 
-    # Add LPF package to the MODFLOW model
-    lpf = fp.modflow.ModflowLpf(mf_handle, chani=chani_var, hk=K_hor,
-        vka=K_ver, hani=K_anisotropy_hor,laytyp=np.ones(layers,dtype=np.int32))#
+    # # Add LPF package to the MODFLOW model
+    # lpf = fp.modflow.ModflowLpf(mf_handle, chani=chani_var, hk=K_hor,
+    #     vka=K_ver, hani=K_anisotropy_hor,laytyp=np.ones(layers,dtype=np.int32))#
 
-    mf_handle.write_input()
-
-    output = {'num_layers': layers}
+    # mf_handle.write_input()
+    print 'Crando Malla tetrahedrica'
+    output = get_VTU_mesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers)
+    #output = {'num_layers': layers}
     return(output)
+
+def get_VTU_mesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers):
+
+    points, cells = meshzoo.cube(
+        xmin=0.0, xmax=10.0,
+        ymin=0.0, ymax=10.0,
+        zmin=0.0, zmax=10.0,
+        nx=cols, ny=rows, nz=layers+1)
+    
+    X_vec = np.linspace(X_inf + dX/2., X_sup - dX/2.,cols)
+    Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,rows)
+
+    C = 0
+
+    # Bottom
+    for k in range(layers):
+        for i in range(rows):
+            y = Y_vec[i]
+            for j in range(cols):
+                x = X_vec[j]
+                z = Z_bottoms[layers-1-k,rows-1-i,j]
+                points[C,:] = [x,y,z]
+                C+=1
+
+    for i in range(rows):
+        y = Y_vec[i]
+        for j in range(cols):
+            x = X_vec[j]
+            z = Z_top[rows-1-i,j]
+            points[C,:] = [x,y,z]
+            C+=1
+
+    Kx_vec = np.zeros(len(cells))
+    Ky_vec = np.zeros(len(cells))
+    Kz_vec = np.zeros(len(cells))
+
+    for c in range(len(cells)):
+        pt = np.mean(points[cells[c]],0)
+        Unit = model.closest(pt)[0]
+        Data = units_data[Unit]
+        Kx_vec[c] = Data[0];
+        Ky_vec[c] = Data[0]*Data[1]
+        Kz_vec[c] = Data[2];
+        
+    hyd_pr = {'Kx':Kx_vec,'Ky':Ky_vec,'Kz':Kz_vec}
+    return (points, cells, hyd_pr)
+
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
@@ -230,7 +283,6 @@ def cells_checker(I_bound,rows,cols,layers):
             for k in range(layers):
                 if neighboring_cells(i,j,k,layers,rows,cols,I_bound) < 2:
                     I_bound[k,i,j]=0
-
 
 def faults_intersections(faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
     dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method):
@@ -429,7 +481,6 @@ def get_fault_Hydro_data(data,nv,f_method):
             bus_v /= np.linalg.norm(bus_v)
             data_aprox = Kh*np.abs(bus_v)+Kv*np.abs(nv)
             return (data_aprox[0],data_aprox[1]/data_aprox[0],data_aprox[2],ibound)
-
 
 def regular_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,
     dX,dY,bottom_min, units_data):
