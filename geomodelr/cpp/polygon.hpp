@@ -20,26 +20,30 @@
 #include "basic.hpp"
 
 class Section;
+class Match;
+class Model;
 class SectionPython;
 
 
 class Polygon {
 
 	friend Section;
+	friend Match;
+	friend Model;
 	friend SectionPython;
 
 protected:
 	double x_corner;
 	rtree_seg * poly_lines;
+	polygon boost_poly;
 public:
 	Polygon();
-	Polygon(double x_corner, const vector<line_segment>& poly_segments);
 	Polygon(const polygon& poly);
 	virtual ~Polygon();
 
-	std::pair<line_segment,double> ray_distance(const point2& pt) const;
+	template<typename Predicates>
+	std::pair<line_segment,double> ray_distance(const point2& pt,  const Predicates& predicates) const;
 	double distance_point( const point2& pt ,const vector<rtree_seg *>& fault_lines) const;
-	void info( const point2& pt);
 };
 
 class PolygonPython : public Polygon {
@@ -47,5 +51,6 @@ class PolygonPython : public Polygon {
 public:
 	PolygonPython(const pylist& points,const pylist& polygon);
  	double distance_poly_test(const pylist& pt) const;
+ 	pytuple time_poly_test(const pylist& pt,int N) const;
 };
 #endif

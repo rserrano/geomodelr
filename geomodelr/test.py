@@ -324,7 +324,8 @@ class TestGeoModelR(unittest.TestCase):
         #lines=[]
         lnames = ['fault1']
         #lanmes = []
-        model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
+        model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {},
+            [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
             ["B-B", 1., points, polygons_2, units_2, lines, lnames, []]], { "fault1": "FAULT" })
         model.make_matches()
 
@@ -381,7 +382,7 @@ class TestGeoModelR(unittest.TestCase):
     def test_polygon_dist(self):
 
         # First polygon
-        N =500
+        N =10000
 
         points_ext = [[1,0.2],[1,1],[2,1.3],[2.5,0.5],[3,1.7],[3.5,1.7],[2.7,2.5],[3,2.75],[1.8,2.6],[1.8,2],[1,2],[1,2.6],[0.2,0.8]]
         points_int1 = [[0.8,1.2],[0.7,1.5],[1.5,1.7],[1.6,1.4]]
@@ -460,7 +461,6 @@ class TestGeoModelR(unittest.TestCase):
             C = np.cos(O); S = np.sin(O)
             Xc = delta*(2*np.random.rand()-1.0)
             Yc = delta*(2*np.random.rand()-1.0)
-
             for k in range(len(points_ext)):
                 pt = points_ext[k]
                 x = C*pt[0] - S*pt[1]
@@ -473,6 +473,10 @@ class TestGeoModelR(unittest.TestCase):
             
             dist_p = polygon_py.distance(Point(Xc,Yc))
             dist_c = polygon_cpp.distance([Xc,Yc])
+            if (abs(dist_p-dist_c)>1E-5):
+                print Xc,Yc
+                print dist_c, dist_p
+                print polygon_py
             self.assertAlmostEqual(dist_p,dist_c)
             self.assertAlmostEqual(dist_c,0.0)
 

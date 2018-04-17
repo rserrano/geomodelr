@@ -49,11 +49,11 @@ void Match::match_polygons() {
 	map<wstring, vector<int>> units_a;
 	map<wstring, vector<int>> units_b;
 	
-	for ( size_t i = 0; i < this->a->polygons.size(); i++ ) {
+	for ( size_t i = 0; i < this->a->poly_trees.size(); i++ ) {
 		units_a[this->a->units[i]].push_back(i);
 	}
 	
-	for ( size_t i = 0; i < this->b->polygons.size(); i++ ) {
+	for ( size_t i = 0; i < this->b->poly_trees.size(); i++ ) {
 		units_b[this->b->units[i]].push_back(i);
 	}
 	
@@ -65,7 +65,8 @@ void Match::match_polygons() {
 			for ( size_t i = 0; i < pols_a.size(); i++ )
 			{
 				for ( size_t j = 0; j < pols_b.size(); j++ ) {
-					if ( geometry::intersects(this->a->polygons[pols_a[i]], this->b->polygons[pols_b[j]]) ) {
+					//if ( geometry::intersects(this->a->polygons[pols_a[i]], this->b->polygons[pols_b[j]]) ) {
+					if ( geometry::intersects(this->a->poly_trees[pols_a[i]]->boost_poly,this->b->poly_trees[pols_b[j]]->boost_poly) ) {
 						m.push_back(std::make_pair(pols_a[i], pols_b[j]));
 					}
 				}

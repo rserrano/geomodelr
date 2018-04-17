@@ -181,7 +181,7 @@ std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, con
 	int minidx = -1;
 	for ( size_t i = 0; i < op.size(); i++ ) {
 		size_t pl = op[i];
-		double dist = geometry::distance(s.polygons[pl], pt);
+		double dist = geometry::distance(s.poly_trees[pl]->boost_poly, pt);
 		if ( dist < mindist ) {
 			mindist = dist;
 			minidx = pl;

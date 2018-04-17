@@ -17,6 +17,7 @@
 */
 
 #include "polygon.hpp"
+#include <ctime>
 
 Polygon::~Polygon()
 {
@@ -27,10 +28,6 @@ Polygon::~Polygon()
 
 Polygon::Polygon(): x_corner(std::numeric_limits<double>::infinity()), poly_lines(nullptr) 
 {	
-}
-
-Polygon::Polygon(double x_corner, const vector<line_segment>& poly_segments):x_corner(x_corner) {
-	this->poly_lines = new rtree_seg(poly_segments);
 }
 
 vector<line_segment> poly_to_vecsegs(const polygon& poly){
@@ -57,9 +54,10 @@ Polygon::Polygon(const polygon& poly){
 	geometry::envelope(poly, env);
 	this->x_corner = env.max_corner().get<0>() + epsilon;
 	this->poly_lines = new rtree_seg( poly_to_vecsegs(poly) );
+	this->boost_poly = poly;
 }
 
-std::pair<line_segment,double> cross_segment2(const point2& pt, const line_segment& poly_edge){
+std::pair<line_segment,double> cross_segment(const point2& pt, const line_segment& poly_edge){
 
     double x0 = gx(poly_edge.first); double y0 = gy(poly_edge.first);
     double xf = gx(poly_edge.second); double yf = gy(poly_edge.second);
@@ -84,66 +82,61 @@ std::pair<line_segment,double> cross_segment2(const point2& pt, const line_segme
 
 }
 
-void clear_vector(double y0, vector<line_segment>& results){
-    int c=0;
-    while (c<results.size()){
+size_t clear_vector(double y0, vector<line_segment>& results){
+    
+    size_t num_segs = results.size();
+    for (auto& seg: results){
         //line_segment edge = g0(results[c]);
-        double y_max = std::max(gy(results[c].first),gy(results[c].second));        
-        if (std::abs(y0-y_max)<tolerance){
-            results.erase(results.begin()+c);
-            c--;            
+        double y_max = std::max(gy(seg.first),gy(seg.second));
+        if (std::abs(y0-y_max)<=boost_tol){
+            num_segs--;
         }
-        c++;
     }
+
+    return num_segs;
 }
 
-std::pair<line_segment,double> Polygon::ray_distance(const point2& pt) const{
+template<typename Predicates>
+std::pair<line_segment,double> Polygon::ray_distance(const point2& pt, const Predicates& predicates) const{
 
 	line_segment rigth_ray = line_segment(pt,point2(this->x_corner,gy(pt)));
     vector<line_segment> results;
-    this->poly_lines->query(geometry::index::intersects(rigth_ray) , std::back_inserter(results));
+    this->poly_lines->query(geometry::index::intersects(rigth_ray) and geometry::index::satisfies(predicates),
+    	std::back_inserter(results));
+    
+	//size_t num_segs = clear_vector(gy(pt),results);
+	size_t num_segs = results.size();
 
-    if (results.size()>0){
-        clear_vector(gy(pt),results);
-    }
-    if (results.size()%2>0){
+    if (num_segs%2>0){
         return std::make_pair(line_segment(),0.0);
     }
     else{
-        results.clear();
         this->poly_lines->query(geometry::index::nearest(pt,1), std::back_inserter(results));
-        return cross_segment2(pt, results[0]);
+        return cross_segment(pt, results.back());
     }
 }
 
 double Polygon::distance_point( const point2& pt ,const vector<rtree_seg *>& fault_lines) const {
 
-    std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
+	// Predicates who does not take into account intersected-upper nodes segments.
+	auto check_segment = [pt](const line_segment& seg) {
+		double y_max = std::max(gy(seg.first),gy(seg.second));
+		return not((std::abs(gy(pt)-y_max)<=boost_tol));
+	};
+
+    std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt, check_segment);
+
     if (ray_dist_pair.second==0.0){
         return 0.0;
-
     } else{
         line_segment ray = ray_dist_pair.first;
         for (auto fault_tree: fault_lines){
             for ( auto it = fault_tree->qbegin( geometry::index::intersects(ray)); it != fault_tree->qend(); it++ ) {
                 return std::numeric_limits<double>::infinity();
-                //return ray_dist_pair.second;
             }
         }
-    return ray_dist_pair.second;
     }
-}
-
-void Polygon::info( const point2& pt){
-	
-	line_segment rigth_ray = line_segment(pt,point2(this->x_corner,gy(pt)));
-    vector<line_segment> results;
-    this->poly_lines->query(geometry::index::intersects(rigth_ray) , std::back_inserter(results));
-
-    std::cerr << std::setprecision(15) <<geometry::wkt(rigth_ray) << std::endl;
-    std::cerr << results.size() << std::endl;
-    clear_vector(gy(pt),results);
-    std::cerr << results.size() << std::endl;
+    return ray_dist_pair.second;
 }
 
 
@@ -153,7 +146,6 @@ PolygonPython::PolygonPython(const pylist& points,const pylist& polygons){
 	ring& outer = pol.outer();
 	
 	// Start filling the first ring.
-	vector<line_segment> poly_segments;
 	size_t nnodes = python::len(polygons[0]);
 
 	for ( size_t k = 0; k < nnodes; k++ ) {
@@ -194,6 +186,7 @@ PolygonPython::PolygonPython(const pylist& points,const pylist& polygons){
 		geometry::envelope(pol, env);
 		this->x_corner = env.max_corner().get<0>() + epsilon;
 		this->poly_lines = new rtree_seg( poly_to_vecsegs(pol) );
+		this->boost_poly = pol;
 	}
 }
 
@@ -204,4 +197,31 @@ double PolygonPython::distance_poly_test(const pylist& pt) const{
 
 	vector<rtree_seg *> fault_lines(0);
 	return this->distance_point(point2(x,y),fault_lines);
+}
+
+pytuple PolygonPython::time_poly_test(const pylist& pt,int N) const{
+
+	double x = python::extract<double>(pt[0]);
+	double y = python::extract<double>(pt[1]);
+	vector<rtree_seg *> fault_lines(0);
+
+	point2 PT = point2(x,y);
+
+	// Boost distance
+	clock_t  begin = clock();
+	for (int k=0; k<N; k++){
+		double aux = geometry::distance(PT,this->boost_poly);
+	}
+	clock_t end = clock();
+	double elapsed_2 = double(end - begin) / CLOCKS_PER_SEC;
+
+		// Own distance
+	begin = clock();
+	for (int k=0; k<N; k++){
+		double aux = this->distance_point(PT,fault_lines);
+	}
+	end = clock();
+	double elapsed_1 = double(end - begin) / CLOCKS_PER_SEC;
+
+	return python::make_tuple(elapsed_1,elapsed_2);
 }
