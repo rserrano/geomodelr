@@ -30,10 +30,4 @@ class Model;
 std::pair<double, bool> find_unit_limits_cpp(const Model* model,double xp, double yp,
 	double z_max, double z_min, double eps);
 
-double distance_poly_fault_pt(const point2& pt, const polygon& poly,const rtree_seg* poly_seg_tree,
-    const vector<rtree_seg *>& fault_lines);
-
-double distance_poly_fault_pt2(int idx, const point2& pt, double x_rigth,const rtree_s* poly_seg_tree,
-    const vector<rtree_seg *>& fault_lines);
-
 #endif //GEOMODELR_SPEED_UP_HPP

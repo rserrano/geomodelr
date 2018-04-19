@@ -68,75 +68,47 @@ std::pair<line_segment,double> cross_segment(const point2& pt, const line_segmen
 
     point2 output;
     if (t>=1.0){
-        output = point2(xf - xp, yf - yp);
+        //output = point2(xf - xp, yf - yp);
+        xf -= xp; yf -= yp;
     } else if(t<=0.0){
-        output = point2(x0 - xp, y0 - yp);
+        //output = point2(x0 - xp, y0 - yp);
+        xf = x0 - xp; yf = y0 - yp;
     } else{
-        output = point2(x0 + t*dx - xp, y0 + t*dy - yp);
+        //output = point2(x0 + t*dx - xp, y0 + t*dy - yp);
+        xf = x0 + t*dx - xp; yf = y0 + t*dy -yp;
     }
-    double norm = std::sqrt(geometry::dot_product(output,output));
-    geometry::multiply_value(output,(norm + epsilon)/norm);
-    geometry::add_point(output,pt);
+    // double norm = std::sqrt(geometry::dot_product(output,output));
+    // geometry::multiply_value(output,(norm + epsilon)/norm);
+    // geometry::add_point(output,pt);
+    double norm = std::sqrt(xf*xf + yf*yf);
+    double Re = (norm + epsilon)/norm;
 
-    return std::make_pair(line_segment(pt,output),norm);
+    return std::make_pair(line_segment(pt,point2(xf*Re + xp, yf*Re + yp)),norm);
 
 }
 
-size_t clear_vector(double y0, vector<line_segment>& results){
-    
-    size_t num_segs = results.size();
-    for (auto& seg: results){
-        //line_segment edge = g0(results[c]);
-        double y_max = std::max(gy(seg.first),gy(seg.second));
-        if (std::abs(y0-y_max)<=boost_tol){
-            num_segs--;
-        }
-    }
+std::pair<line_segment,double> Polygon::ray_distance(const point2& pt) const{
 
-    return num_segs;
+    vector<line_segment> results;   
+    this->poly_lines->query(geometry::index::nearest(pt,1), std::back_inserter(results));
+    return cross_segment(pt, results.front());
 }
 
-template<typename Predicates>
-std::pair<line_segment,double> Polygon::ray_distance(const point2& pt, const Predicates& predicates) const{
+double Polygon::distance_point(const point2& pt, const rtree_l* fault_lines, const box& b_sqrt) const {
 
-	line_segment rigth_ray = line_segment(pt,point2(this->x_corner,gy(pt)));
-    vector<line_segment> results;
-    this->poly_lines->query(geometry::index::intersects(rigth_ray) and geometry::index::satisfies(predicates),
-    	std::back_inserter(results));
-    
-	//size_t num_segs = clear_vector(gy(pt),results);
-	size_t num_segs = results.size();
-
-    if (num_segs%2>0){
-        return std::make_pair(line_segment(),0.0);
-    }
-    else{
-        this->poly_lines->query(geometry::index::nearest(pt,1), std::back_inserter(results));
-        return cross_segment(pt, results.back());
-    }
-}
-
-double Polygon::distance_point( const point2& pt ,const vector<rtree_seg *>& fault_lines) const {
-
-	// Predicates who does not take into account intersected-upper nodes segments.
-	auto check_segment = [pt](const line_segment& seg) {
-		double y_max = std::max(gy(seg.first),gy(seg.second));
-		return not((std::abs(gy(pt)-y_max)<=boost_tol));
-	};
-
-    std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt, check_segment);
-
-    if (ray_dist_pair.second==0.0){
+	/* Checks if pt is inside the bounding square of the polygon.
+	   After that, checks if pt is inside the polygon.*/
+    if (geometry::within(pt,b_sqrt) && geometry::covered_by(pt,this->boost_poly)){
         return 0.0;
     } else{
-        line_segment ray = ray_dist_pair.first;
-        for (auto fault_tree: fault_lines){
-            for ( auto it = fault_tree->qbegin( geometry::index::intersects(ray)); it != fault_tree->qend(); it++ ) {
-                return std::numeric_limits<double>::infinity();
-            }
+
+    	std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
+        for ( auto it = fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
+        	it != fault_lines->qend(); it++ ) {
+            return std::numeric_limits<double>::infinity();
         }
+        return ray_dist_pair.second;
     }
-    return ray_dist_pair.second;
 }
 
 
@@ -195,17 +167,22 @@ double PolygonPython::distance_poly_test(const pylist& pt) const{
 	double x = python::extract<double>(pt[0]);
 	double y = python::extract<double>(pt[1]);
 
-	vector<rtree_seg *> fault_lines(0);
-	return this->distance_point(point2(x,y),fault_lines);
+	rtree_l * fault_lines = new rtree_l(vector<value_l>(0));
+	box env;
+	geometry::envelope(this->boost_poly, env);
+	return this->distance_point(point2(x,y),fault_lines, env);
 }
 
 pytuple PolygonPython::time_poly_test(const pylist& pt,int N) const{
 
 	double x = python::extract<double>(pt[0]);
 	double y = python::extract<double>(pt[1]);
-	vector<rtree_seg *> fault_lines(0);
+
+	rtree_l * fault_lines = new rtree_l(vector<value_l>(0));
 
 	point2 PT = point2(x,y);
+	box env;
+	geometry::envelope(this->boost_poly, env);
 
 	// Boost distance
 	clock_t  begin = clock();
@@ -218,7 +195,7 @@ pytuple PolygonPython::time_poly_test(const pylist& pt,int N) const{
 		// Own distance
 	begin = clock();
 	for (int k=0; k<N; k++){
-		double aux = this->distance_point(PT,fault_lines);
+		double aux = this->distance_point(PT,fault_lines, env);
 	}
 	end = clock();
 	double elapsed_1 = double(end - begin) / CLOCKS_PER_SEC;

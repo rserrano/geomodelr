@@ -41,9 +41,8 @@ public:
 	Polygon(const polygon& poly);
 	virtual ~Polygon();
 
-	template<typename Predicates>
-	std::pair<line_segment,double> ray_distance(const point2& pt,  const Predicates& predicates) const;
-	double distance_point( const point2& pt ,const vector<rtree_seg *>& fault_lines) const;
+	std::pair<line_segment,double> ray_distance(const point2& pt) const;
+	double distance_point(const point2& pt ,const rtree_l* fault_lines, const box& b_sqrt) const;
 };
 
 class PolygonPython : public Polygon {

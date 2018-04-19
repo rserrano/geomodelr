@@ -382,7 +382,7 @@ class TestGeoModelR(unittest.TestCase):
     def test_polygon_dist(self):
 
         # First polygon
-        N =10000
+        N =5000
 
         points_ext = [[1,0.2],[1,1],[2,1.3],[2.5,0.5],[3,1.7],[3.5,1.7],[2.7,2.5],[3,2.75],[1.8,2.6],[1.8,2],[1,2],[1,2.6],[0.2,0.8]]
         points_int1 = [[0.8,1.2],[0.7,1.5],[1.5,1.7],[1.6,1.4]]
@@ -410,6 +410,16 @@ class TestGeoModelR(unittest.TestCase):
             dist_c = polygon_cpp.distance(pt)
             self.assertAlmostEqual(dist_p,dist_c)
             self.assertGreater(dist_c,0.0)
+        xp = (0.8 + 0.7 + 1.5 + 1.6)/4.0
+        yp = (1.2 + 1.5 + 1.7 + 1.4)/4.0
+        dist_p = polygon_py.distance(Point(xp,yp))
+        dist_c = polygon_cpp.distance([xp,yp])
+        self.assertAlmostEqual(dist_p,dist_c)
+        self.assertGreater(dist_c,0.0)
+        
+        m = 0.25; b = 1.325
+        d = np.abs(m*xp-yp+b)/np.sqrt(m*m+1)
+        self.assertAlmostEqual(dist_c,d)
 
         # Second polygon
         points_ext = [[2, 1.3],[2.4, 1.7],[2.8, 1.8],[3.4, 1.2],[3.7, 1.6],[3.4, 2],[4.1, 3],[5.3, 2.6],[5.4, 1.2],[4.9, 0.8],[2.9, 0.7],[2, 1.3]]
@@ -479,6 +489,38 @@ class TestGeoModelR(unittest.TestCase):
                 print polygon_py
             self.assertAlmostEqual(dist_p,dist_c)
             self.assertAlmostEqual(dist_c,0.0)
+
+        # distance with faults
+
+        points = [[0,0],[0.5,0],[1,0],[0,0.5],[0.75,0.5],[1,0.5],[0,1],[0.5,1],[0.8,1],[1,1]]
+        polygons = [[[3,7,6]],[[0,1,2,4,7,3]],[[5,8,7,4,2]],[[5,9,8]]]
+        units = ['unit0', 'unit1', 'unit2', 'unit3']
+
+        lines = [[3,7,4],[0,4,3,1],[5,8]]
+        #lines=[]
+        lnames = ['fault0','fault1','fault2']
+        #lanmes = []
+        section = cpp.Section("A-A", 0, (0, 0, 1, 1), points, polygons, units, lines, lnames, [])
+
+        dX = 0.9-0.55
+        db = 0.5-2*1e-5
+        for k in range(N):
+            x = dX*np.random.rand() + 0.55
+            b = db*np.random.rand() + 1.5 + 1e-5
+            y = -2*x+b
+            if y>=0:
+                dist = section.distance([x,y],2)
+
+                if (y>=0.125*(4*x+1)):
+                    val = np.inf
+                else:
+                    val = np.abs(-2*x - y + 2)/np.sqrt(5)
+
+                # print x,y,dist, val
+                self.assertAlmostEqual(dist,val)
+
+
+        
 
     def test_point_inverse(self):
         model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["A-A", 1, [], [], [], [], [], []], ["B-B", 2, [], [], [], [], [], []]], {})

@@ -48,7 +48,8 @@ protected:
 	std::set<line_anchor> anchored_lines;
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.
-	vector<rtree_seg *> fault_lines;
+	// vector<rtree_seg *> fault_lines;
+	rtree_l * fault_lines;
 	vector<Polygon *> poly_trees;
 	
 	template<typename Predicates>
@@ -63,7 +64,7 @@ protected:
 				// Check the actual distance to a polygon.
 				int idx = g2(*it);				
 				//double poldist = geometry::distance(this->polygons[idx], pt);
-				double poldist = poly_trees[idx]->distance_point(pt,this->fault_lines);
+				double poldist = poly_trees[idx]->distance_point(pt, this->fault_lines, g0(*it));
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -109,7 +110,7 @@ public:
 				
 				// Then check the minimum actual distance to a polygon.
 				//double poldist = geometry::distance(p, this->polygons[idx]);
-				double poldist = poly_trees[idx]->distance_point(p,this->fault_lines);
+				double poldist = poly_trees[idx]->distance_point(p, this->fault_lines, g0(*it));
 				if ( poldist < mindist ) {
 					mindist = poldist;
 					minidx = idx;
@@ -138,6 +139,7 @@ public:
 	
 	pydict info() const;
 	pytuple closest( const pyobject& pypt ) const;
+	double distance_poly(const pylist& pypt, int poly_idx) const;
 
 };
 

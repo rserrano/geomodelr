@@ -44,6 +44,7 @@ SectionPython::SectionPython(const wstring& name, double cut,
 {
 	size_t npols = python::len(polygons);
 	vector<value_f> envelopes;
+	vector<value_l> f_segs;
 
 	for ( size_t i = 0; i < npols; i++ ) {
 		polygon pol;
@@ -108,11 +109,12 @@ SectionPython::SectionPython(const wstring& name, double cut,
 	}
 	// Add the lines.
 	size_t nlines = python::len(lines);
+	int count_lines = 0;
 
 	for ( size_t i = 0; i < nlines; i++ ) {
 		line lin;
 		size_t nnodes = python::len(lines[i]);
-		vector<line_segment> fault_segments;
+		vector<value_l> fault_segments;
 		for ( size_t j = 0; j < nnodes; j++ ) {
 			pylist pypt = pylist(points[lines[i][j]]);
 			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
@@ -120,20 +122,20 @@ SectionPython::SectionPython(const wstring& name, double cut,
 
 			pypt = pylist(points[lines[i][(j+1)%nnodes]]);
 			point2 aux2 = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
-			fault_segments.push_back(line_segment(aux,aux2));
+			fault_segments.push_back(std::make_tuple(line_segment(aux,aux2),count_lines));
 		}
 		if ( not geometry::is_valid(lin) or not geometry::is_simple(lin) ) {
 			continue;
 		}
 		this->lines.push_back(lin);
 		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
-
-		fault_segments.pop_back();
-		if (fault_segments.size()>0){
-			this->fault_lines.push_back(new rtree_seg(fault_segments));
-		}
+		
+		fault_segments.pop_back(); count_lines++;
+		f_segs.reserve(f_segs.size() + distance(fault_segments.begin(),fault_segments.end()));
+		f_segs.insert(f_segs.end(),fault_segments.begin(),fault_segments.end());
 	}
 	
+	this->fault_lines =  new rtree_l( f_segs );
 	// Add which are the anchors, (for signaling later), but also extend the previously added lines.
 	size_t nanchs = python::len(anchored_lines);
 	for ( size_t i = 0; i < nanchs; i++ ) {
@@ -320,4 +322,13 @@ pylist test_extend_line( bool beg, const pyobject& bbox, const pylist& pl ) {
 		ret.append( python::make_tuple( gx( l[i] ), gy( l[i] ) ) );
 	}
 	return ret;
+}
+
+double SectionPython::distance_poly(const pylist& pypt, int idx) const{
+
+	double x = python::extract<double>(pypt[0]);
+	double y = python::extract<double>(pypt[1]);
+	box env;
+	geometry::envelope(this->poly_trees[idx]->boost_poly, env);
+	return this->poly_trees[idx]->distance_point(point2(x,y), this->fault_lines, env);
 }
