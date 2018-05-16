@@ -36,13 +36,15 @@ protected:
 	double x_corner;
 	rtree_seg * poly_lines;
 	polygon boost_poly;
+	box b_box;
 public:
 	Polygon();
 	Polygon(const polygon& poly);
 	virtual ~Polygon();
 
 	std::pair<line_segment,double> ray_distance(const point2& pt) const;
-	double distance_point(const point2& pt ,const rtree_l* fault_lines, const box& b_sqrt) const;
+	double distance_point(const point2& pt ,const rtree_l* fault_lines) const;
+	double distance_point_new(const point2& pt ,const rtree_l* fault_lines) const;
 };
 
 class PolygonPython : public Polygon {

@@ -328,7 +328,5 @@ double SectionPython::distance_poly(const pylist& pypt, int idx) const{
 
 	double x = python::extract<double>(pypt[0]);
 	double y = python::extract<double>(pypt[1]);
-	box env;
-	geometry::envelope(this->poly_trees[idx]->boost_poly, env);
-	return this->poly_trees[idx]->distance_point(point2(x,y), this->fault_lines, env);
+	return this->poly_trees[idx]->distance_point_new(point2(x,y), this->fault_lines);
 }

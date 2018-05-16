@@ -52,6 +52,7 @@ vector<line_segment> poly_to_vecsegs(const polygon& poly){
 Polygon::Polygon(const polygon& poly){
 	box env;
 	geometry::envelope(poly, env);
+	this->b_box = env;
 	this->x_corner = env.max_corner().get<0>() + epsilon;
 	this->poly_lines = new rtree_seg( poly_to_vecsegs(poly) );
 	this->boost_poly = poly;
@@ -94,11 +95,11 @@ std::pair<line_segment,double> Polygon::ray_distance(const point2& pt) const{
     return cross_segment(pt, results.front());
 }
 
-double Polygon::distance_point(const point2& pt, const rtree_l* fault_lines, const box& b_sqrt) const {
+double Polygon::distance_point(const point2& pt, const rtree_l* fault_lines) const {
 
 	/* Checks if pt is inside the bounding square of the polygon.
 	   After that, checks if pt is inside the polygon.*/
-    if (geometry::within(pt,b_sqrt) && geometry::covered_by(pt,this->boost_poly)){
+    if (geometry::within(pt,this->b_box) && geometry::covered_by(pt,this->boost_poly)){
         return 0.0;
     } else{
 
@@ -109,6 +110,61 @@ double Polygon::distance_point(const point2& pt, const rtree_l* fault_lines, con
         }
         return ray_dist_pair.second;
     }
+}
+
+
+double Polygon::distance_point_new(const point2& pt, const rtree_l* fault_lines) const {
+
+	if (geometry::covered_by(pt,this->boost_poly)){
+		return 0.0;
+	}
+
+	// Start analyze the first ring.
+	const ring& outer = this->boost_poly.outer();
+	size_t nnodes = outer.size();
+	bool not_intersection;
+	double min_dist = std::numeric_limits<double>::infinity();
+
+	for ( size_t k = 0; k < nnodes; k++ ) {
+		
+		line_segment edge = line_segment(outer[k],outer[(k+1)%nnodes]);
+		auto ray_pair = cross_segment(pt,edge);
+		not_intersection = true;
+		std::cerr << "Segment: " << k << ". Distance: " ray_pair.second << std::endl;;
+		if (ray_pair.second<min_dist){
+			for ( auto it = fault_lines->qbegin( geometry::index::intersects(ray_pair.first));
+	    		it != fault_lines->qend(); it++ ) {
+	    	 	not_intersection = false;
+	    	 	std::cerr << "intersects: " << g1(*it) <<std::endl;
+	        	break;
+	        }
+	        if (not_intersection){
+	        	min_dist = ray_pair.second;
+	        }
+	    }
+	}
+
+	for (auto& inner: geometry::interior_rings(this->boost_poly)){		
+		
+		nnodes = inner.size();
+		for ( size_t k = 0; k < nnodes; k++ ) {
+			
+			line_segment edge = line_segment(inner[k],inner[(k+1)%nnodes]);
+			auto ray_pair = cross_segment(pt,edge);
+			not_intersection = true;
+			if (ray_pair.second<min_dist){
+				for ( auto it = fault_lines->qbegin( geometry::index::intersects(ray_pair.first));
+		    		it != fault_lines->qend(); it++ ) {
+		    	 	not_intersection = false;
+		        	break;
+		        }
+		        if (not_intersection){
+		        	min_dist = ray_pair.second;
+		        }
+		    }
+		}
+	}
+	return min_dist;
 }
 
 
@@ -156,6 +212,7 @@ PolygonPython::PolygonPython(const pylist& points,const pylist& polygons){
 	if (nrings>0){
 		box env;
 		geometry::envelope(pol, env);
+		this->b_box = env;
 		this->x_corner = env.max_corner().get<0>() + epsilon;
 		this->poly_lines = new rtree_seg( poly_to_vecsegs(pol) );
 		this->boost_poly = pol;
@@ -168,9 +225,7 @@ double PolygonPython::distance_poly_test(const pylist& pt) const{
 	double y = python::extract<double>(pt[1]);
 
 	rtree_l * fault_lines = new rtree_l(vector<value_l>(0));
-	box env;
-	geometry::envelope(this->boost_poly, env);
-	return this->distance_point(point2(x,y),fault_lines, env);
+	return this->distance_point_new(point2(x,y),fault_lines);
 }
 
 pytuple PolygonPython::time_poly_test(const pylist& pt,int N) const{
@@ -181,8 +236,6 @@ pytuple PolygonPython::time_poly_test(const pylist& pt,int N) const{
 	rtree_l * fault_lines = new rtree_l(vector<value_l>(0));
 
 	point2 PT = point2(x,y);
-	box env;
-	geometry::envelope(this->boost_poly, env);
 
 	// Boost distance
 	clock_t  begin = clock();
@@ -195,7 +248,7 @@ pytuple PolygonPython::time_poly_test(const pylist& pt,int N) const{
 		// Own distance
 	begin = clock();
 	for (int k=0; k<N; k++){
-		double aux = this->distance_point(PT,fault_lines, env);
+		double aux = this->distance_point(PT,fault_lines);
 	}
 	end = clock();
 	double elapsed_1 = double(end - begin) / CLOCKS_PER_SEC;

@@ -304,6 +304,8 @@ public:
 	// Returns the closest but also air if there's topography in the cs aligned to the cross sections.
 	std::tuple<wstring, double> closest_topo_aligned(const point3& pt) const;
 	
+	double geomodelr_distance( const wstring& unit, const point3& point ) const;
+
 	// In this case the signed distance is not bounded by anything.
 	double signed_distance( const wstring& unit, const point3& pt ) const;
 	// In this case the bounding box bounds all the solids.
@@ -380,6 +382,8 @@ public:
 	double signed_distance_aligned( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const;
+
+	double geomodelr_distance( const wstring& unit, const pylist& point ) const;
 	
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;

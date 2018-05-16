@@ -2,6 +2,8 @@ from model import GeologicalModel
 from shared import ModelException, TaskException
 import random
 import numpy as np
+import pyopenvdb as vdb
+from math import ceil
 
 MESH_AVAILABLE = False
 
@@ -25,6 +27,108 @@ except ImportError:
  
 import itertools
 import gc
+
+def meshing_openvdb(signed_distance, grid_divisions, bbox):
+
+    # Fixed parameters
+    nx = ny = nz = grid_divisions
+    ndelta = 2
+    bg_rate = 3
+    steps = 2
+
+    dx = (bbox[3] - bbox[0])/nx
+    dy = (bbox[4] - bbox[1])/ny
+    dz = (bbox[5] - bbox[2])/nz
+
+    xi = bbox[0]-ndelta*dx; yi = bbox[1]-ndelta*dy; zi = bbox[2]-ndelta*dz
+    nx+=2*ndelta; ny+=2*ndelta; nz+=2*ndelta
+
+    bg = np.sqrt(dx**2 + dy**2 + dz**2)/2.0
+    bg *= bg_rate
+
+    grid = vdb.FloatGrid(background=bg)
+    grid.fill(min=(0,0,0), max=(nx-1, ny-1, nz-1), value=bg)
+    grid.gridClass = vdb.GridClass.LEVEL_SET
+
+    bg = grid.background
+
+    def sdf_voxels(min_v,max_v,step):
+        ni = int(ceil((max_v[0]-min_v[0]+1.0)/step))
+        nj = int(ceil((max_v[1]-min_v[1]+1.0)/step))
+        nk = int(ceil((max_v[2]-min_v[2]+1.0)/step))
+        # vals=np.zeros((ni,nj,nk))
+        vals=np.zeros(ni*nj*nk)
+        c=0
+        for i in range(min_v[0],max_v[0]+1,step):
+            for j in range(min_v[1],max_v[1]+1,step):
+                for k in range(min_v[2],max_v[2]+1,step):
+                    vals[c] = signed_distance(dx*i+xi,dy*j+yi,dz*k+zi)
+                    c+=1
+        return vals
+
+    def set_SDFvoxels(grid, vals, iter, step, active_bools):
+        
+        min_v = iter.min; max_v = iter.max
+        dAccessor = grid.getAccessor()
+        c=0
+        for i in range(min_v[0],max_v[0]+1,step):
+            for j in range(min_v[1],max_v[1]+1,step):
+                for k in range(min_v[2],max_v[2]+1,step):
+
+                    if active_bools[c]:
+                        dAccessor.setValueOn((i,j,k), vals[c])
+                    else:
+                        dAccessor.setActiveState((i,j,k), False)
+                    c+=1
+        del dAccessor
+
+    change = True
+    while change:
+        change = False
+        for iter in grid.iterOnValues():
+
+            if iter.depth==3:
+                if iter.value==bg:
+                    i,j,k = iter.min
+                    dist = signed_distance(dx*i+xi,dy*j+yi,dz*k+zi)                        
+                    if abs(dist)<bg:
+                        iter.value = dist
+                    else:
+                        iter.active = False
+            elif iter.depth==2:
+                vals = sdf_voxels(iter.min,iter.max,steps)
+                active_bools = np.abs(vals)<bg
+                if np.any(active_bools):
+                    set_SDFvoxels(grid,vals,iter,steps,active_bools)
+                    change = True
+                else:
+                    iter.active = False
+            else:
+                i,j,k = iter.max
+                dist = signed_distance(dx*i+xi,dy*j+yi,dz*k+zi)
+                dAccessor = grid.getAccessor()
+                if abs(dist)<bg:
+                    dAccessor.setValueOn((i,j,k), dist)
+                else:
+                    dAccessor.setActiveState((i,j,k), False)
+                del dAccessor   
+                change = True
+
+    grid.transform.scale((dx,dy,dz))
+    grid.transform.translate((xi,yi,zi))
+
+    points, quads = grid.convertToQuads()
+    nquads = len(quads)
+    triangles = np.zeros((2*nquads,3),dtype='int32')
+
+    for k in range(nquads):
+        triangles[2*k] = quads[k,[0,1,2]]
+        triangles[2*k+1] = quads[k,[2,3,0]]
+
+    # print "Value of n: ", grid_divisions
+    # print len(triangles), len(points)
+    # print grid.activeVoxelCount()
+    return (points.tolist(),triangles)
 
 def calculate_isovalues( signed_distance, unit, grid_divisions, bbox ):
     """
@@ -140,20 +244,21 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         else:
             signed_distance = lambda x,y,z: model.signed_distance_unbounded(unit, (x,y,z))
     
-    X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
+    # X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
     
-    # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
-    bb = check_bbox_surface( sd )
-    total_cells = grid_divisions ** 3
-    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
+    # # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
+    # bb = check_bbox_surface( sd )
+    # total_cells = grid_divisions ** 3
+    # obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
     
-    # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
-    if ( float(total_cells) / float(obj_cells) ) > 8.0:
-        bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
-        X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
+    # # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
+    # if ( float(total_cells) / float(obj_cells) ) > 8.0:
+    #     bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
+        # X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
     try:
-        vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
-        del normals
+        # vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+        # del normals
+        vertices, simplices = meshing_openvdb(signed_distance, grid_divisions, bbox)
     except ValueError:
         raise TaskException("This model does not contain the unit or the sample is too coarse")
     
@@ -185,7 +290,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
             for j in xrange(3):
                 simplices[i,j] = renum[simplices[i,j]]
     
-    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
+    # ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
     
     def real_pt_simple( pt ):
         gr = map( lambda c: ( int(c), c-int(c) ), pt )
@@ -200,12 +305,13 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         return outp
     
     if aligned:
-        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
+        # real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
+        real_pt = lambda p: model.inverse_point( p )
     else:
-        real_pt = real_pt_simple
+        # real_pt = real_pt_simple
+        real_pt = lambda p: p
     
     vertices = map(real_pt, vertices)
-    
     return vertices, simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):

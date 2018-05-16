@@ -181,7 +181,8 @@ std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, con
 	int minidx = -1;
 	for ( size_t i = 0; i < op.size(); i++ ) {
 		size_t pl = op[i];
-		double dist = geometry::distance(s.poly_trees[pl]->boost_poly, pt);
+		// double dist = geometry::distance(s.poly_trees[pl]->boost_poly, pt);
+		double dist = s.poly_trees[pl]->distance_point_new(pt, s.fault_lines);
 		if ( dist < mindist ) {
 			mindist = dist;
 			minidx = pl;
@@ -207,6 +208,16 @@ double Model::Possible::distance(double c) const {
 	return this->a_dist*c + this->b_dist*(1.0-c);
 }
 
+double Model::geomodelr_distance( const wstring& unit, const point3& pt ) const{
+	
+	auto just = [unit](const value_f& v) {
+		const wstring& s = g1(v);
+		return s == unit;
+	};
+
+	std::tuple<wstring, double> inside = this->closest( pt, just );
+	return g1(inside);
+}
 double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	
 	auto all_except = [unit](const value_f& v) {
@@ -221,6 +232,10 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	std::tuple<wstring, double> outside = this->closest( pt, all_except );
+	std::wcerr << g0(inside) << ": ";
+	std::cerr << g1(inside) << std::endl;
+	std::wcerr << g0(outside) << ": ";
+	std::cerr << g1(outside) << std::endl;
 	if ( g0(inside) == L"NONE" ) {
 		return g1(inside);
 	}
@@ -985,6 +1000,15 @@ double ModelPython::signed_distance_unbounded( const wstring& unit, const pyobje
 
 double ModelPython::signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_unbounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
+double ModelPython::geomodelr_distance( const wstring& unit, const pylist& point ) const{
+
+	double x = python::extract<double>( point[0] );
+	double y = python::extract<double>( point[1] );
+	double z = python::extract<double>( point[2] );
+	return ((Model *)this)->geomodelr_distance(unit,point3(x,y,z));
+	
 }
 
 pytuple calculate_section_bbox( const pyobject& bbox, const pyobject& point, const pyobject& direction, double cut ) {

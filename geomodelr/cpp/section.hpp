@@ -63,8 +63,13 @@ protected:
 				it != this->polidx->qend(); it++ ) {
 				// Check the actual distance to a polygon.
 				int idx = g2(*it);				
-				//double poldist = geometry::distance(this->polygons[idx], pt);
-				double poldist = poly_trees[idx]->distance_point(pt, this->fault_lines, g0(*it));
+				// double poldist = geometry::distance(poly_trees[idx]->boost_poly, pt);
+				std::wcerr << L"CLOSER THAN \n Section: " << this->name << " ";
+				std::wcerr << L"Polygon: " << this->units[idx] << " ";
+				std::cerr << idx << std::endl;
+				std::cerr << "Point: " << geometry::wkt(pt)  << std::endl;
+				double poldist = poly_trees[idx]->distance_point_new(pt, this->fault_lines);
+				std::cerr << "dist_f-distance: " << distance << "-" << poldist << "\n \n";
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -109,8 +114,13 @@ public:
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
-				//double poldist = geometry::distance(p, this->polygons[idx]);
-				double poldist = poly_trees[idx]->distance_point(p, this->fault_lines, g0(*it));
+				// double poldist = geometry::distance(p, poly_trees[idx]->boost_poly);
+				std::wcerr << L"CLOSER \n Section: " << this->name << " ";
+				std::wcerr << L"Polygon: " << this->units[idx] << " ";
+				std::cerr << idx << std::endl;
+				std::cerr << "Point: " << geometry::wkt(p)  << std::endl;
+				double poldist = poly_trees[idx]->distance_point_new(p, this->fault_lines);
+				std::cerr << "mindist-distance: " <<mindist << "-" << poldist << "\n \n";
 				if ( poldist < mindist ) {
 					mindist = poldist;
 					minidx = idx;
