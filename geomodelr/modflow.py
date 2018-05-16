@@ -178,7 +178,8 @@ def create_modflow_inputs(name, model, units_data,
 
     # mf_handle.write_input()
     print 'Crando Malla tetrahedrica'
-    output = get_VTU_mesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers)
+    # output = get_VTU_mesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers)
+    output = get_VTU_hexamesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers)
     #output = {'num_layers': layers}
     return(output)
 
@@ -216,6 +217,76 @@ def get_VTU_mesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup
     Kx_vec = np.zeros(len(cells))
     Ky_vec = np.zeros(len(cells))
     Kz_vec = np.zeros(len(cells))
+
+    for c in range(len(cells)):
+        pt = np.mean(points[cells[c]],0)
+        Unit = model.closest(pt)[0]
+        Data = units_data[Unit]
+        Kx_vec[c] = Data[0];
+        Ky_vec[c] = Data[0]*Data[1]
+        Kz_vec[c] = Data[2];
+        
+    hyd_pr = {'Kx':Kx_vec,'Ky':Ky_vec,'Kz':Kz_vec}
+    return (points, cells, hyd_pr)
+
+def get_VTU_hexamesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers):
+
+    points, Cells = meshzoo.cube(
+        xmin=0.0, xmax=10.0,
+        ymin=0.0, ymax=10.0,
+        zmin=0.0, zmax=10.0,
+        nx=cols, ny=rows, nz=layers+1)
+
+    cells = np.zeros((len(Cells)/5,8),dtype='int64')
+    del Cells
+
+    c=0
+    (nx,ny) = (cols,rows)
+    for k in range(layers):
+        for i in range(rows-1):
+            for j in range(cols-1):
+                A = j + i*nx + k*(nx*ny)
+                B = j+1 + i*nx + k*(nx*ny)
+                C = j+1 + (i+1)*nx + k*(nx*ny)
+                D = j + (i+1)*nx + k*(nx*ny)
+
+                A2 = j + i*nx + (k+1)*(nx*ny)
+                B2 = j+1 + i*nx + (k+1)*(nx*ny)
+                C2 = j+1 + (i+1)*nx + (k+1)*(nx*ny)
+                D2 = j + (i+1)*nx + (k+1)*(nx*ny)
+                cells[c] = [A,B,C,D,A2,B2,C2,D2]
+                c+=1
+    
+    
+    X_vec = np.linspace(X_inf + dX/2., X_sup - dX/2.,cols)
+    Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,rows)
+
+    C = 0
+
+    # Bottom
+    for k in range(layers):
+        for i in range(rows):
+            y = Y_vec[i]
+            for j in range(cols):
+                x = X_vec[j]
+                z = Z_bottoms[layers-1-k,rows-1-i,j]
+                points[C,:] = [x,y,z]
+                C+=1
+
+    for i in range(rows):
+        y = Y_vec[i]
+        for j in range(cols):
+            x = X_vec[j]
+            z = Z_top[rows-1-i,j]
+            points[C,:] = [x,y,z]
+            C+=1
+
+    Kx_vec = np.zeros(len(cells))
+    Ky_vec = np.zeros(len(cells))
+    Kz_vec = np.zeros(len(cells))
+
+    hyd_pr = {'Kx':Kx_vec,'Ky':Ky_vec,'Kz':Kz_vec}
+    return (points, cells, hyd_pr)
 
     for c in range(len(cells)):
         pt = np.mean(points[cells[c]],0)
