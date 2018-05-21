@@ -98,8 +98,10 @@ def create_feflow_input(name, model, units_data,
     fd.write("NODE\n")
     
     if nump < 10000:
+        num_columns = 80/6
         node_str = lambda n: "%5d" % (n+1)
     else:
+        num_columns = 80/8
         node_str = lambda n: "%7d" % (n+1)
     
     all_elems = []
@@ -169,7 +171,7 @@ def create_feflow_input(name, model, units_data,
     node_lists["back"]   = []
     node_lists["left"]   = []
     node_lists["right"]  = []
-
+    
     for lay in xrange(shape[0]):
         for row in xrange(shape[1]+1):
             for col in xrange(shape[2]+1):
@@ -253,11 +255,26 @@ def create_feflow_input(name, model, units_data,
     for i in range(4):
         fd.write("%(material_type_index)d %(default_value)13e \"%(comment)s\"\n" %
                  { "material_type_index": mtidxs[i], "default_value": defaults[i], "comment": comments[i] } )
-        
+        # join same material values in a single dictionary.
+        materials = {}
         for u in unit_indices:
             if units_data[u][i] != defaults[i]:
-                node_list = " ".join( map( conv_range, ranges[u] ) )
-                fd.write("%(material_value)13e\t%(node_list)s\n" % {"material_value": units_data[u][i], "node_list": node_list} )
+                v = units_data[u][i]
+                if v in materials:
+                    materials[v] = materials[v] + ranges[u]
+                else:
+                    materials[v] = ranges[u]
+        
+        for v in materials:
+            rngs = sorted(materials[v])
+            j = num_columns
+            node_list = " ".join( map( conv_range, rngs[:num_columns] ) )
+            fd.write("%(material_value)13e\t%(node_list)s\n" % { "material_value": v, "node_list": node_list } )
+            while j < len(rngs):
+                rng = rngs[j:j+num_columns]
+                node_list = " ".join( map( conv_range, rng ) )
+                fd.write("\t\t%(node_list)s\n" % { "node_list": node_list } )
+                j += num_columns
     
     # TINI
     fd.write("TINI\n0\n")
@@ -331,38 +348,6 @@ def create_feflow_input(name, model, units_data,
                ("UnsatFractureMode", "1"),
                ("ComputeIterativeSolverResiduals", "0"),
                ("SkipOutputSteps", "1")]
-    # options = [("SkipMeshFill", "false"),
-    #            ("SkipMeshDraw", "false"),
-    #            ("BackingStore", "false"),
-    #            ("OpaqueFringeMode", "false"),
-    #            ("LegendViewMode", "false"),
-    #            ("VelocityApproximationType", "0"),
-    #            ("EquationSolverType", "12"),
-    #            ("IterSymmType", "0"),
-    #            ("IterNonsymmType", "4"),
-    #            ("DirectSolverType", "1"),
-    #            ("PreconditionSymmType", "0"),
-    #            ("MaxNumbOrthogonal", "5"),
-    #            ("ReorderingMethod", "1"),
-    #            ("RecordCPU", "false"),
-    #            ("HideVelocity", "false"),
-    #            ("VelocityType", "0"),
-    #            ("GeoCS", ""),
-    #            ("SubdivisionCurvedEdges", "32"),
-    #            ("ShowOverview", "true"),
-    #            ("ShowMeshWindow", "true"),
-    #            ("TimeUnit", "0"),
-    #            ("SpatialIndexing", "false"),
-    #            ("MinimalSliceDistance", "0"),.1
-    #            ("UseUnsmoothVelocityField", "false"),
-    #            ("UnsatFractureMode", "1"),
-    #            ("ComputeIterativeSolverResiduals", "0"),
-    #            ("SkipOutputSteps", "1"),
-    #            ("UseAsComputationalSteps", "false"),
-    #            ("UseAsOutputSteps", "false"),
-    #            ("SmoothingIterations", "10"),
-    #            ("SmoothingMethod", "0"),
-    #            ("rho_0", "999793")]
     
     for opt in options:
         fd.write("  %(name)s=%(value)s\n" % {"name": opt[0], "value": opt[1]} )  
@@ -373,14 +358,28 @@ def create_feflow_input(name, model, units_data,
     # NODALSETS
     fd.write("NODALSETS\n")
     for k in node_lists:
-        node_list = " ".join( map( conv_range, node_lists[k] ) )
+        rngs = node_lists[k]
+        j = num_columns
+        node_list = " ".join( map( conv_range, rngs[:j] ) )
         fd.write("  %(setname)s %(setlist)s\n" % { "setname": k, "setlist": node_list })
+        while j < len(rngs):
+            rng = rngs[j:j+num_columns]
+            node_list = " ".join( map( conv_range, rng ) )
+            fd.write("\t\t%(setlist)s\n" % { "setname": k, "setlist": node_list })
+            j += num_columns
     
     # ELEMENTALSETS
     fd.write("ELEMENTALSETS\n")
     for u in ranges:
-        node_list = " ".join( map( conv_range, ranges[u] ) )
+        rngs = ranges[u]
+        j = num_columns
+        node_list = " ".join( map( conv_range, rngs[:j] ) )
         fd.write("  %(setname)s %(setlist)s\n" % { "setname": u, "setlist": node_list })
+        while j < len(rngs):
+            rng = rngs[j:j+num_columns]
+            node_list = " ".join( map( conv_range, rng ) )
+            fd.write("\t\t%(setlist)s\n" % { "setname": u, "setlist": node_list })
+            j += num_columns
     
     # END
     fd.write("END\n")
