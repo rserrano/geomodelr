@@ -53,6 +53,8 @@ class TestGeoModelR(unittest.TestCase):
         # ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
         # ps.print_stats()
         # print >> sys.stderr, s.getvalue()
+    
+   
 
     # Tests function fault plane for lines.
     def test_faultplane_for_lines(self):
@@ -972,7 +974,42 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-1*dp5)), 1*dp5)
         self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-2*dp5)), 2*dp5)
         self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-3*dp5)), 3*dp5)
+    
+    def test_feflow(self):
+        this_dir, this_filename = os.path.split(__file__)
+        fn = os.path.join(this_dir, 'test_files', 'Modelo_Hidro.json')
+        geo_model = model.model_from_file(fn)
 
+        Geo_Data = True
+        Graph = True
+
+        Rows = 100;  Cols = 100; Layers = 20; Angle = 30; DZ = 1.0
+        Units = geo_model.units
+        Kh = np.arange(len(Units))*0
+        ani = np.ones(len(Units))
+        Kz = Kh/10.0
+        Act_Uni = np.ones(len(Units))
+
+        Faults = geo_model.faults.keys()
+        Kh_f = np.arange(len(Faults))+1.0
+        ani_f = np.arange(len(Faults))+2.0
+        Kz_f = Kh_f/10.0
+        Act_faults = np.ones(len(Faults))
+        Act_faults[0]=0
+        Act_faults[2]=0
+        Alg = 'adaptive'
+        
+        units_data = { Units[k]: (Kh[k],ani[k],Kz[k],Act_Uni[k]) for k in range(len(Units)) }
+        faults_data = { Faults[k]: (Kh_f[k],ani_f[k],Kz_f[k],Act_faults[k]) for k in range(len(Faults)) }
+        Bounding_Box = geo_model.bbox
+        file_name = 'Files_Test'
+
+        modflow.create_feflow_input(file_name,geo_model,units_data,
+                                    len_units=2, rows=Rows, cols=Cols,layers=Layers,
+                                    bbox  = Bounding_Box, angle = Angle, dz_min=DZ, time_units=4,
+                                    algorithm='adaptive',faults_data=faults_data)
+        # print open("Files_Test.fem").read()
+        # os.remove("Files_Test.fem")
 def main(args=None):
     unittest.main()
 
