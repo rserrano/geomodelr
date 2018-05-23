@@ -43,7 +43,6 @@ protected:
 	map<int, vector<int>> b_to_a;
 	map<wstring, vector<AlignedTriangle>> faults; // The aligned triangles to test.
 	map<wstring, std::tuple<int, int>> rel_faults; // Which fault is related to which other fault.
-	
 	rtree_f * faultidx;
 public:
 	Match( const Section * a, const Section * b );

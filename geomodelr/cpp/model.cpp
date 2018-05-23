@@ -112,10 +112,10 @@ void Model::make_matches() {
 	
 	for ( size_t i = 1; i < this->sections.size(); i++ ) {
 		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
-		// Match the polygons.
-		this->match.back()->match_polygons();
 		// Get the matching faults.
 		auto m = this->match.back()->match_lines( this->feature_types );
+		// Match the polygons.
+		this->match.back()->match_polygons();
 		add_to_faults(m);
 	}
 	
