@@ -130,12 +130,13 @@ double Polygon::distance_point_new(const point2& pt, const rtree_l* fault_lines)
 		line_segment edge = line_segment(outer[k],outer[(k+1)%nnodes]);
 		auto ray_pair = cross_segment(pt,edge);
 		not_intersection = true;
-		std::cerr << "Segment: " << k << ". Distance: " ray_pair.second << std::endl;;
+		// std::cerr << "Segment: " << k << ". Distance: " << ray_pair.second << std::endl;
+		// std::cerr << "Ray: " << geometry::wkt(ray_pair.first) << std::endl;
 		if (ray_pair.second<min_dist){
 			for ( auto it = fault_lines->qbegin( geometry::index::intersects(ray_pair.first));
 	    		it != fault_lines->qend(); it++ ) {
 	    	 	not_intersection = false;
-	    	 	std::cerr << "intersects: " << g1(*it) <<std::endl;
+	    	 	// std::cerr << "intersects: " << geometry::wkt(g0(*it)) <<std::endl;
 	        	break;
 	        }
 	        if (not_intersection){
