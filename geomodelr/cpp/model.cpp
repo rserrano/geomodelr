@@ -218,6 +218,50 @@ double Model::geomodelr_distance( const wstring& unit, const point3& pt ) const{
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	return g1(inside);
 }
+vector<point2>  Model::get_polygon(const wstring sec, int poly_idx) const{
+
+	int pos = 0;
+	int n = this->sections.size();
+	for (int k=0; k<n;k++){
+		if (this->sections[k]->name==sec){
+			pos = k;
+			break;
+		}
+	}
+
+	ring outer = (this->sections[pos]->poly_trees[poly_idx])->boost_poly.outer();
+	size_t nnodes = outer.size();
+
+	vector<point2> pts;
+	for ( size_t k = 0; k < nnodes; k++ ) {
+		pts.push_back(outer[k]);
+	}
+	return pts;
+
+}
+
+vector<point2> Model::get_fault(const wstring sec, int fault_idx) const{
+
+	int pos = 0;
+	int n = this->sections.size();
+	for (int k=0; k<n;k++){
+		if (this->sections[k]->name==sec){
+			pos = k;
+			break;
+		}
+	}
+
+	line outer = (this->sections[pos]->lines[fault_idx]);
+	size_t nnodes = outer.size();
+
+	vector<point2> pts;
+	for ( size_t k = 0; k < nnodes; k++ ) {
+		pts.push_back(outer[k]);
+	}
+	return pts;
+
+}
+
 double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	
 	auto all_except = [unit](const value_f& v) {
@@ -232,10 +276,10 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	std::tuple<wstring, double> outside = this->closest( pt, all_except );
-	std::wcerr << g0(inside) << ": ";
-	std::cerr << g1(inside) << std::endl;
-	std::wcerr << g0(outside) << ": ";
-	std::cerr << g1(outside) << std::endl;
+	// std::wcerr << g0(inside) << ": ";
+	// std::cerr << g1(inside) << std::endl;
+	// std::wcerr << g0(outside) << ": ";
+	// std::cerr << g1(outside) << std::endl;
 	if ( g0(inside) == L"NONE" ) {
 		return g1(inside);
 	}
@@ -1009,6 +1053,28 @@ double ModelPython::geomodelr_distance( const wstring& unit, const pylist& point
 	double z = python::extract<double>( point[2] );
 	return ((Model *)this)->geomodelr_distance(unit,point3(x,y,z));
 	
+}
+
+pylist ModelPython::get_polygon(const wstring sec, int pol_idx){
+	auto input = ((Model *)this)->get_polygon(sec,pol_idx);
+
+	pylist output;
+    for (auto& it_point: input){
+        pylist point; point.append(gx(it_point)); point.append(gy(it_point));
+        output.append(point);
+    }
+    return output;
+}
+
+pylist ModelPython::get_fault(const wstring sec, int pol_idx){
+	auto input = ((Model *)this)->get_fault(sec,pol_idx);
+
+	pylist output;
+    for (auto& it_point: input){
+        pylist point; point.append(gx(it_point)); point.append(gy(it_point));
+        output.append(point);
+    }
+    return output;
 }
 
 pytuple calculate_section_bbox( const pyobject& bbox, const pyobject& point, const pyobject& direction, double cut ) {

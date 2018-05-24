@@ -305,6 +305,8 @@ public:
 	std::tuple<wstring, double> closest_topo_aligned(const point3& pt) const;
 	
 	double geomodelr_distance( const wstring& unit, const point3& point ) const;
+	vector<point2> get_polygon(const wstring sec, int poly_idx) const;
+	vector<point2> get_fault(const wstring sec, int fault_idx) const;
 
 	// In this case the signed distance is not bounded by anything.
 	double signed_distance( const wstring& unit, const point3& pt ) const;
@@ -384,6 +386,8 @@ public:
 	double signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const;
 
 	double geomodelr_distance( const wstring& unit, const pylist& point ) const;
+	pylist get_polygon(const wstring sec, int pol_idx);
+	pylist get_fault(const wstring sec, int pol_idx);
 	
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;
