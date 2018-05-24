@@ -723,7 +723,7 @@ class TestGeoModelR(unittest.TestCase):
         rt = { v: k for k, v in t.iteritems() }
         
         srt = sorted(usum.items(), key = lambda i: rt[i[0]])
-        self.assertEqual(map( lambda x: x[1], srt ),[117, 43, 68, 7, 43, 5, 1, 52, 1, 6])
+        self.assertEqual(map( lambda x: x[1], srt ),  [116, 43, 68, 7, 43, 5, 1, 52, 1, 1, 6])
        
         # Then test the fdm refined grid.
         ref_grid = utils.generate_fdm_grid(query_func, bbox, 5, 5)
@@ -739,23 +739,23 @@ class TestGeoModelR(unittest.TestCase):
         
         # Calculate bounded.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50 )
-        self.assertEqual(len(verts), 11054)
-        self.assertEqual(len(triangs), 22104)
+        self.assertEqual(len(verts), 11018)
+        self.assertEqual(len(triangs), 22032)
         
         # Calculate unbounded
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False )
-        self.assertEqual(len(verts), 8892)
-        self.assertEqual(len(triangs), 17386)
+        self.assertEqual(len(verts), 8856)
+        self.assertEqual(len(triangs), 17314)
         
         # Filter by normal.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
-        self.assertEqual(len(verts), 5864)
-        self.assertEqual(len(triangs), 10529)
+        self.assertEqual(len(verts), 5848)
+        self.assertEqual(len(triangs), 10477)
         
         # Filter by normal, negative.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
         self.assertEqual(len(verts), 4612)
-        self.assertEqual(len(triangs), 8546)
+        self.assertEqual(len(triangs), 8526)
 
     def test_modflow(self):
         
