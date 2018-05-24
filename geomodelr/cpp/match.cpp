@@ -18,7 +18,8 @@
 
 #include "match.hpp"
 #include <cmath>
-
+#include <boost/range/adaptors.hpp>
+#include <boost/assert.hpp>
 
 Match::Match( const Section * a, const Section * b )
 :a(a), b(b), faultidx(nullptr)
@@ -43,16 +44,70 @@ void Match::set( const vector<std::pair<int, int>>& match ){
 	}
 }
 
-
-
 void Match::match_polygons() {
+	// Generate fault hiding.
+	map<wstring, polygon> fault_exclusion;
+	for ( auto it = this->faults.begin(); it != faults.end(); it++ ) {
+		const vector<AlignedTriangle>& triangles = it->second;
+		const wstring& name = it->first;
+		fault_exclusion[name] = triangles[0].triangle;
+		for ( size_t i = 1; i < triangles.size(); i++ ) {
+			std::vector<polygon> output;
+			try {
+				geometry::union_(fault_exclusion[name], triangles[i].triangle, output);
+			} catch ( geometry::exception& e ) {
+				//std::cerr << "error with polygon union\n";
+			}
+			// std::cerr << "output size " << output.size() << "\n";
+			// std::cerr << geometry::area(fault_exclusion[name]) << " " << geometry::area(triangles[i].triangle) << "\n";
+			// BOOST_ASSERT_MSG( output.size() == 1, "union does not have one polygon" );
+			// std::cerr << geometry::area(output[0]) << "\n";
+			if ( output.size() == 0 ) {// The polygons are empty? it's possible.
+				continue;
+			}
+			if ( output.size() > 1 ) {
+				//std::cerr << "polygon with "<< output.size() <<"\n";
+			}
+			fault_exclusion[name] = output[0];
+		}
+		if ( (geometry::area(fault_exclusion[name]) < boost_tol) ) {
+			//std::cerr << "empty polygon\n";
+		}
+	}
+	// Does the fault cover the polygon.
+	auto fault_covers_poly = [] ( const polygon& flt, const vector<polygon>& intersect ) -> bool {
+		for ( const polygon& pol: intersect ) {
+			vector<polygon> output;
+			try {
+				geometry::difference( pol, flt, output );
+				if ( output.size() != 0 ) {
+					return false;
+				}
+			} catch ( geometry::exception& e ) {
+				// std::cerr << "excep 2" << geometry::is_simple(flt) << geometry::is_simple(pol) << "\n";
+			}
+		}
+		return true;
+	};
+	// Check if any of the polygons is covered by a fault.
+	auto covered_by_fault = [&] ( const vector<polygon>& intersect ) -> bool {
+		for ( const polygon& flt: fault_exclusion | boost::adaptors::map_values ) {
+			if ( geometry::area(flt) < boost_tol ) {
+				continue;
+			}
+			if ( fault_covers_poly( flt, intersect ) ) {
+				return true;
+			}
+		}
+		return false;
+	};
+	
 	map<wstring, vector<int>> units_a;
 	map<wstring, vector<int>> units_b;
 	
 	for ( size_t i = 0; i < this->a->poly_trees.size(); i++ ) {
 		units_a[this->a->units[i]].push_back(i);
 	}
-	
 	for ( size_t i = 0; i < this->b->poly_trees.size(); i++ ) {
 		units_b[this->b->units[i]].push_back(i);
 	}
@@ -65,15 +120,26 @@ void Match::match_polygons() {
 			for ( size_t i = 0; i < pols_a.size(); i++ )
 			{
 				for ( size_t j = 0; j < pols_b.size(); j++ ) {
-					//if ( geometry::intersects(this->a->polygons[pols_a[i]], this->b->polygons[pols_b[j]]) ) {
-					if ( geometry::intersects(this->a->poly_trees[pols_a[i]]->boost_poly,this->b->poly_trees[pols_b[j]]->boost_poly) ) {
-						m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+					if ( geometry::intersects(this->a->poly_trees[pols_a[i]]->boost_poly, this->b->poly_trees[pols_b[j]]->boost_poly) ) {
+						vector<polygon> output;
+						try {
+							geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
+									       this->b->poly_trees[pols_b[j]]->boost_poly, 
+									       output);
+						} catch ( geometry::exception& e ) {
+							//std::cerr << "excep 1\n";
+						}
+						if ( not covered_by_fault( output ) ) {;
+							// TODO: use tree.
+							m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						} else {
+							// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
+						}
 					}
 				}
 			}
 		}
 	}
-
 	this->set( m );
 }
 
@@ -120,6 +186,8 @@ AlignedTriangle::AlignedTriangle(const std::tuple<point3, point3, point3>& trian
 	outer.push_back(point2(gx(p0), gy(p0)));
 	outer.push_back(point2(gx(p1), gy(p1)));
 	outer.push_back(point2(gx(p2), gy(p2)));
+	
+	geometry::correct(this->triangle);
 }
 
 int AlignedTriangle::crosses_triangle(const point2& point, double cut ) const {
