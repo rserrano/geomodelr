@@ -26,7 +26,7 @@ import shared
 import utils
 import isosurfaces
 import cpp
-import modflow
+import modflow, feflow
 import numpy as np
 from numpy import linalg as la
 from datetime import datetime
@@ -985,7 +985,7 @@ class TestGeoModelR(unittest.TestCase):
 
         Rows = 100;  Cols = 100; Layers = 20; Angle = 30; DZ = 1.0
         Units = geo_model.units
-        Kh = np.arange(len(Units))*0
+        Kh = np.arange(len(Units))
         ani = np.ones(len(Units))
         Kz = Kh/10.0
         Act_Uni = np.ones(len(Units))
@@ -1004,7 +1004,7 @@ class TestGeoModelR(unittest.TestCase):
         Bounding_Box = geo_model.bbox
         file_name = 'Files_Test'
 
-        modflow.create_feflow_input(file_name,geo_model,units_data,
+        feflow.create_feflow_input(file_name,geo_model,units_data,
                                     len_units=2, rows=Rows, cols=Cols,layers=Layers,
                                     bbox  = Bounding_Box, angle = Angle, dz_min=DZ, time_units=4,
                                     algorithm='adaptive',faults_data=faults_data)
