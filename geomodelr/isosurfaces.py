@@ -549,7 +549,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
 
             simplices = simplices[ map(check_outsideTR,simplices) ] 
 
-        vertices = vertices.tolist()
+        # vertices = vertices.tolist()
 
     except ValueError:
         raise TaskException("This model does not contain the unit or the sample is too coarse")
