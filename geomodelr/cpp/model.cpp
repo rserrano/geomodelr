@@ -181,8 +181,8 @@ std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, con
 	int minidx = -1;
 	for ( size_t i = 0; i < op.size(); i++ ) {
 		size_t pl = op[i];
-		// double dist = geometry::distance(s.poly_trees[pl]->boost_poly, pt);
-		double dist = s.poly_trees[pl]->distance_point_new(pt, s.fault_lines);
+		double dist = geometry::distance(s.poly_trees[pl]->boost_poly, pt);
+		// double dist = s.poly_trees[pl]->distance_point_new(pt, s.fault_lines);
 		if ( dist < mindist ) {
 			mindist = dist;
 			minidx = pl;

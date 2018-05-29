@@ -63,8 +63,8 @@ protected:
 				it != this->polidx->qend(); it++ ) {
 				// Check the actual distance to a polygon.
 				int idx = g2(*it);				
-				// double poldist = geometry::distance(poly_trees[idx]->boost_poly, pt);
-				double poldist = poly_trees[idx]->distance_point_new(pt, this->fault_lines);
+				double poldist = geometry::distance(poly_trees[idx]->boost_poly, pt);
+				// double poldist = poly_trees[idx]->distance_point_new(pt, this->fault_lines);
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -109,8 +109,8 @@ public:
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
-				// double poldist = geometry::distance(p, poly_trees[idx]->boost_poly);
-				double poldist = poly_trees[idx]->distance_point_new(p, this->fault_lines);
+				double poldist = geometry::distance(p, poly_trees[idx]->boost_poly);
+				// double poldist = poly_trees[idx]->distance_point_new(p, this->fault_lines);
 				if ( poldist < mindist ) {
 					mindist = poldist;
 					minidx = idx;
