@@ -2,8 +2,6 @@ from model import GeologicalModel
 from shared import ModelException, TaskException
 import random
 import numpy as np
-import pyopenvdb as vdb
-from math import ceil
 
 MESH_AVAILABLE = False
 
@@ -496,12 +494,12 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         else:
             signed_distance = lambda x,y,z: model.signed_distance_unbounded(unit, (x,y,z))
     
-    # X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
+    X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
     
-    # # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
-    # bb = check_bbox_surface( sd )
-    # total_cells = grid_divisions ** 3
-    # obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
+    # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
+    bb = check_bbox_surface( sd )
+    total_cells = grid_divisions ** 3
+    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
     
     # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
     # if ( float(total_cells) / float(obj_cells) ) > 8.0:
@@ -530,6 +528,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
             grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = resample_openvdb_grid(signed_distance,grid,grid_sample,grid_size,xyz_corner,num_res)
         
         vertices, simplices = grid_to_mesh(grid,xi,yi,zi,dx,dy,dz,1e-10,0.12)
+
     except ValueError:
         raise TaskException("This model does not contain the unit or the sample is too coarse")
     
@@ -561,7 +560,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
             for j in xrange(3):
                 simplices[i,j] = renum[simplices[i,j]]
     
-    # ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
+    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
     
     def real_pt_simple( pt ):
         gr = map( lambda c: ( int(c), c-int(c) ), pt )
@@ -576,13 +575,12 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         return outp
     
     if aligned:
-        # real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
-        real_pt = lambda p: model.inverse_point( p )
+        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
     else:
-        # real_pt = real_pt_simple
-        real_pt = lambda p: p
+        real_pt = real_pt_simple
     
     vertices = map(real_pt, vertices)
+    
     return vertices, simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
