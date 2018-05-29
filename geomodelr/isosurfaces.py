@@ -2,6 +2,8 @@ from model import GeologicalModel
 from shared import ModelException, TaskException
 import random
 import numpy as np
+import pyopenvdb as vdb
+from math import ceil
 
 MESH_AVAILABLE = False
 
@@ -57,8 +59,8 @@ def set_SDFvoxels(grid, vals, iter, step, active_bools):
                 if active_bools[I,J,K]:
                     dAccessor.setValueOn((i,j,k), vals[I,J,K])
                 else:
-                    # dAccessor.setActiveState((i,j,k), False)
-                    dAccessor.setValueOff((i,j,k), vals[I,J,K])
+                    dAccessor.setActiveState((i,j,k), False)
+                    # dAccessor.setValueOff((i,j,k), vals[I,J,K])
 
     del dAccessor
 
@@ -148,7 +150,6 @@ def grid_openvdb(signed_distance, grid_divisions, bbox, ndelta):
                         iter.value = dist
                     else:
                         iter.active = False
-                        iter.value = dist
 
             elif iter.depth==2:
                 vals = sdf_voxels(signed_distance,dx,dy,dz,xi,yi,zi,iter.min,iter.max,steps)
@@ -158,7 +159,7 @@ def grid_openvdb(signed_distance, grid_divisions, bbox, ndelta):
                     change = True
                 else:
                     iter.active = False
-                    iter.value = np.sign(vals[2,2,2])*bg
+                    # iter.value = np.sign(vals[2,2,2])*bg
             else:
                 i,j,k = iter.max
                 dist = signed_distance(dx*i+xi,dy*j+yi,dz*k+zi)
@@ -166,8 +167,8 @@ def grid_openvdb(signed_distance, grid_divisions, bbox, ndelta):
                 if abs(dist)<bg:
                     dAccessor.setValueOn((i,j,k), dist)
                 else:
-                    # dAccessor.setActiveState((i,j,k), False)
-                    dAccessor.setValueOff((i,j,k), dist)
+                    dAccessor.setActiveState((i,j,k), False)
+                    # dAccessor.setValueOff((i,j,k), dist)
                 del dAccessor   
                 change = True
 
@@ -238,12 +239,10 @@ def grid_to_mesh(grid,xi,yi,zi,dx,dy,dz,isovalue,adaptive):
         triangles[2*k] = quads[k,[0,1,2]]
         triangles[2*k+1] = quads[k,[2,3,0]]
 
-    print len(trians)
     if len(trians)>0:
         triangles = np.concatenate((triangles, trians.astype('int32')))
 
-    print np.shape(triangles)
-    return (points.tolist(),triangles)
+    return (points,triangles)
 
 # ==================================================
 #                   Begin: Resample
@@ -494,12 +493,12 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         else:
             signed_distance = lambda x,y,z: model.signed_distance_unbounded(unit, (x,y,z))
     
-    X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
+    # X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
     
     # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
-    bb = check_bbox_surface( sd )
-    total_cells = grid_divisions ** 3
-    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
+    # bb = check_bbox_surface( sd )
+    # total_cells = grid_divisions ** 3
+    # obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
     
     # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
     # if ( float(total_cells) / float(obj_cells) ) > 8.0:
@@ -518,16 +517,39 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         bbox = [bb[0]*dx+xi, bb[1]*dy+yi, bb[2]*dz+zi, bb[3]*dx+xi, bb[4]*dy+yi, bb[5]*dz+zi]
         grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = grid_openvdb(signed_distance, grid_size, bbox, ndelta)
     try:
-        if unit==u'Cardium Sand 3 top':
-        # vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
-        # del normals
-            grid_sample = (dx,dy,dz)
-            grid_size = (nx,ny,nz)
-            xyz_corner = (xi,yi,zi)
-            num_res= (6,2,4)
-            grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = resample_openvdb_grid(signed_distance,grid,grid_sample,grid_size,xyz_corner,num_res)
-        
+        # if unit==u'Cardium Sand 3 top':
+        # # vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+        # # del normals
+        #     grid_sample = (dx,dy,dz)
+        #     grid_size = (nx,ny,nz)
+        #     xyz_corner = (xi,yi,zi)
+        #     num_res= (6,2,4)
+        #     grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = resample_openvdb_grid(signed_distance,grid,grid_sample,grid_size,xyz_corner,num_res)
         vertices, simplices = grid_to_mesh(grid,xi,yi,zi,dx,dy,dz,1e-10,0.12)
+
+        if not(bounded):
+            bbox[0] -= ndelta*dx
+            bbox[1] -= ndelta*dy
+            bbox[2] -= ndelta*dz
+
+            bbox[3] += ndelta*dx
+            bbox[4] += ndelta*dy
+            bbox[5] += ndelta*dz
+
+            def check_outsidePT(pt):
+                eps = 1e-10
+                x_out = (pt[0]<=(bbox[0]+eps+dx)) | (pt[0]>=(bbox[3]-eps-dx))
+                y_out = (pt[1]<=(bbox[1]+eps+dy)) | (pt[1]>=(bbox[4]-eps-dy))
+                z_out = (pt[2]<=(bbox[2]+eps+dz)) | (pt[2]>=(bbox[5]-eps-dz))
+                return x_out|y_out|z_out
+
+            def check_outsideTR(tri):
+                pts = vertices[tri]
+                return not(np.all(map(check_outsidePT,pts)))
+
+            simplices = simplices[ map(check_outsideTR,simplices) ] 
+
+        vertices = vertices.tolist()
 
     except ValueError:
         raise TaskException("This model does not contain the unit or the sample is too coarse")
