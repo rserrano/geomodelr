@@ -560,7 +560,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
             for j in xrange(3):
                 simplices[i,j] = renum[simplices[i,j]]
     
-    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
+    # ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
     
     def real_pt_simple( pt ):
         gr = map( lambda c: ( int(c), c-int(c) ), pt )
@@ -575,9 +575,10 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         return outp
     
     if aligned:
-        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
+        # real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
+        real_pt = lambda p: model.inverse_point( p )
     else:
-        real_pt = real_pt_simple
+        real_pt = lambda p: p
     
     vertices = map(real_pt, vertices)
     
