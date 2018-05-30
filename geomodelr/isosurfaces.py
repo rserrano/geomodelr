@@ -59,8 +59,8 @@ def set_SDFvoxels(grid, vals, iter, step, active_bools):
                 if active_bools[I,J,K]:
                     dAccessor.setValueOn((i,j,k), vals[I,J,K])
                 else:
-                    dAccessor.setActiveState((i,j,k), False)
-                    # dAccessor.setValueOff((i,j,k), vals[I,J,K])
+                    # dAccessor.setActiveState((i,j,k), False)
+                    dAccessor.setValueOff((i,j,k), vals[I,J,K])
 
     del dAccessor
 
@@ -150,6 +150,7 @@ def grid_openvdb(signed_distance, grid_divisions, bbox, ndelta):
                         iter.value = dist
                     else:
                         iter.active = False
+                        iter.value = dist
 
             elif iter.depth==2:
                 vals = sdf_voxels(signed_distance,dx,dy,dz,xi,yi,zi,iter.min,iter.max,steps)
@@ -159,7 +160,7 @@ def grid_openvdb(signed_distance, grid_divisions, bbox, ndelta):
                     change = True
                 else:
                     iter.active = False
-                    # iter.value = np.sign(vals[2,2,2])*bg
+                    iter.value = np.sign(vals[2,2,2])*bg
             else:
                 i,j,k = iter.max
                 dist = signed_distance(dx*i+xi,dy*j+yi,dz*k+zi)
@@ -167,8 +168,8 @@ def grid_openvdb(signed_distance, grid_divisions, bbox, ndelta):
                 if abs(dist)<bg:
                     dAccessor.setValueOn((i,j,k), dist)
                 else:
-                    dAccessor.setActiveState((i,j,k), False)
-                    # dAccessor.setValueOff((i,j,k), dist)
+                    # dAccessor.setActiveState((i,j,k), False)
+                    dAccessor.setValueOff((i,j,k), dist)
                 del dAccessor   
                 change = True
 
@@ -517,15 +518,16 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         bbox = [bb[0]*dx+xi, bb[1]*dy+yi, bb[2]*dz+zi, bb[3]*dx+xi, bb[4]*dy+yi, bb[5]*dz+zi]
         grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = grid_openvdb(signed_distance, grid_size, bbox, ndelta)
     try:
-        # if unit==u'Cardium Sand 3 top':
-        # # vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
-        # # del normals
-        #     grid_sample = (dx,dy,dz)
-        #     grid_size = (nx,ny,nz)
-        #     xyz_corner = (xi,yi,zi)
-        #     num_res= (6,2,4)
-        #     grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = resample_openvdb_grid(signed_distance,grid,grid_sample,grid_size,xyz_corner,num_res)
-        vertices, simplices = grid_to_mesh(grid,xi,yi,zi,dx,dy,dz,1e-10,0.12)
+        # vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+        # del normals
+        if unit==u'Cardium Sand 3 top':
+            grid_sample = (dx,dy,dz)
+            grid_size = (nx,ny,nz)
+            xyz_corner = (xi,yi,zi)
+            num_res= (6,2,4)
+            grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = resample_openvdb_grid(signed_distance,grid,grid_sample,grid_size,xyz_corner,num_res)
+        
+        vertices, simplices = grid_to_mesh(grid,xi,yi,zi,dx,dy,dz,1e-10,0.)
 
         if not(bounded):
             bbox[0] -= ndelta*dx
@@ -549,7 +551,6 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
 
             simplices = simplices[ map(check_outsideTR,simplices) ] 
 
-        # vertices = vertices.tolist()
 
     except ValueError:
         raise TaskException("This model does not contain the unit or the sample is too coarse")
@@ -600,9 +601,11 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
         # real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
         real_pt = lambda p: model.inverse_point( p )
     else:
+        # real_pt = real_pt_simple
         real_pt = lambda p: p
     
     vertices = map(real_pt, vertices.tolist())
+    # vertices = map(real_pt, vertices)
     
     return vertices, simplices.tolist()
 

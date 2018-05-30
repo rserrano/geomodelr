@@ -121,20 +121,21 @@ void Match::match_polygons() {
 			{
 				for ( size_t j = 0; j < pols_b.size(); j++ ) {
 					if ( geometry::intersects(this->a->poly_trees[pols_a[i]]->boost_poly, this->b->poly_trees[pols_b[j]]->boost_poly) ) {
-						vector<polygon> output;
-						try {
-							geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
-									       this->b->poly_trees[pols_b[j]]->boost_poly, 
-									       output);
-						} catch ( geometry::exception& e ) {
-							//std::cerr << "excep 1\n";
-						}
-						if ( not covered_by_fault( output ) ) {;
-							// TODO: use tree.
-							m.push_back(std::make_pair(pols_a[i], pols_b[j]));
-						} else {
-							// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
-						}
+						// vector<polygon> output;
+						m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						// try {
+						// 	geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
+						// 			       this->b->poly_trees[pols_b[j]]->boost_poly, 
+						// 			       output);
+						// } catch ( geometry::exception& e ) {
+						// 	//std::cerr << "excep 1\n";
+						// }
+						// if ( not covered_by_fault( output ) ) {;
+						// 	// TODO: use tree.
+						// 	m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						// } else {
+						// 	// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
+						// }
 					}
 				}
 			}
