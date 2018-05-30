@@ -520,14 +520,16 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     try:
         # vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
         # del normals
+        adaptive = 0
         if unit==u'Cardium Sand 3 top':
             grid_sample = (dx,dy,dz)
             grid_size = (nx,ny,nz)
             xyz_corner = (xi,yi,zi)
             num_res= (6,2,4)
+            adaptive = 0.15
             grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = resample_openvdb_grid(signed_distance,grid,grid_sample,grid_size,xyz_corner,num_res)
         
-        vertices, simplices = grid_to_mesh(grid,xi,yi,zi,dx,dy,dz,1e-10,0.)
+        vertices, simplices = grid_to_mesh(grid,xi,yi,zi,dx,dy,dz,1e-10,adaptive)
 
         if not(bounded):
             bbox[0] -= ndelta*dx
