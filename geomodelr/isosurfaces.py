@@ -602,9 +602,9 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     else:
         real_pt = lambda p: p
     
-    vertices = map(real_pt, vertices)
+    vertices = map(real_pt, vertices.tolist())
     
-    return vertices.tolist(), simplices.tolist()
+    return vertices, simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
     """
