@@ -604,7 +604,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     
     vertices = map(real_pt, vertices)
     
-    return vertices, simplices.tolist()
+    return vertices.tolist(), simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
     """
