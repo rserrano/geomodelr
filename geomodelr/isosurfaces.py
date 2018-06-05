@@ -157,13 +157,42 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     except ValueError:
         raise TaskException("This model does not contain the unit or the sample is too coarse")
     
+    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
+    
+    def real_pt_simple( pt ):
+        gr = map( lambda c: ( int(c), c-int(c) ), pt )
+        outp = []
+        for i in range(3):
+            assert gr[i][0] < len(ranges[i])
+            if gr[i][0]+1 == len(ranges[i]):
+                c = ranges[i][gr[i][0]]
+            else:
+                c = ranges[i][gr[i][0]]*(1-gr[i][1]) + ranges[i][gr[i][0]+1]*gr[i][1]
+            outp.append( c )
+        return outp
+    
+    if aligned:
+        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
+    else:
+        real_pt = real_pt_simple
+    
+    for i in xrange(vertices.shape[0]):
+        vertices[i,:] = real_pt(vertices[i,:])
+    
     if filter_by_normal:
         normals = calculate_normals( vertices, simplices )
         # First, remove triangles with the normal incorrect.
-        if normal_upwards:
-            fltr = normals[:,2] >= 0
+        if aligned:
+            if normal_upwards:
+                fltr = normals[:,2] <= 0
+            else:
+                fltr = normals[:,2] >= 0
         else:
-            fltr = normals[:,2] <= 0
+            if normal_upwards:
+                fltr = normals[:,2] >= 0
+            else:
+                fltr = normals[:,2] <= 0
+
         simplices = simplices[fltr,:]
         
         # Remove vertices that don't belong to any triangle.
@@ -185,28 +214,8 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
             for j in xrange(3):
                 simplices[i,j] = renum[simplices[i,j]]
     
-    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
     
-    def real_pt_simple( pt ):
-        gr = map( lambda c: ( int(c), c-int(c) ), pt )
-        outp = []
-        for i in range(3):
-            assert gr[i][0] < len(ranges[i])
-            if gr[i][0]+1 == len(ranges[i]):
-                c = ranges[i][gr[i][0]]
-            else:
-                c = ranges[i][gr[i][0]]*(1-gr[i][1]) + ranges[i][gr[i][0]+1]*gr[i][1]
-            outp.append( c )
-        return outp
-    
-    if aligned:
-        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
-    else:
-        real_pt = real_pt_simple
-    
-    vertices = map(real_pt, vertices)
-    
-    return vertices, simplices.tolist()
+    return vertices.tolist(), simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
     """

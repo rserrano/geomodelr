@@ -538,8 +538,8 @@ class TestGeoModelR(unittest.TestCase):
         
         # Filter by normal, negative.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
-        self.assertEqual(len(verts), 4483)
-        self.assertEqual(len(triangs), 8463)
+        self.assertEqual(len(verts), 4484)
+        self.assertEqual(len(triangs), 8465)
 
     def test_modflow(self):
         
