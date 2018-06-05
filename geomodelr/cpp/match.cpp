@@ -46,52 +46,25 @@ void Match::set( const vector<std::pair<int, int>>& match ){
 
 void Match::match_polygons() {
 	// Generate fault hiding.
-	map<wstring, polygon> fault_exclusion;
-	for ( auto it = this->faults.begin(); it != faults.end(); it++ ) {
-		const vector<AlignedTriangle>& triangles = it->second;
-		const wstring& name = it->first;
-		fault_exclusion[name] = triangles[0].triangle;
-		for ( size_t i = 1; i < triangles.size(); i++ ) {
-			std::vector<polygon> output;
-			try {
-				geometry::union_(fault_exclusion[name], triangles[i].triangle, output);
-			} catch ( geometry::exception& e ) {
-				//std::cerr << "error with polygon union\n";
-			}
-			// std::cerr << "output size " << output.size() << "\n";
-			// std::cerr << geometry::area(fault_exclusion[name]) << " " << geometry::area(triangles[i].triangle) << "\n";
-			// BOOST_ASSERT_MSG( output.size() == 1, "union does not have one polygon" );
-			// std::cerr << geometry::area(output[0]) << "\n";
-			if ( output.size() == 0 ) {// The polygons are empty? it's possible.
-				continue;
-			}
-			if ( output.size() > 1 ) {
-				//std::cerr << "polygon with "<< output.size() <<"\n";
-			}
-			fault_exclusion[name] = output[0];
-		}
-		if ( (geometry::area(fault_exclusion[name]) < boost_tol) ) {
-			//std::cerr << "empty polygon\n";
-		}
-	}
 	// Does the fault cover the polygon.
-	auto fault_covers_poly = [] ( const polygon& flt, const vector<polygon>& intersect ) -> bool {
-		for ( const polygon& pol: intersect ) {
-			vector<polygon> output;
-			try {
-				geometry::difference( pol, flt, output );
-				if ( output.size() != 0 ) {
-					return false;
-				}
-			} catch ( geometry::exception& e ) {
-				// std::cerr << "excep 2" << geometry::is_simple(flt) << geometry::is_simple(pol) << "\n";
+	auto fault_covers_poly = [] ( const multi_polygon& flt, const multi_polygon& intersect ) -> bool {
+		multi_polygon output;
+		try {
+			geometry::difference( intersect, flt, output );
+			double area = geometry::area(output);
+			if ( area > boost_tol ) {
+				std::cerr << "area " << area << "\n";
+				return false;
 			}
+		} catch ( geometry::exception& e ) {
+			std::cerr << "exception\n";
+			return false;
 		}
 		return true;
 	};
 	// Check if any of the polygons is covered by a fault.
-	auto covered_by_fault = [&] ( const vector<polygon>& intersect ) -> bool {
-		for ( const polygon& flt: fault_exclusion | boost::adaptors::map_values ) {
+	auto covered_by_fault = [&] ( const multi_polygon& intersect ) -> bool {
+		for ( const multi_polygon& flt: this->excluded_area | boost::adaptors::map_values ) {
 			if ( geometry::area(flt) < boost_tol ) {
 				continue;
 			}
@@ -121,21 +94,21 @@ void Match::match_polygons() {
 			{
 				for ( size_t j = 0; j < pols_b.size(); j++ ) {
 					if ( geometry::intersects(this->a->poly_trees[pols_a[i]]->boost_poly, this->b->poly_trees[pols_b[j]]->boost_poly) ) {
-						// vector<polygon> output;
-						m.push_back(std::make_pair(pols_a[i], pols_b[j]));
-						// try {
-						// 	geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
-						// 			       this->b->poly_trees[pols_b[j]]->boost_poly, 
-						// 			       output);
-						// } catch ( geometry::exception& e ) {
-						// 	//std::cerr << "excep 1\n";
-						// }
-						// if ( not covered_by_fault( output ) ) {;
-						// 	// TODO: use tree.
-						// 	m.push_back(std::make_pair(pols_a[i], pols_b[j]));
-						// } else {
-						// 	// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
-						// }
+						multi_polygon output;
+						//m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						try {
+							geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
+									       this->b->poly_trees[pols_b[j]]->boost_poly, 
+									       output);
+						} catch ( geometry::exception& e ) {
+							//std::cerr << "excep 1\n";
+						}
+						if ( not covered_by_fault( output ) ) {;
+							// TODO: use tree.
+							m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						} else {
+							// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
+						}
 					}
 				}
 			}
@@ -315,7 +288,7 @@ vector<triangle> test_start( const vector<point3>& pa, const vector<point3>& pb,
 	return result;
 }
 
-vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<point3>& l_b)
+std::pair<vector<triangle>, bool> faultplane_for_lines(const vector<point3>& l_a, const vector<point3>& l_b)
 {
 	// Get the faults plane between lines la, lb.
 	
@@ -328,11 +301,35 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	geometry::divide_value( vb, std::sqrt( geometry::dot_product( vb, vb ) ) );
 	
 	double angle = std::acos(geometry::dot_product( va, vb ));
-	//std::cerr << "angle " << angle << "\n";
+	
 	if ( angle <= M_PI/2.0 ) {
-		return test_start( l_a, l_b, false );
+		return std::make_pair(test_start( l_a, l_b, false ), false);
 	}
-	return test_start( l_a, l_b, true  );
+	return std::make_pair(test_start( l_a, l_b, true  ), false);
+}
+
+multi_polygon calculate_excluded_area(const line& la, const line& lb, bool rev ) {
+	// Create the fault polygon that will be extracted from the normal intersection.
+	multi_polygon exclude;
+	exclude.push_back(polygon());
+	polygon& pol = exclude[0];
+	ring& outer = pol.outer();
+	
+	outer.insert( outer.end(), la.begin(), la.end() );
+	
+	if ( not rev ) {
+		outer.insert( outer.end(), lb.rbegin(), lb.rend() );
+	} else {
+		outer.insert( outer.end(), lb.begin(), lb.end() );
+	}
+	
+	geometry::correct(pol);
+	geometry::remove_spikes(pol);
+	if ( outer.size() <= 1 ) {
+		exclude.clear();
+	}
+	
+	return exclude;
 }
 
 std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Match::match_lines( const map<wstring, wstring>& feature_types )
@@ -366,6 +363,7 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 	}
 	map<wstring, vector<triangle_pt>> retfaults;
 	map<wstring, vector<size_t>> extended;
+	map<wstring, multi_polygon> exclude;
 	for ( auto it = rel_faults.begin(); it != rel_faults.end(); it++ ) {
 		int fa = g0(it->second);
 		int fb = g1(it->second);
@@ -381,7 +379,8 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 		std::transform(lb.begin(), lb.end(), std::back_inserter(pb), [&]( const point2& p ) { return point3(gx(p), gy(p), this->b->cut); });
 		
 		try {
-			vector<triangle> fplane = faultplane_for_lines(pa, pb);
+			std::pair<vector<triangle>, bool> fpor = faultplane_for_lines(pa, pb);
+			vector<triangle>& fplane = fpor.first;
 			
 			size_t na = la.size();
 			size_t nb = lb.size();
@@ -400,7 +399,7 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 			if (anchb.find(std::make_pair(fb, false)) != anchb.end()) {
 				exts.push_back(na + nb - 1);
 			}
-
+			
 			for ( size_t j = 0; j < fplane.size(); j++ ) {
 				for ( size_t i = 0; i < exts.size(); i++ ) {
 					if ( g0(fplane[j]) == exts[i] or
@@ -420,6 +419,8 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 					return pb[n-na]; 
 				}
 			};
+			
+			this->excluded_area[name] = calculate_excluded_area(la, lb, fpor.second);
 			
 			std::transform(fplane.begin(), fplane.end(), std::back_inserter(retfaults[name]),
 				[&] ( const triangle& t ) {
@@ -509,6 +510,6 @@ pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb) {
 	vector<point3> la = pytovct(pyla);
 	vector<point3> lb = pytovct(pylb);
 	
-	vector<triangle> res = faultplane_for_lines(la, lb);
-	return vcttopy(res);
+	std::pair<vector<triangle>, bool> res = faultplane_for_lines(la, lb);
+	return vcttopy( res.first );
 }

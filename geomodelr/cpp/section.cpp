@@ -56,14 +56,12 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		ring& outer = pol.outer();
 		
 		// Start filling the first ring.
-		vector<line_segment> poly_segments;
 		size_t nnodes = python::len(polygons[i][0]);
 		for ( size_t k = 0; k < nnodes; k++ ) {
 			pylist pypt = pylist(points[polygons[i][0][k]]);
 			outer.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
 		}
-
-		//this->poly_lines.push_back(new rtree_seg(poly_segments));
+		
 		// Then fill the rest of the rings.
 		if ( nrings > 1 ) { 
 			pol.inners().resize(nrings-1);
@@ -116,10 +114,11 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		size_t nnodes = python::len(lines[i]);
 		vector<value_l> fault_segments;
 		for ( size_t j = 0; j < nnodes; j++ ) {
+			
 			pylist pypt = pylist(points[lines[i][j]]);
 			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
 			lin.push_back(aux);
-
+			
 			pypt = pylist(points[lines[i][(j+1)%nnodes]]);
 			point2 aux2 = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
 			fault_segments.push_back(std::make_tuple(line_segment(aux,aux2),count_lines));

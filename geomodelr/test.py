@@ -16,8 +16,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
-
 import unittest
 import os
 import model
@@ -38,13 +36,13 @@ import copy
 import math
 from shapely.geometry import Polygon, Point
 
-
 class TestGeoModelR(unittest.TestCase):
     def setUp(self):
         pass
         #Profile GeoModelR
         # self.pr = cProfile.Profile()
         # self.pr.enable()
+
     def tearDown(self):
         pass
         #profiling of GeoModelR.
@@ -54,8 +52,6 @@ class TestGeoModelR(unittest.TestCase):
         # ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
         # ps.print_stats()
         # print >> sys.stderr, s.getvalue()
-    
-   
 
     # Tests function fault plane for lines.
     def test_faultplane_for_lines(self):
@@ -109,7 +105,7 @@ class TestGeoModelR(unittest.TestCase):
                                                             (4, 12, 13), (4, 5, 13), (5, 13, 14), (5, 6, 14), 
                                                             (6, 14, 15), (6, 7, 15), (7, 15, 16)])
         
-        # Test that you can create cross sections and that bugs throw something in python (and not segfault).
+    # Test that you can create cross sections and that bugs throw something in python (and not segfault).
     def test_sections(self):
         points = [[0, 0], [1, 0], [2, 1], [1, 1], [0, 1]]
         polygons = [[[0, 1, 2, 3, 4]]]
@@ -381,7 +377,6 @@ class TestGeoModelR(unittest.TestCase):
                 self.assertEqual(unit,u'unit3')
     
     # Test the inverse point, plus other possible_closest and closest tests.
-
     def test_polygon_dist(self):
 
         # First polygon
@@ -599,7 +594,11 @@ class TestGeoModelR(unittest.TestCase):
         faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
         faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
         fname = ["F1"]
-        model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" })
+        model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, 
+                          [["s1", 1, points_1, pols_1, units, faults_1, fname, []], 
+                           ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], 
+                          { "F1": "FAULT" })
+        
         model.make_matches()
         
         # print [points_1[n] for n in faults_1[0]]
@@ -1225,8 +1224,77 @@ class TestGeoModelR(unittest.TestCase):
                                     len_units=2, rows=Rows, cols=Cols,layers=Layers,
                                     bbox  = Bounding_Box, angle = Angle, dz_min=DZ, time_units=4,
                                     algorithm='adaptive',faults_data=faults_data)
-        # print open("Files_Test.fem").read()
-        # os.remove("Files_Test.fem")
+        
+        os.remove("Files_Test.fem")
+    
+    def test_faults_matching( self ):
+        points_1 = [[0, 0], [1, 0], [3, 0], [0, 0.5], [5.0/6.0, 0.5], [2.0/3.0, 1], [3, 1], [0.0, 1.5], [0.5, 1.5], [1.0/3.0, 2], [3, 2], [0, 2.5], [1.0/6.0, 2.5], [0, 3], [3,3]]
+        points_2 = [[0, 0], [2, 0], [3, 0], [0, 0.5], [2, 0.5],       [2, 1],       [3, 1], [0, 1.5],   [2, 1.5],   [2, 2],       [3, 2], [0, 2.5], [2, 2.5],       [0, 3], [2, 3], [3, 3]]
+        
+        pols_1 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 14, 13, 12]], [[11, 12, 13]]]
+        pols_2 = [[[0, 1, 4, 3]], [[1, 2, 6, 5, 4]], [[3, 4, 5, 8, 7]], [[5, 6, 10, 9, 8]], [[7, 8, 9, 12, 11]], [[9, 10, 15, 14, 12]], [[11, 12, 14, 13]]]
+        
+        units = ["unit1", "unit1", "unit2", "unit2", "unit3", "unit3", "unit4"]
+        
+        model = cpp.Model([0,0,0,3,3,0],[0,0,0,3,3,0],[0, 0], [1, 0], {}, {}, [["s1", 1, points_1, pols_1, units, [], [], []], ["s2", 2, points_2, pols_2, units, [], [], []]], {})
+        model.make_matches()
+        self.assertEqual(model.matches, [((u's1', u's2'), [(0, 0), (1, 0), (1, 1), (2, 2), (3, 2), (3, 3), (4, 4), (5, 4), (5, 5), (6, 6)])])
+        
+        # Test what happens in the case of no faults.
+        self.assertEqual(model.closest([7.0/6.0, 1.5, 2])[0], 'unit3')
+        cls = model.closest([7.0/6.0, 1.4, 1.9])
+        # Unit3 should dominate the closest.
+        self.assertEqual(cls[0], 'unit3')
+        self.assertAlmostEqual(cls[1], 0.06)
+        
+        # Instead, test what happens when there are faults.
+        faults_1 = [[1, 4, 5, 8, 9, 12, 13]]
+        faults_2 = [[1, 4, 5, 8, 9, 12, 14]]
+        fname = ["F1"]
+        model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[0, 0], [1, 0], {}, {}, 
+                          [["s1", 1, points_1, pols_1, units, faults_1, fname, []], 
+                           ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], 
+                          { "F1": "FAULT" })
+        
+        model.make_matches()
+        self.assertEqual(model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)])])
+        
+        points_1 = [[0, 3], [0, 2], [0, 1], [0, 0], [2, 3], [3, 2], [3.5, 1.5], [4, 1], [3.5, 0.5], [3, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
+        points_2 = [[0, 3], [0, 2], [0, 1], [0, 0], [5, 3], [6, 2], [6.5, 1.5], [7, 1], [6.5, 0.5], [6, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
+        
+        self.assertEqual( len(points_1), 14 )
+        self.assertEqual( len(points_2), 14 )
+        
+        phole = lambda p: [p]
+        pols = [[0, 1, 5, 4], [1, 2, 7, 6, 5], [2, 3, 9, 8, 7], [4, 5, 6, 11, 10], [6, 7, 8, 12, 11], [8, 9, 13, 12]]
+        pols = map( phole, pols )
+        units = ['A', 'B', 'C', 'A', 'B', 'C']
+        faults_1 = [[4, 5, 6, 7, 8, 9]]
+        faults_2 = [[4, 5, 6, 7, 8, 9]]
+        fname = ["F1"]
+        
+        model = cpp.Model([0, 0, 0, 2, 2, 2], [ 0, 0, 0, 2, 2, 2], [0, 0], [1, 0], {}, {},
+                          [["s1", 1, points_1, pols, units, faults_1, fname, []], 
+                           ["s2", 2, points_2, pols, units, faults_2, fname, []]], 
+                           { "F1": "FAULT" })
+        
+        model.make_matches()
+        self.assertEqual(model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])])
+        points_2 = [[0, 3], [0, 2], [0, 1], [0, 0], [3, 3], [3, 2], [3, 1.5], [3, 1], [3, 0.5], [3, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
+        
+        model = cpp.Model([0, 0, 0, 2, 2, 2], [ 0, 0, 0, 2, 2, 2], [0, 0], [1, 0], {}, {},
+                          [["s1", 1, points_1, pols, units, faults_1, fname, []], 
+                           ["s2", 2, points_2, pols, units, faults_2, fname, []]], 
+                           { "F1": "FAULT" })
+        
+        model.make_matches()
+        self.assertEqual( model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])])
+        
+        points_2 = [[0, 3], [0, 2], [0, 1], [0, 0], [5, 3], [5, 2], [5, 1.5], [5, 1], [5, 0.5], [5, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
+        
+
+
+        
 def main(args=None):
     unittest.main()
 

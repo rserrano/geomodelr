@@ -50,6 +50,8 @@ typedef geometry::model::point<double, 3, geometry::cs::cartesian> point3;
 typedef geometry::model::segment<point2> line_segment;
 typedef geometry::model::box<point2> box;
 typedef geometry::model::polygon<point2, false, false> polygon;
+typedef geometry::model::multi_polygon<polygon> multi_polygon;
+
 typedef polygon::ring_type ring;
 typedef geometry::model::linestring<point2> line;
 typedef geometry::model::linestring<point3> line_3d;
