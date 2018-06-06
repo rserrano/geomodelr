@@ -18,8 +18,10 @@
 
 #include "match.hpp"
 #include <cmath>
+#include <queue>
 #include <boost/range/adaptors.hpp>
 #include <boost/assert.hpp>
+#include <boost/geometry/algorithms/intersection.hpp>
 
 Match::Match( const Section * a, const Section * b )
 :a(a), b(b), faultidx(nullptr)
@@ -53,11 +55,11 @@ void Match::match_polygons() {
 			geometry::difference( intersect, flt, output );
 			double area = geometry::area(output);
 			if ( area > boost_tol ) {
-				std::cerr << "area " << area << "\n";
+				//std::cerr << "area " << area << "\n";
 				return false;
 			}
 		} catch ( geometry::exception& e ) {
-			std::cerr << "exception\n";
+			//std::cerr << "exception\n";
 			return false;
 		}
 		return true;
@@ -308,28 +310,88 @@ std::pair<vector<triangle>, bool> faultplane_for_lines(const vector<point3>& l_a
 	return std::make_pair(test_start( l_a, l_b, true  ), false);
 }
 
+multi_polygon fix_polygon( polygon& pol ) {
+	multi_polygon outputs;
+	std::queue<polygon> split;
+	split.push(pol);
+	geometry::correct(pol);
+	geometry::remove_spikes(pol);
+	
+	string reason;
+	/*
+	if ( not geometry::is_valid( pol, reason ) ) {
+		std::cerr << "invlid reason " << reason << "\n";
+	}
+	*/
+	// Check for infinite buckle with max_iters.
+	size_t max_iters = pol.outer().size();
+	while( split.size() ) {
+		if ( max_iters <= 0 ) {
+			std::cerr << "polygon " << geometry::wkt(pol) << " \n";
+			std::cerr << "ERROR BREAKING POLYGON\n";
+			break;
+		}
+		polygon curp = split.front();
+		split.pop();
+		geometry::correct(curp);
+		geometry::remove_spikes(curp);
+		bool br = false;
+		ring& curr = curp.outer();
+		size_t n = curr.size();
+		for ( size_t i = 0; i < n-1; i++ ) {
+			segment s1(curr[i], curr[(i+1)%n]);
+			for ( size_t j = i+2; j < n-1; j++ ) {
+				segment s2(curr[j], curr[(j+1)%n]);
+				std::vector<point2> output;
+				bool inter = boost::geometry::intersection(s1, s2, output);
+				if ( inter && output.size() == 1 ) {
+					polygon p1, p2;
+					ring& o1 = p1.outer();
+					ring& o2 = p2.outer();
+					o1.push_back( output[0] );
+					for ( size_t k = j+1; (k-1)%n != i; k++ ) {
+						o1.push_back(curr[k%n]);
+					}
+					o1.push_back(output[0]);
+					split.push(p1);
+					o2.push_back(output[0]);
+					for ( size_t k = i+1; (k-1)%n != j; k++ ) {
+						o2.push_back(curr[k%n]);
+					}
+					o2.push_back( output[0] );
+					split.push( p2 );
+					br = true;
+					break;
+				}
+			}
+			if ( br ) {
+				break;
+			}
+		}
+		
+		if ( not br )
+			outputs.push_back(curp);
+		
+		max_iters -= 1;
+	}
+	geometry::correct(outputs);
+	
+	geometry::is_valid(outputs, reason);
+	// std::cerr << geometry::wkt(outputs) << " " << reason <<"\n";
+	return outputs;
+}
+
 multi_polygon calculate_excluded_area(const line& la, const line& lb, bool rev ) {
 	// Create the fault polygon that will be extracted from the normal intersection.
-	multi_polygon exclude;
-	exclude.push_back(polygon());
-	polygon& pol = exclude[0];
+	polygon pol;
 	ring& outer = pol.outer();
-	
 	outer.insert( outer.end(), la.begin(), la.end() );
-	
 	if ( not rev ) {
 		outer.insert( outer.end(), lb.rbegin(), lb.rend() );
 	} else {
 		outer.insert( outer.end(), lb.begin(), lb.end() );
 	}
-	
-	geometry::correct(pol);
-	geometry::remove_spikes(pol);
-	if ( outer.size() <= 1 ) {
-		exclude.clear();
-	}
-	
-	return exclude;
+	return fix_polygon( pol );
 }
 
 std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Match::match_lines( const map<wstring, wstring>& feature_types )

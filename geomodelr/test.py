@@ -326,9 +326,9 @@ class TestGeoModelR(unittest.TestCase):
             [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
             ["B-B", 1., points, polygons_2, units_2, lines, lnames, []]], { "fault1": "FAULT" })
         model.make_matches()
-
+        
         y_line = lambda u,v: np.sqrt((u-1)**2 + (v-1)**2)/( v-1 + np.sqrt((u-1)**2 + (v-1)**2))
-
+        
         n = 10000
         epsilon = 1e-5;
         for k in range(n):
@@ -1280,7 +1280,7 @@ class TestGeoModelR(unittest.TestCase):
         
         model.make_matches()
         self.assertEqual(model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])])
-        points_2 = [[0, 3], [0, 2], [0, 1], [0, 0], [3, 3], [3, 2], [3, 1.5], [3, 1], [3, 0.5], [3, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
+        points_2 = [[0, 3], [0, 2], [0, 1], [0, 0], [2, 3], [2, 2], [2, 1.5], [2, 1], [2, 0.5], [2, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
         
         model = cpp.Model([0, 0, 0, 2, 2, 2], [ 0, 0, 0, 2, 2, 2], [0, 0], [1, 0], {}, {},
                           [["s1", 1, points_1, pols, units, faults_1, fname, []], 
@@ -1291,8 +1291,22 @@ class TestGeoModelR(unittest.TestCase):
         self.assertEqual( model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])])
         
         points_2 = [[0, 3], [0, 2], [0, 1], [0, 0], [5, 3], [5, 2], [5, 1.5], [5, 1], [5, 0.5], [5, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
+        model = cpp.Model([0, 0, 0, 2, 2, 2], [ 0, 0, 0, 2, 2, 2], [0, 0], [1, 0], {}, {},
+                          [["s1", 1, points_1, pols, units, faults_1, fname, []], 
+                           ["s2", 2, points_2, pols, units, faults_2, fname, []]], 
+                           { "F1": "FAULT" })
         
-
+        model.make_matches()
+        self.assertEqual( model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])])
+        
+        points_2 = [[0, 3], [0, 2], [0, 1], [0, 0], [4, 3], [3, 2], [2.5, 1.5], [2, 1], [2.5, 0.5], [3, 0], [8, 3], [8, 2], [8, 1], [8, 0]]
+        model = cpp.Model([0, 0, 0, 2, 2, 2], [ 0, 0, 0, 2, 2, 2], [0, 0], [1, 0], {}, {},
+                          [["s1", 1, points_1, pols, units, faults_1, fname, []], 
+                           ["s2", 2, points_2, pols, units, faults_2, fname, []]], 
+                           { "F1": "FAULT" })
+        
+        model.make_matches()
+        self.assertEqual( model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])])
 
         
 def main(args=None):
