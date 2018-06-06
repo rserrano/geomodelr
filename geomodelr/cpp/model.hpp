@@ -23,6 +23,7 @@
 #include "match.hpp"
 #include "faults.hpp"
 #include "speed_up.hpp"
+#include "isosurfaces_vdb.hpp"
 
 class Topography {
 protected:
@@ -285,6 +286,10 @@ public:
 		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
 	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
+	unitMesh calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions);
+
+	bbox3 get_bbox() const;
+	bbox3 get_abbox() const;
 
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -393,7 +398,8 @@ public:
 	pydict intersect_planes(const pylist& planes) const;
 	pydict intersect_topography(const pydict& topography_info) const;
 	pytuple find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
-
+	pytuple calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions);
+	
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };

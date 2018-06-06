@@ -510,7 +510,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     grid_size = (grid_divisions,grid_divisions,grid_divisions)
     grid,dx,dy,dz,xi,yi,zi,nx,ny,nz = grid_openvdb(signed_distance, grid_size, bbox, ndelta)
     bb = check_bbox(grid,ndelta,grid_size)
-    obj_cells = (bb[3]-bb[0]-2*ndelta)*(bb[4]-bb[1]-2*ndelta)*(bb[5]-bb[2]-2*ndelta)
+    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
 
     # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
     if float(nx*ny*nz)/obj_cells>8:

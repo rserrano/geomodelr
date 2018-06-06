@@ -574,6 +574,18 @@ std::pair<double, bool> Model::find_unit_limits(double xp, double yp,double z_ma
 	return  find_unit_limits_cpp(this, xp, yp, z_max, z_min, eps);
 }
 
+bbox3 Model::get_bbox() const{
+	return this->bbox;
+}
+
+bbox3 Model::get_abbox() const{
+	return this->abbox;
+}
+
+unitMesh Model::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions){
+	return getIsosurface(this, unit, bounded, aligned, grid_divisions);
+}
+
 std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
 	if ( this->topography != nullptr ) {
 		if ( this->height(point2(gx(pt), gy(pt))) < gz(pt) ) {
@@ -731,6 +743,30 @@ pytuple ModelPython::find_unit_limits(double xp, double yp, double z_max, double
 
 	std::pair<double, bool> output = ((Model *)this)->find_unit_limits(xp, yp, z_max, z_min, eps);
 	return python::make_tuple(output.first,output.second);
+}
+
+pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions){
+	
+	unitMesh output = ((Model *)this)->calculate_isosurface(unit, bounded, aligned, grid_divisions);
+
+	pylist points;
+	if (aligned){
+		for (auto& pt: output.first){
+			point3 realPt = this->inverse_point(point2(pt.x(),pt.y()),pt.z());
+			points.append(python::make_tuple(gx(realPt),gy(realPt),gz(realPt)));
+		}
+	} else{
+		for (auto& pt: output.first){
+			points.append(python::make_tuple(pt.x(),pt.y(),pt.z()));
+		}
+	}
+
+	pylist triangles;
+	for (auto& tri: output.second){
+		triangles.append(python::make_tuple(tri.x(),tri.y(),tri.z()));
+	}
+
+	return python::make_tuple(points,triangles);
 }
 
 
