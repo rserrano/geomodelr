@@ -212,7 +212,7 @@ class TestGeoModelR(unittest.TestCase):
         model = cpp.Model([0,0,0,2,2,2],[0,0,0,2,2,2],[1, 0], [0, 1], {}, {}, [["A-A", 11, points_1, polygons_1, units_1, [], [], []], ["B-B", 12, points_2, polygons_2, units_2, [], [], []]], {})
         
         model.make_matches()
-        self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (0, 3), (2, 2), (3, 4)])])
+        self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (3, 4)])])
         
         model.matches = [((u'A-A', u'B-B'), [(0, 0), (2, 2), (3, 4)])]
         self.assertEqual(model.matches, [((u'A-A', u'B-B'), [(0, 0), (2, 2), (3, 4)])])

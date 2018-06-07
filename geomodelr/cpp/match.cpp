@@ -48,29 +48,10 @@ void Match::set( const vector<std::pair<int, int>>& match ){
 
 void Match::match_polygons() {
 	// Generate fault hiding.
-	// Does the fault cover the polygon.
-	auto fault_covers_poly = [] ( const multi_polygon& flt, const multi_polygon& intersect ) -> bool {
-		multi_polygon output;
-		try {
-			geometry::difference( intersect, flt, output );
-			double area = geometry::area(output);
-			if ( area > boost_tol ) {
-				//std::cerr << "area " << area << "\n";
-				return false;
-			}
-		} catch ( geometry::exception& e ) {
-			//std::cerr << "exception\n";
-			return false;
-		}
-		return true;
-	};
 	// Check if any of the polygons is covered by a fault.
 	auto covered_by_fault = [&] ( const multi_polygon& intersect ) -> bool {
 		for ( const multi_polygon& flt: this->excluded_area | boost::adaptors::map_values ) {
-			if ( geometry::area(flt) < boost_tol ) {
-				continue;
-			}
-			if ( fault_covers_poly( flt, intersect ) ) {
+			if ( geometry::covered_by( intersect, flt ) ) {
 				return true;
 			}
 		}
@@ -95,22 +76,22 @@ void Match::match_polygons() {
 			for ( size_t i = 0; i < pols_a.size(); i++ )
 			{
 				for ( size_t j = 0; j < pols_b.size(); j++ ) {
-					if ( geometry::intersects(this->a->poly_trees[pols_a[i]]->boost_poly, this->b->poly_trees[pols_b[j]]->boost_poly) ) {
-						multi_polygon output;
-						//m.push_back(std::make_pair(pols_a[i], pols_b[j]));
-						try {
-							geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
-									       this->b->poly_trees[pols_b[j]]->boost_poly, 
-									       output);
-						} catch ( geometry::exception& e ) {
-							//std::cerr << "excep 1\n";
+					multi_polygon output;
+					//m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+					try {
+						geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
+								       this->b->poly_trees[pols_b[j]]->boost_poly, 
+								       output);
+						if ( geometry::area( output ) > boost_tol ) {
+							if ( not covered_by_fault( output ) ) {;
+								// TODO: use tree.
+								m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+							} else {
+								// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
+							}
 						}
-						if ( not covered_by_fault( output ) ) {;
-							// TODO: use tree.
-							m.push_back(std::make_pair(pols_a[i], pols_b[j]));
-						} else {
-							// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
-						}
+					} catch ( geometry::exception& e ) {
+						std::cerr << "excep 1\n";
 					}
 				}
 			}
@@ -317,8 +298,8 @@ multi_polygon fix_polygon( polygon& pol ) {
 	geometry::correct(pol);
 	geometry::remove_spikes(pol);
 	
-	string reason;
 	/*
+	string reason;
 	if ( not geometry::is_valid( pol, reason ) ) {
 		std::cerr << "invlid reason " << reason << "\n";
 	}
@@ -375,9 +356,6 @@ multi_polygon fix_polygon( polygon& pol ) {
 		max_iters -= 1;
 	}
 	geometry::correct(outputs);
-	
-	geometry::is_valid(outputs, reason);
-	// std::cerr << geometry::wkt(outputs) << " " << reason <<"\n";
 	return outputs;
 }
 
