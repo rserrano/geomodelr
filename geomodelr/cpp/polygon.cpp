@@ -102,11 +102,10 @@ double Polygon::distance_point(const point2& pt, const rtree_l* fault_lines) con
     if (geometry::within(pt,this->b_box) && geometry::covered_by(pt,this->boost_poly)){
         return 0.0;
     } else{
-
     	std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
         for ( auto it = fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
-        	it != fault_lines->qend(); it++ ) {
-            return std::numeric_limits<double>::infinity();
+        	   it != fault_lines->qend(); it++ ) {
+		return std::numeric_limits<double>::infinity();
         }
         return ray_dist_pair.second;
     }
