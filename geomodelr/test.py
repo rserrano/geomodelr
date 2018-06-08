@@ -977,13 +977,13 @@ class TestGeoModelR(unittest.TestCase):
     
     def test_feflow(self):
         this_dir, this_filename = os.path.split(__file__)
-        fn = os.path.join(this_dir, 'test_files', 'Modelo_Hidro.json')
+        fn = os.path.join(this_dir, 'test_files', 'Version_06_07.json')
         geo_model = model.model_from_file(fn)
-
+        
         Geo_Data = True
         Graph = True
 
-        Rows = 100;  Cols = 100; Layers = 20; Angle = 30; DZ = 1.0
+        Rows = 150;  Cols = 150; Layers = 100; Angle = 20; DZ = 1.0
         Units = geo_model.units
         Kh = np.arange(len(Units))
         ani = np.ones(len(Units))
@@ -994,20 +994,32 @@ class TestGeoModelR(unittest.TestCase):
         Kh_f = np.arange(len(Faults))+1.0
         ani_f = np.arange(len(Faults))+2.0
         Kz_f = Kh_f/10.0
-        Act_faults = np.ones(len(Faults))
-        Act_faults[0]=0
-        Act_faults[2]=0
         Alg = 'adaptive'
+        # print Units
+        units_data = { "A":         (1.0E-06, 1.0E-06, 1.0E-06, True),
+                       "Argissolo": (1.0E-06, 1.0E-06, 1.0E-06, True),
+                       "Bambui":    (1.0E-05, 1.0E-05, 1.0E-05, True),
+                       "Cambissolo": (1.0E-07, 1.0E-07, 1.0E-07, True),
+                       "Embasamento": (1.0E-07, 1.0E-07, 1.0E-07, True),
+                       "F": (1.0E-06, 1.0E-06, 1.0E-06, True),
+                       "Gleissolo": (1.0E-07, 1.0E-07, 1.0E-07, True),
+                       "Latossolo Vermelho-Amarelo": (1.0E-05, 1.0E-05, 1.0E-05, True),
+                       "PPC": (1.0E-05, 1.0E-05, 1.0E-05, True),
+                       "Q": (1.0E-05, 1.0E-05, 1.0E-05, True),
+                       "R": (1.0E-05, 1.0E-05, 1.0E-05, True),
+                       "S": (1.0E-06, 1.0E-06, 1.0E-06, True),
+                       "SM": (1.0E-06, 1.0E-06, 1.0E-06, True),
+                       u"Corpo_agua": (1e-6, 1e-6, 1e-6, False), 
+                       u'Urbano': (1e-6, 1e-6, 1e-6, False) }
         
-        units_data = { Units[k]: (Kh[k],ani[k],Kz[k],Act_Uni[k]) for k in range(len(Units)) }
-        faults_data = { Faults[k]: (Kh_f[k],ani_f[k],Kz_f[k],Act_faults[k]) for k in range(len(Faults)) }
         Bounding_Box = geo_model.bbox
         file_name = 'Files_Test'
-
-        feflow.create_feflow_input(file_name,geo_model,units_data,
+        
+        layers = feflow.create_feflow_input(file_name,geo_model,units_data,
                                     len_units=2, rows=Rows, cols=Cols,layers=Layers,
                                     bbox  = Bounding_Box, angle = Angle, dz_min=DZ, time_units=4,
-                                    algorithm='adaptive',faults_data=faults_data)
+                                    algorithm='adaptive',faults_data={})
+        print layers
         # print open("Files_Test.fem").read()
         # os.remove("Files_Test.fem")
 def main(args=None):
