@@ -38,6 +38,7 @@ class Section {
 	friend Model;
 	friend ModelPython;
 	friend MatchPython;
+	friend Polygon;
 
 protected:
 	wstring name;
@@ -48,7 +49,6 @@ protected:
 	std::set<line_anchor> anchored_lines;
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.
-	// vector<rtree_seg *> fault_lines;
 	rtree_l * fault_lines;
 	vector<Polygon *> poly_trees;
 	
@@ -64,7 +64,7 @@ protected:
 				// Check the actual distance to a polygon.
 				int idx = g2(*it);				
 				// double poldist = geometry::distance(poly_trees[idx]->boost_poly, pt);
-				double poldist = poly_trees[idx]->distance_point(pt, this->fault_lines);
+				double poldist = poly_trees[idx]->distance_point(pt);
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -109,8 +109,7 @@ public:
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
-				// double poldist = geometry::distance(p, poly_trees[idx]->boost_poly);
-				double poldist = poly_trees[idx]->distance_point(p, this->fault_lines);
+				double poldist = poly_trees[idx]->distance_point(p);
 				if ( poldist < mindist ) {
 					mindist = poldist;
 					minidx = idx;

@@ -376,146 +376,146 @@ class TestGeoModelR(unittest.TestCase):
             else:
                 self.assertEqual(unit,u'unit3')
     
-    # Test the inverse point, plus other possible_closest and closest tests.
-    def test_polygon_dist(self):
-
-        # First polygon
-        N =5000
-
-        points_ext = [[1,0.2],[1,1],[2,1.3],[2.5,0.5],[3,1.7],[3.5,1.7],[2.7,2.5],[3,2.75],[1.8,2.6],[1.8,2],[1,2],[1,2.6],[0.2,0.8]]
-        points_int1 = [[0.8,1.2],[0.7,1.5],[1.5,1.7],[1.6,1.4]]
-        points_int2 = [[2.3,1.3],[2,2],[2.3,2.5],[2.6,2.3]]
-        polygon_py= Polygon(points_ext,[points_int1,points_int2])
-
-        poly = [range(0,13),[13,14,15,16],[17,18,19,20]]
-        points_int1.extend(points_int2)
-        points_ext.extend(points_int1)
-        polygon_cpp = cpp.Polygon(points_ext, poly)
-
-        for k in range(N):
-            x=4*np.random.rand()
-            y=4*np.random.rand()        
-            dist_p = polygon_py.distance(Point(x,y))
-            dist_c = polygon_cpp.distance([x,y])
-            self.assertAlmostEqual(dist_p,dist_c)
-
-        # Points and epsilon
-        for k in range(5,16):
-            delta = 10**(-k-0.1)
-            pt = [1.0 + delta,2.0 + delta]
-            pt_p = Point(pt[0],pt[1])
-            dist_p = polygon_py.distance(pt_p)
-            dist_c = polygon_cpp.distance(pt)
-            self.assertAlmostEqual(dist_p,dist_c)
-            self.assertGreater(dist_c,0.0)
-        xp = (0.8 + 0.7 + 1.5 + 1.6)/4.0
-        yp = (1.2 + 1.5 + 1.7 + 1.4)/4.0
-        dist_p = polygon_py.distance(Point(xp,yp))
-        dist_c = polygon_cpp.distance([xp,yp])
-        self.assertAlmostEqual(dist_p,dist_c)
-        self.assertGreater(dist_c,0.0)
-        
-        m = 0.25; b = 1.325
-        d = np.abs(m*xp-yp+b)/np.sqrt(m*m+1)
-        self.assertAlmostEqual(dist_c,d)
-
-        # Second polygon
-        points_ext = [[2, 1.3],[2.4, 1.7],[2.8, 1.8],[3.4, 1.2],[3.7, 1.6],[3.4, 2],[4.1, 3],[5.3, 2.6],[5.4, 1.2],[4.9, 0.8],[2.9, 0.7],[2, 1.3]]
-        points_int = [[4.0, 2.0],[4.2, 1.4], [4.8, 1.9], [4.4, 2.2], [4.0, 2.0]]
-        polygon_py= Polygon(points_ext,[points_int])
-        poly = [range(len(points_ext)),range(len(points_ext),len(points_int) + len(points_ext))]
-        points_ext.extend(points_int)
-        polygon_cpp = cpp.Polygon(points_ext, poly)
-
-        for k in range(N):
-            x=6*np.random.rand()
-            y=3*np.random.rand()        
-            dist_p = polygon_py.distance(Point(x,y))
-            dist_c = polygon_cpp.distance([x,y])
-            self.assertAlmostEqual(dist_p,dist_c)
-            #print k, dist_p, dist_c
-
-        # Points and epsilon
-        for k in range(5,15):
-            delta = 10**(-k-0.1)
-            pt = [2.15 ,1.2 - delta]
-            pt_p = Point(pt[0],pt[1])
-            dist_p = polygon_py.distance(pt_p)
-            dist_c = polygon_cpp.distance(pt)
-            #print pt_p, dist_p, dist_c
-            self.assertAlmostEqual(dist_p,dist_c)
-            #self.assertGreater(dist_c,0.0)
-
-        # Third polygon
-        points_ext = [[4.0, -0.5] , [3.5, 1.0] , [2.0, 1.5] , [3.5, 2.0] , [4.0, 3.5] , [4.5, 2.0] , [6.0, 1.5] , [4.5, 1.0] , [4.0, -0.5]]
-        polygon_py= Polygon(points_ext)
-        poly = [range(len(points_ext))]
-        polygon_cpp = cpp.Polygon(points_ext, poly)
-
-        for k in range(N):
-            x=6*np.random.rand() + 1.0
-            y=5*np.random.rand() - 1.0
-            dist_p = polygon_py.distance(Point(x,y))
-            dist_c = polygon_cpp.distance([x,y])
-            self.assertAlmostEqual(dist_p,dist_c)
-            #print k, dist_p, dist_c
-
-        # Rotates polygon
-        delta = 1e-12
-        for i in range(N):
-            points_ext = [[-3,-2],[3,-2],[3,0],[1,0],[0,2],[-1,0],[-3,0]]
-            
-            O = (np.random.rand()-0.5)*delta
-            C = np.cos(O); S = np.sin(O)
-            Xc = delta*(2*np.random.rand()-1.0)
-            Yc = delta*(2*np.random.rand()-1.0)
-            for k in range(len(points_ext)):
-                pt = points_ext[k]
-                x = C*pt[0] - S*pt[1]
-                y = S*pt[0] + C*pt[1]
-                points_ext[k] = [x,y]
-
-            polygon_py= Polygon(points_ext)
-            poly = [range(len(points_ext))]
-            polygon_cpp = cpp.Polygon(points_ext, poly)
-            
-            dist_p = polygon_py.distance(Point(Xc,Yc))
-            dist_c = polygon_cpp.distance([Xc,Yc])
-            if (abs(dist_p-dist_c)>1E-5):
-                print Xc,Yc
-                print dist_c, dist_p
-                print polygon_py
-            self.assertAlmostEqual(dist_p,dist_c)
-            self.assertAlmostEqual(dist_c,0.0)
-
-        # distance with faults
-
-        points = [[0,0],[0.5,0],[1,0],[0,0.5],[0.75,0.5],[1,0.5],[0,1],[0.5,1],[0.8,1],[1,1]]
-        polygons = [[[3,7,6]],[[0,1,2,4,7,3]],[[5,8,7,4,2]],[[5,9,8]]]
-        units = ['unit0', 'unit1', 'unit2', 'unit3']
-
-        lines = [[3,7,4],[0,4,3,1],[5,8]]
-        #lines=[]
-        lnames = ['fault0','fault1','fault2']
-        #lanmes = []
-        section = cpp.Section("A-A", 0, (0, 0, 1, 1), points, polygons, units, lines, lnames, [])
-
-        dX = 0.9-0.55
-        db = 0.5-2*1e-5
-        for k in range(N):
-            x = dX*np.random.rand() + 0.55
-            b = db*np.random.rand() + 1.5 + 1e-5
-            y = -2*x+b
-            if y>=0:
-                dist = section.distance([x,y],2)
-
-                if (y>=0.125*(4*x+1)):
-                    val = np.inf
-                else:
-                    val = np.abs(-2*x - y + 2)/np.sqrt(5)
-
-                # print x,y,dist, val
-                # self.assertAlmostEqual(dist,val)
+#     # Test the inverse point, plus other possible_closest and closest tests.
+#     def test_polygon_dist(self):
+# 
+#         # First polygon
+#         N =5000
+# 
+#         points_ext = [[1,0.2],[1,1],[2,1.3],[2.5,0.5],[3,1.7],[3.5,1.7],[2.7,2.5],[3,2.75],[1.8,2.6],[1.8,2],[1,2],[1,2.6],[0.2,0.8]]
+#         points_int1 = [[0.8,1.2],[0.7,1.5],[1.5,1.7],[1.6,1.4]]
+#         points_int2 = [[2.3,1.3],[2,2],[2.3,2.5],[2.6,2.3]]
+#         polygon_py= Polygon(points_ext,[points_int1,points_int2])
+# 
+#         poly = [range(0,13),[13,14,15,16],[17,18,19,20]]
+#         points_int1.extend(points_int2)
+#         points_ext.extend(points_int1)
+#         polygon_cpp = cpp.Polygon(points_ext, poly)
+# 
+#         for k in range(N):
+#             x=4*np.random.rand()
+#             y=4*np.random.rand()        
+#             dist_p = polygon_py.distance(Point(x,y))
+#             dist_c = polygon_cpp.distance([x,y])
+#             self.assertAlmostEqual(dist_p,dist_c)
+# 
+#         # Points and epsilon
+#         for k in range(5,16):
+#             delta = 10**(-k-0.1)
+#             pt = [1.0 + delta,2.0 + delta]
+#             pt_p = Point(pt[0],pt[1])
+#             dist_p = polygon_py.distance(pt_p)
+#             dist_c = polygon_cpp.distance(pt)
+#             self.assertAlmostEqual(dist_p,dist_c)
+#             self.assertGreater(dist_c,0.0)
+#         xp = (0.8 + 0.7 + 1.5 + 1.6)/4.0
+#         yp = (1.2 + 1.5 + 1.7 + 1.4)/4.0
+#         dist_p = polygon_py.distance(Point(xp,yp))
+#         dist_c = polygon_cpp.distance([xp,yp])
+#         self.assertAlmostEqual(dist_p,dist_c)
+#         self.assertGreater(dist_c,0.0)
+#         
+#         m = 0.25; b = 1.325
+#         d = np.abs(m*xp-yp+b)/np.sqrt(m*m+1)
+#         self.assertAlmostEqual(dist_c,d)
+# 
+#         # Second polygon
+#         points_ext = [[2, 1.3],[2.4, 1.7],[2.8, 1.8],[3.4, 1.2],[3.7, 1.6],[3.4, 2],[4.1, 3],[5.3, 2.6],[5.4, 1.2],[4.9, 0.8],[2.9, 0.7],[2, 1.3]]
+#         points_int = [[4.0, 2.0],[4.2, 1.4], [4.8, 1.9], [4.4, 2.2], [4.0, 2.0]]
+#         polygon_py= Polygon(points_ext,[points_int])
+#         poly = [range(len(points_ext)),range(len(points_ext),len(points_int) + len(points_ext))]
+#         points_ext.extend(points_int)
+#         polygon_cpp = cpp.Polygon(points_ext, poly)
+# 
+#         for k in range(N):
+#             x=6*np.random.rand()
+#             y=3*np.random.rand()        
+#             dist_p = polygon_py.distance(Point(x,y))
+#             dist_c = polygon_cpp.distance([x,y])
+#             self.assertAlmostEqual(dist_p,dist_c)
+#             #print k, dist_p, dist_c
+# 
+#         # Points and epsilon
+#         for k in range(5,15):
+#             delta = 10**(-k-0.1)
+#             pt = [2.15 ,1.2 - delta]
+#             pt_p = Point(pt[0],pt[1])
+#             dist_p = polygon_py.distance(pt_p)
+#             dist_c = polygon_cpp.distance(pt)
+#             #print pt_p, dist_p, dist_c
+#             self.assertAlmostEqual(dist_p,dist_c)
+#             #self.assertGreater(dist_c,0.0)
+# 
+#         # Third polygon
+#         points_ext = [[4.0, -0.5] , [3.5, 1.0] , [2.0, 1.5] , [3.5, 2.0] , [4.0, 3.5] , [4.5, 2.0] , [6.0, 1.5] , [4.5, 1.0] , [4.0, -0.5]]
+#         polygon_py= Polygon(points_ext)
+#         poly = [range(len(points_ext))]
+#         polygon_cpp = cpp.Polygon(points_ext, poly)
+# 
+#         for k in range(N):
+#             x=6*np.random.rand() + 1.0
+#             y=5*np.random.rand() - 1.0
+#             dist_p = polygon_py.distance(Point(x,y))
+#             dist_c = polygon_cpp.distance([x,y])
+#             self.assertAlmostEqual(dist_p,dist_c)
+#             #print k, dist_p, dist_c
+# 
+#         # Rotates polygon
+#         delta = 1e-12
+#         for i in range(N):
+#             points_ext = [[-3,-2],[3,-2],[3,0],[1,0],[0,2],[-1,0],[-3,0]]
+#             
+#             O = (np.random.rand()-0.5)*delta
+#             C = np.cos(O); S = np.sin(O)
+#             Xc = delta*(2*np.random.rand()-1.0)
+#             Yc = delta*(2*np.random.rand()-1.0)
+#             for k in range(len(points_ext)):
+#                 pt = points_ext[k]
+#                 x = C*pt[0] - S*pt[1]
+#                 y = S*pt[0] + C*pt[1]
+#                 points_ext[k] = [x,y]
+# 
+#             polygon_py= Polygon(points_ext)
+#             poly = [range(len(points_ext))]
+#             polygon_cpp = cpp.Polygon(points_ext, poly)
+#             
+#             dist_p = polygon_py.distance(Point(Xc,Yc))
+#             dist_c = polygon_cpp.distance([Xc,Yc])
+#             if (abs(dist_p-dist_c)>1E-5):
+#                 print Xc,Yc
+#                 print dist_c, dist_p
+#                 print polygon_py
+#             self.assertAlmostEqual(dist_p,dist_c)
+#             self.assertAlmostEqual(dist_c,0.0)
+# 
+#         # distance with faults
+# 
+#         points = [[0,0],[0.5,0],[1,0],[0,0.5],[0.75,0.5],[1,0.5],[0,1],[0.5,1],[0.8,1],[1,1]]
+#         polygons = [[[3,7,6]],[[0,1,2,4,7,3]],[[5,8,7,4,2]],[[5,9,8]]]
+#         units = ['unit0', 'unit1', 'unit2', 'unit3']
+# 
+#         lines = [[3,7,4],[0,4,3,1],[5,8]]
+#         #lines=[]
+#         lnames = ['fault0','fault1','fault2']
+#         #lanmes = []
+#         section = cpp.Section("A-A", 0, (0, 0, 1, 1), points, polygons, units, lines, lnames, [])
+# 
+#         dX = 0.9-0.55
+#         db = 0.5-2*1e-5
+#         for k in range(N):
+#             x = dX*np.random.rand() + 0.55
+#             b = db*np.random.rand() + 1.5 + 1e-5
+#             y = -2*x+b
+#             if y>=0:
+#                 dist = section.distance([x,y],2)
+# 
+#                 if (y>=0.125*(4*x+1)):
+#                     val = np.inf
+#                 else:
+#                     val = np.abs(-2*x - y + 2)/np.sqrt(5)
+# 
+#                 # print x,y,dist, val
+#                 # self.assertAlmostEqual(dist,val)
 
 
         

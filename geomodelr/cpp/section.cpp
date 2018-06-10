@@ -24,9 +24,15 @@ Section::~Section()
 	if ( this->polidx != nullptr ) {
 		delete this->polidx;
 	}
+	if ( this->fault_lines != nullptr ) {
+		delete this->fault_lines;
+	}
+	for ( Polygon * p: this->poly_trees ) {
+		delete p;
+	}
 }
 
-Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr) 
+Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr), fault_lines(nullptr)
 {
 	
 }
@@ -97,7 +103,7 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		envelopes.push_back(std::make_tuple(env, unit, this->poly_trees.size()));
 		
 		// Now add the actual polygon and its unit.
-		this->poly_trees.push_back(new Polygon(pol));
+		this->poly_trees.push_back(new Polygon(pol, env, this));
 		this->units.push_back(unit);
 	}
 
@@ -327,5 +333,5 @@ double SectionPython::distance_poly(const pylist& pypt, int idx) const{
 
 	double x = python::extract<double>(pypt[0]);
 	double y = python::extract<double>(pypt[1]);
-	return this->poly_trees[idx]->distance_point_new(point2(x,y), this->fault_lines);
+	return this->poly_trees[idx]->distance_point(point2(x,y));
 }

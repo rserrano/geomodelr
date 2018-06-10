@@ -19,11 +19,10 @@
 #define GEOMODELR_Polygon_HPP
 #include "basic.hpp"
 
-class Section;
 class Match;
 class Model;
 class SectionPython;
-
+class Section;
 
 class Polygon {
 
@@ -34,19 +33,19 @@ class Polygon {
 
 protected:
 	double x_corner;
-	rtree_seg * poly_lines;
 	polygon boost_poly;
-	box b_box;
+	box bbox;
+	const Section * section;
+	rtree_seg * poly_lines;
 public:
 	Polygon();
-	Polygon(const polygon& poly);
+	Polygon(const polygon& poly, const box& bbox, const Section * section);
 	virtual ~Polygon();
 
 	std::pair<line_segment,double> ray_distance(const point2& pt) const;
-	double distance_point(const point2& pt ,const rtree_l* fault_lines) const;
-	double distance_point_new(const point2& pt ,const rtree_l* fault_lines) const;
+	double distance_point(const point2& pt) const;
 };
-
+/*
 class PolygonPython : public Polygon {
 
 public:
@@ -54,4 +53,5 @@ public:
  	double distance_poly_test(const pylist& pt) const;
  	pytuple time_poly_test(const pylist& pt,int N) const;
 };
+*/
 #endif
