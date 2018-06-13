@@ -26,7 +26,7 @@
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, 
               const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox,
 	      const point2& base_point, const point2& direction )
-: bbox(bbox), abbox(abbox), base_point(base_point), direction(direction), topography(nullptr), horizontal(false)
+: bbox(bbox), abbox(abbox), base_point(base_point), direction(direction), topography(nullptr), horizontal(false), faults_disabled(false)
 {
 	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
 	point2 b1(g0(g1(bbox)), g1(g1(bbox)));
@@ -50,12 +50,12 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox,
               const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox)
-: bbox(bbox), abbox(abbox), base_point(), direction(), topography(nullptr), horizontal(true)
+: bbox(bbox), abbox(abbox), base_point(), direction(), topography(nullptr), horizontal(true), faults_disabled(false)
 {
 	this->cuts_range = std::make_pair(g2(g0(bbox)), g2(g1(bbox)));
 }
 
-Model::~Model(){
+Model::~Model() {
 	/* clears matches and sections from memory */
 	if ( this->topography != nullptr ) {
 		delete this->topography;
@@ -112,11 +112,12 @@ void Model::make_matches() {
 	
 	for ( size_t i = 1; i < this->sections.size(); i++ ) {
 		this->match.push_back(new Match(this->sections[i-1], this->sections[i]));
-		// Match the polygons.
-		this->match.back()->match_polygons();
 		// Get the matching faults.
 		auto m = this->match.back()->match_lines( this->feature_types );
+		// Match the polygons.
+		this->match.back()->match_polygons();
 		add_to_faults(m);
+		this->match.back()->set_params(&(this->params));
 	}
 	
 	// Get the extended faults from the begining.
@@ -181,7 +182,7 @@ std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, con
 	int minidx = -1;
 	for ( size_t i = 0; i < op.size(); i++ ) {
 		size_t pl = op[i];
-		double dist = geometry::distance(s.polygons[pl], pt);
+		double dist = s.poly_trees[pl]->distance_point(pt);
 		if ( dist < mindist ) {
 			mindist = dist;
 			minidx = pl;
@@ -207,6 +208,60 @@ double Model::Possible::distance(double c) const {
 	return this->a_dist*c + this->b_dist*(1.0-c);
 }
 
+double Model::geomodelr_distance( const wstring& unit, const point3& pt ) const{
+	
+	auto just = [unit](const value_f& v) {
+		const wstring& s = g1(v);
+		return s == unit;
+	};
+
+	std::tuple<wstring, double> inside = this->closest( pt, just );
+	return g1(inside);
+}
+vector<point2>  Model::get_polygon(const wstring sec, int poly_idx) const{
+
+	int pos = 0;
+	int n = this->sections.size();
+	for (int k=0; k<n;k++){
+		if (this->sections[k]->name==sec){
+			pos = k;
+			break;
+		}
+	}
+
+	ring outer = (this->sections[pos]->poly_trees[poly_idx])->boost_poly.outer();
+	size_t nnodes = outer.size();
+
+	vector<point2> pts;
+	for ( size_t k = 0; k < nnodes; k++ ) {
+		pts.push_back(outer[k]);
+	}
+	return pts;
+
+}
+
+vector<point2> Model::get_fault(const wstring sec, int fault_idx) const{
+
+	int pos = 0;
+	int n = this->sections.size();
+	for (int k=0; k<n;k++){
+		if (this->sections[k]->name==sec){
+			pos = k;
+			break;
+		}
+	}
+
+	line outer = (this->sections[pos]->lines[fault_idx]);
+	size_t nnodes = outer.size();
+
+	vector<point2> pts;
+	for ( size_t k = 0; k < nnodes; k++ ) {
+		pts.push_back(outer[k]);
+	}
+	return pts;
+
+}
+
 double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	
 	auto all_except = [unit](const value_f& v) {
@@ -221,8 +276,16 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	std::tuple<wstring, double> outside = this->closest( pt, all_except );
+	// std::wcerr << g0(inside) << ": ";
+	// std::cerr << g1(inside) << std::endl;
+	// std::wcerr << g0(outside) << ": ";
+	// std::cerr << g1(outside) << std::endl;
+
 	if ( g0(inside) == L"NONE" ) {
 		return g1(inside);
+	}
+	if ( g0(outside) == L"NONE" ) {
+		return -g1(outside);
 	}
 	return g1(inside) - g1(outside);
 }
@@ -326,7 +389,6 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	}
 	
 	double dists[6] = { minu - u, minv - v, minw - w, u - maxu, v - maxv, w - maxw };
-	
 	for ( size_t i = 0; i < 6; i++ ) {
 		if ( dists[i] >= 0 ) {
 			outside = true;
@@ -527,7 +589,6 @@ std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
 
 std::tuple<wstring, double> Model::closest_topo_aligned( const point3& pt ) const {
 	if ( this->topography != nullptr ) {
-		point3 in = this->inverse_point(point2(gx(pt), gy(pt)), gz(pt));
 		if ( this->height(point2(gx(pt), gy(pt))) < gz(pt) ) {
 			return std::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
 		}
@@ -749,17 +810,21 @@ double TopographyPython::height( const pyobject& pypt ) const {
 	return ((Topography *)this)->height( point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])) );
 }
 
-void ModelPython::fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types ) {
+void ModelPython::fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params ) {
 	if ( python::len(topography) > 0 ) {// Get all the information sent from python to build the topography.
-		
 		const pyobject& point = python::extract<pyobject>(topography["point"]);
 		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
 		const pyobject& dims = python::extract<pyobject>(topography["dims"]);
 		const pylist& heights = python::extract<pylist>(topography["heights"]);
 		this->topography = new TopographyPython(point, sample, dims, heights);
 	}
-
+	
 	size_t nsects = python::len(sections);
+	
+	pylist keys = params.keys();
+	for ( int i = 0; i < python::len( keys ); i++ ) {
+		this->params[python::extract<wstring>(keys[i])] = python::extract<wstring>(params[keys[i]]);
+	}
 	
 	for ( size_t i = 0; i < nsects; i++ ) {
 		// Get all the information sent from python to create each cross section.
@@ -778,6 +843,7 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 		
 		// Pass all the information to the cross section, including the bounding box of the given section.
 		this->sections.push_back( new SectionPython( name, cut, bbox, points, polygons, units, lines, lnames, anchored_lines ) );
+		this->sections.back()->set_params( &(this->params) );
 	}
 	
 	std::sort(this->sections.begin(), this->sections.end(), [](const Section* a, const Section* b){ return a->cut < b->cut; });
@@ -785,9 +851,19 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 		this->cuts.push_back(this->sections[i]->cut);
 	}
 	
-	pylist keys = feature_types.keys();
+	keys = feature_types.keys();
 	for ( int i = 0; i < python::len( keys ); i++ ) {
 		this->feature_types[python::extract<wstring>(keys[i])] = python::extract<wstring>(feature_types[keys[i]]);
+	}
+	auto it = this->params.find( L"faults" );
+	if ( it != this->params.end() ) {
+		if ( it->second == L"disabled" ) {
+			this->faults_disabled = true;
+		} else {
+			this->faults_disabled = false;
+		}
+	} else {
+		this->faults_disabled = false;
 	}
 }
 
@@ -795,7 +871,7 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& base_point, 
 		    	 const pyobject& direction, const pyobject& map, 
 		    	 const pyobject& topography, const pylist& sections, 
-			 const pydict& feature_types ): 
+			 const pydict& feature_types, const pydict& params ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
@@ -809,13 +885,13 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyo
 		pylist pl = python::extract<pylist>( sections[i] );
 		pl.insert( 2, sbbox );
 	}
-	this->fill_model( topography, sections, feature_types );
+	this->fill_model( topography, sections, feature_types, params );
 }
 
 // Model python for HORIZONTAL cross sections.
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& map, 
 			  const pyobject& topography, const pylist& sections,
-			  const pydict& feature_types ): 
+			  const pydict& feature_types, const pydict& params ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
@@ -828,7 +904,7 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyo
 		pl.insert( 2, sbbox );
 	}
 	
-	this->fill_model( topography, sections, feature_types );
+	this->fill_model( topography, sections, feature_types, params );
 }
 
 
@@ -986,6 +1062,37 @@ double ModelPython::signed_distance_unbounded( const wstring& unit, const pyobje
 
 double ModelPython::signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_unbounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
+double ModelPython::geomodelr_distance( const wstring& unit, const pylist& point ) const{
+
+	double x = python::extract<double>( point[0] );
+	double y = python::extract<double>( point[1] );
+	double z = python::extract<double>( point[2] );
+	return ((Model *)this)->geomodelr_distance(unit,point3(x,y,z));
+	
+}
+
+pylist ModelPython::get_polygon(const wstring sec, int pol_idx){
+	auto input = ((Model *)this)->get_polygon(sec,pol_idx);
+
+	pylist output;
+    for (auto& it_point: input){
+        pylist point; point.append(gx(it_point)); point.append(gy(it_point));
+        output.append(point);
+    }
+    return output;
+}
+
+pylist ModelPython::get_fault(const wstring sec, int pol_idx){
+	auto input = ((Model *)this)->get_fault(sec,pol_idx);
+
+	pylist output;
+    for (auto& it_point: input){
+        pylist point; point.append(gx(it_point)); point.append(gy(it_point));
+        output.append(point);
+    }
+    return output;
 }
 
 pytuple calculate_section_bbox( const pyobject& bbox, const pyobject& point, const pyobject& direction, double cut ) {

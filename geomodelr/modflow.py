@@ -18,6 +18,7 @@
 # make calculations of their models.
 
 import numpy as np
+from numpy import linalg as la
 import flopy as fp
 from math import ceil,floor
 
@@ -43,55 +44,7 @@ class ALGORITHM:
     REGULAR = u'regular'
     ADAPTIVE = u'adaptive'
 
-def create_modflow_inputs(name, model, units_data,
-    length_units=LENGTH_UNIT.METERS, rows=100, cols=100, layers=100,
-    bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.SECONDS, 
-    algorithm=ALGORITHM.REGULAR,faults_data={},faults_method=u'regular'):
-    """
-    Generates the DIS, BAS, LPF and NAM files, which are used by classical
-    MODFLOW processors. The user has to import the NAM file from his MODFLOW
-    program. 
-    
-    Args:
-        (string) name: name of generated files.
-
-        (GeologicalModel) model: geomodlr model to work on.
-
-        (dict) units_data: the dictionary keys correpond to the unit names
-        and the items are tuples with 4 values: (Kh_x,ani,Kv,i_bound).
-        Kh_x and Kv are the horizontal and vertical hydraulic conductivy
-        respectively and ani variable is the horizontal anysotropy (rate between
-        Kh_y and Kh_x, i.e., ani=Kh_y/Kk_x. Finally, i_bound is equal to 1 
-        if the respective unit is active and 0 otherwise.
-
-        (int) length_units: length units (see: class LENGTH_UNIT)
-
-        (int) rows: number of rows in the MODFLOW model.
-
-        (int) cols: number of cols in the MODFLOW model.
-
-        (int) layers: number of layers in the MODFLOW model.
-
-        (list) bbox: the bounding box to search in.
-
-        (float) angle: this angle (degrees) is used in the adative algorithm.
-
-        (float) dz_min: minimum allowed distance between layers.
-
-        (int) time_units: time units (see: class TIME_UNIT)
-
-        (string) algorithm: grid generation algorithm (see: class ALGORITHM)
-
-        (dict) faults_data: the dictionary keys correpond to the fault names
-        and the items are tuples with 4 values: (Kh_x,ani,Kv,i_bound).
-
-        (unicode) faults_method: it is equal to "regular" if the hydraulic conductivity
-        values of the fault are aligned with the XYZ axes (princial axes) or
-        it is equal to "vectorial" if the hydraulic conductivity values of
-        the fault are aligned with the fault plane.
-
-    """
-
+def get_fd_mesh(model, units_data, length_units, rows, cols, layers, bbox, angle, dz_min, time_units, algorithm, faults_data, faults_method ):
     if (bbox is None):
         bbox = model.bbox
 
@@ -141,7 +94,7 @@ def create_modflow_inputs(name, model, units_data,
         Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
             bottom_min,units_data,angle,dz_min)
 
-    K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
+    K_hor, K_anisotropy_hor, K_ver, I_bound, chani_var=set_unit_properties(model,
         units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
 
     if len(faults_data)>0:
@@ -150,19 +103,75 @@ def create_modflow_inputs(name, model, units_data,
 
     if not(np.isscalar(I_bound)):
         cells_checker(I_bound,rows,cols,layers)
+    return (layers,  Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox)
+
+
+def create_modflow_inputs(name, model, units_data,
+    length_units=LENGTH_UNIT.METERS, rows=100, cols=100, layers=100,
+    bbox=None, angle=20, dz_min = 1.0, time_units=TIME_UNIT.SECONDS, 
+    algorithm=ALGORITHM.REGULAR,faults_data={},faults_method=u'regular'):
+    """
+    Generates the DIS, BAS, LPF and NAM files, which are used by classical
+    MODFLOW processors. The user has to import the NAM file from his MODFLOW
+    program. 
+    
+    Args:
+        (string) name: name of generated files.
+
+        (GeologicalModel) model: geomodlr model to work on.
+
+        (dict) units_data: the dictionary keys correpond to the unit names
+        and the items are tuples with 4 values: (Kh_x,ani,Kv,i_bound).
+        Kh_x and Kv are the horizontal and vertical hydraulic conductivy
+        respectively and ani variable is the horizontal anysotropy (rate between
+        Kh_y and Kh_x, i.e., ani=Kh_y/Kk_x. Finally, i_bound is equal to 1 
+        if the respective unit is active and 0 otherwise.
+
+        (int) length_units: length units (see: class LENGTH_UNIT)
+
+        (int) rows: number of rows in the MODFLOW model.
+
+        (int) cols: number of cols in the MODFLOW model.
+
+        (int) layers: number of layers in the MODFLOW model.
+
+        (list) bbox: the bounding box to search in.
+
+        (float) angle: this angle (degrees) is used in the adative algorithm.
+
+        (float) dz_min: minimum allowed distance between layers.
+
+        (int) time_units: time units (see: class TIME_UNIT)
+
+        (string) algorithm: grid generation algorithm (see: class ALGORITHM)
+
+        (dict) faults_data: the dictionary keys correpond to the fault names
+        and the items are tuples with 4 values: (Kh_x,ani,Kv,i_bound).
+
+        (unicode) faults_method: it is equal to "regular" if the hydraulic conductivity
+        values of the fault are aligned with the XYZ axes (princial axes) or
+        it is equal to "vectorial" if the hydraulic conductivity values of
+        the fault are aligned with the fault plane.
+
+    """
+    
+    layers,  Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, length_units, 
+                                                                                                                            rows, cols, layers, bbox, angle, 
+                                                                                                                            dz_min, time_units, algorithm, 
+                                                                                                                            faults_data, faults_method)
 
     #  ------- Flowpy Packages ----
     # Grid
 
-    #geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
-        #lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
+    # geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
+    # lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
 
-    mf_handle = fp.modflow.mf.Modflow(modelname=name,namefile_ext='nam')
+    mf_handle = fp.modflow.mf.Modflow(modelname=name, namefile_ext='nam')
     
     # Variables for the Dis package
     dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
-        top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
-        itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
+                                top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
+                                itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
 
     # Variables for the BAS package
     bas = fp.modflow.ModflowBas(mf_handle,ibound = I_bound)
@@ -172,7 +181,7 @@ def create_modflow_inputs(name, model, units_data,
         vka=K_ver, hani=K_anisotropy_hor,laytyp=np.ones(layers,dtype=np.int32))#
 
     mf_handle.write_input()
-
+    
     output = {'num_layers': layers}
     return(output)
 
@@ -676,7 +685,7 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
                 K_ver[L,i,j] = Data[2]
                 if ibound_bool:
                     I_bound[L,i,j] = Data[3]
-
+    
     return((K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var))
     
 def find_unit_limits_CPP(model, xp, yp, z_max, z_min, eps):

@@ -66,7 +66,7 @@ class GeologicalModel(cpp.Model):
     with a transformation. Go to Geomodelr.com, create a new model and use it with this 
     tool.
     """
-    def __init__( self, geolojson, delete=True ):
+    def __init__( self, geolojson, delete=True, params={'faults': 'basic'} ):
         """ 
         Initializes the geological model from a Geological JSON 
         file created in www.geomodelr.com.
@@ -80,9 +80,10 @@ class GeologicalModel(cpp.Model):
             import geomodelr
             mfile = open('/path/to/your/version.json')
             geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
-        
         Args:
             (dict) geolojson: The Geological JSON.
+            delete: Delete the geojson after creating the cpp model to free memory.
+            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover' }
         """
         
         self.geojson = geolojson
@@ -160,13 +161,12 @@ class GeologicalModel(cpp.Model):
         else:
             abbox[1] = bbox[2]
             abbox[4] = bbox[5]
-            
-
+        
         lines = self.geojson['properties']['lines']
         if orientation == 'horizontal':
-            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines)
+            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params)
         else:
-            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines)
+            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines, params)
         
         self.make_matches()
         

@@ -18,11 +18,15 @@
 
 #include "match.hpp"
 #include <cmath>
-
+#include <queue>
+#include <boost/range/adaptors.hpp>
+#include <boost/assert.hpp>
+#include <boost/geometry/algorithms/intersection.hpp>
 
 Match::Match( const Section * a, const Section * b )
-:a(a), b(b), faultidx(nullptr)
+:a(a), b(b), faultidx(nullptr), params(nullptr), faults_disabled(false)
 {
+	
 }
 
 Match::~Match( )
@@ -43,17 +47,40 @@ void Match::set( const vector<std::pair<int, int>>& match ){
 	}
 }
 
-
+void Match::set_params( const map<wstring, wstring> * params ) {
+	this->params = params;
+	auto it = this->params->find( L"faults" );
+	if ( it != this->params->end() ) {
+		if ( it->second == L"disabled" ) {
+			this->faults_disabled = true;
+		} else {
+			this->faults_disabled = false;
+		}
+	} else {
+		this->faults_disabled = false;
+	}
+}
 
 void Match::match_polygons() {
+	// Generate fault hiding.
+	// Check if any of the polygons is covered by a fault.
+	auto covered_by_fault = [&] ( const multi_polygon& intersect ) -> bool {
+		for ( const multi_polygon& flt: this->excluded_area | boost::adaptors::map_values ) {
+			if ( geometry::covered_by( intersect, flt ) ) {
+				return true;
+			}
+		}
+		return false;
+	};
+	
 	map<wstring, vector<int>> units_a;
 	map<wstring, vector<int>> units_b;
 	
-	for ( size_t i = 0; i < this->a->polygons.size(); i++ ) {
+	for ( size_t i = 0; i < this->a->poly_trees.size(); i++ ) {
 		units_a[this->a->units[i]].push_back(i);
 	}
 	
-	for ( size_t i = 0; i < this->b->polygons.size(); i++ ) {
+	for ( size_t i = 0; i < this->b->poly_trees.size(); i++ ) {
 		units_b[this->b->units[i]].push_back(i);
 	}
 	
@@ -64,15 +91,40 @@ void Match::match_polygons() {
 			vector<int>& pols_b = units_b[it->first];
 			for ( size_t i = 0; i < pols_a.size(); i++ )
 			{
-				for ( size_t j = 0; j < pols_b.size(); j++ ) {
-					if ( geometry::intersects(this->a->polygons[pols_a[i]], this->b->polygons[pols_b[j]]) ) {
-						m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+				for ( size_t j = 0; j < pols_b.size(); j++ ) 
+				{
+					multi_polygon output;
+					if ( this->faults_disabled ) 
+					{
+						if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
+									   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
+						{
+							m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						}
+					} else {
+						try {
+							geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
+									       this->b->poly_trees[pols_b[j]]->boost_poly, 
+									       output);
+							if ( geometry::area( output ) > boost_tol ) {
+								if ( not covered_by_fault( output ) ) {;
+									// TODO: use tree.
+									m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+								}
+							}
+						} catch ( geometry::exception& e ) {
+							// TODO: What to do with these cases?
+							if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
+										   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
+							{
+								m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+							}
+						}
 					}
 				}
 			}
 		}
 	}
-
 	this->set( m );
 }
 
@@ -119,6 +171,8 @@ AlignedTriangle::AlignedTriangle(const std::tuple<point3, point3, point3>& trian
 	outer.push_back(point2(gx(p0), gy(p0)));
 	outer.push_back(point2(gx(p1), gy(p1)));
 	outer.push_back(point2(gx(p2), gy(p2)));
+	
+	geometry::correct(this->triangle);
 }
 
 int AlignedTriangle::crosses_triangle(const point2& point, double cut ) const {
@@ -245,7 +299,7 @@ vector<triangle> test_start( const vector<point3>& pa, const vector<point3>& pb,
 	return result;
 }
 
-vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<point3>& l_b)
+std::pair<vector<triangle>, bool> faultplane_for_lines(const vector<point3>& l_a, const vector<point3>& l_b)
 {
 	// Get the faults plane between lines la, lb.
 	
@@ -258,11 +312,92 @@ vector<triangle> faultplane_for_lines(const vector<point3>& l_a, const vector<po
 	geometry::divide_value( vb, std::sqrt( geometry::dot_product( vb, vb ) ) );
 	
 	double angle = std::acos(geometry::dot_product( va, vb ));
-	//std::cerr << "angle " << angle << "\n";
+	
 	if ( angle <= M_PI/2.0 ) {
-		return test_start( l_a, l_b, false );
+		return std::make_pair(test_start( l_a, l_b, false ), false);
 	}
-	return test_start( l_a, l_b, true  );
+	return std::make_pair(test_start( l_a, l_b, true  ), false);
+}
+
+multi_polygon fix_polygon( polygon& pol ) {
+	multi_polygon outputs;
+	std::queue<polygon> split;
+	split.push(pol);
+	geometry::correct(pol);
+	geometry::remove_spikes(pol);
+	
+	/*
+	string reason;
+	if ( not geometry::is_valid( pol, reason ) ) {
+		std::cerr << "invlid reason " << reason << "\n";
+	}
+	*/
+	// Check for infinite buckle with max_iters.
+	size_t max_iters = pol.outer().size();
+	while( split.size() ) {
+		if ( max_iters <= 0 ) {
+			std::cerr << "polygon " << geometry::wkt(pol) << " \n";
+			std::cerr << "ERROR BREAKING POLYGON\n";
+			break;
+		}
+		polygon curp = split.front();
+		split.pop();
+		geometry::correct(curp);
+		geometry::remove_spikes(curp);
+		bool br = false;
+		ring& curr = curp.outer();
+		size_t n = curr.size();
+		for ( size_t i = 0; i < n-1; i++ ) {
+			segment s1(curr[i], curr[(i+1)%n]);
+			for ( size_t j = i+2; j < n-1; j++ ) {
+				segment s2(curr[j], curr[(j+1)%n]);
+				std::vector<point2> output;
+				bool inter = boost::geometry::intersection(s1, s2, output);
+				if ( inter && output.size() == 1 ) {
+					polygon p1, p2;
+					ring& o1 = p1.outer();
+					ring& o2 = p2.outer();
+					o1.push_back( output[0] );
+					for ( size_t k = j+1; (k-1)%n != i; k++ ) {
+						o1.push_back(curr[k%n]);
+					}
+					o1.push_back(output[0]);
+					split.push(p1);
+					o2.push_back(output[0]);
+					for ( size_t k = i+1; (k-1)%n != j; k++ ) {
+						o2.push_back(curr[k%n]);
+					}
+					o2.push_back( output[0] );
+					split.push( p2 );
+					br = true;
+					break;
+				}
+			}
+			if ( br ) {
+				break;
+			}
+		}
+		
+		if ( not br )
+			outputs.push_back(curp);
+		
+		max_iters -= 1;
+	}
+	geometry::correct(outputs);
+	return outputs;
+}
+
+multi_polygon calculate_excluded_area(const line& la, const line& lb, bool rev ) {
+	// Create the fault polygon that will be extracted from the normal intersection.
+	polygon pol;
+	ring& outer = pol.outer();
+	outer.insert( outer.end(), la.begin(), la.end() );
+	if ( not rev ) {
+		outer.insert( outer.end(), lb.rbegin(), lb.rend() );
+	} else {
+		outer.insert( outer.end(), lb.begin(), lb.end() );
+	}
+	return fix_polygon( pol );
 }
 
 std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Match::match_lines( const map<wstring, wstring>& feature_types )
@@ -296,6 +431,7 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 	}
 	map<wstring, vector<triangle_pt>> retfaults;
 	map<wstring, vector<size_t>> extended;
+	map<wstring, multi_polygon> exclude;
 	for ( auto it = rel_faults.begin(); it != rel_faults.end(); it++ ) {
 		int fa = g0(it->second);
 		int fb = g1(it->second);
@@ -311,7 +447,8 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 		std::transform(lb.begin(), lb.end(), std::back_inserter(pb), [&]( const point2& p ) { return point3(gx(p), gy(p), this->b->cut); });
 		
 		try {
-			vector<triangle> fplane = faultplane_for_lines(pa, pb);
+			std::pair<vector<triangle>, bool> fpor = faultplane_for_lines(pa, pb);
+			vector<triangle>& fplane = fpor.first;
 			
 			size_t na = la.size();
 			size_t nb = lb.size();
@@ -330,7 +467,7 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 			if (anchb.find(std::make_pair(fb, false)) != anchb.end()) {
 				exts.push_back(na + nb - 1);
 			}
-
+			
 			for ( size_t j = 0; j < fplane.size(); j++ ) {
 				for ( size_t i = 0; i < exts.size(); i++ ) {
 					if ( g0(fplane[j]) == exts[i] or
@@ -350,6 +487,8 @@ std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> Matc
 					return pb[n-na]; 
 				}
 			};
+			
+			this->excluded_area[name] = calculate_excluded_area(la, lb, fpor.second);
 			
 			std::transform(fplane.begin(), fplane.end(), std::back_inserter(retfaults[name]),
 				[&] ( const triangle& t ) {
@@ -439,6 +578,6 @@ pylist test_faultplane_for_lines(const pylist& pyla, const pylist& pylb) {
 	vector<point3> la = pytovct(pyla);
 	vector<point3> lb = pytovct(pylb);
 	
-	vector<triangle> res = faultplane_for_lines(la, lb);
-	return vcttopy(res);
+	std::pair<vector<triangle>, bool> res = faultplane_for_lines(la, lb);
+	return vcttopy( res.first );
 }

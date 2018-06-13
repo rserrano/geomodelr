@@ -16,6 +16,7 @@
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 #include "basic.hpp"
+#include <cmath>
 
 // Is geomodelr verbose.
 bool geomodelr_verbose = false;
@@ -68,7 +69,15 @@ std::tuple<point2, double> point_line_projection( const point2& pt, const line& 
 			closest = cl_segment;
 		}
 	}
-	return closest;
+	double d = std::sqrt( g1(closest) );
+	double p = (d + epsilon)/d;
+	double xp = gx(g0(closest));
+	double yp = gy(g0(closest));
+	double xo = gx(pt);
+	double yo = gy(pt);
+	double xe = xo + p*(xp-xo);
+	double ye = yo + p*(yp-yo);
+	return std::make_tuple( point2(xe, ye), d+epsilon );
 }
 
 bool always_true( const value_f& v )
