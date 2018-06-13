@@ -155,13 +155,10 @@ def create_modflow_inputs(name, model, units_data,
 
     """
     
-    layers,  Z_top, Z_bottoms, 
-    dY, dX, X_inf, Y_sup, 
-    I_bound, chani_var, K_hor, 
-    K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, length_units, 
-                                          rows, cols, layers, bbox, angle, 
-                                          dz_min, time_units, algorithm, 
-                                          faults_data, faults_method)
+    layers,  Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, length_units, 
+                                                                                                                            rows, cols, layers, bbox, angle, 
+                                                                                                                            dz_min, time_units, algorithm, 
+                                                                                                                            faults_data, faults_method)
 
     #  ------- Flowpy Packages ----
     # Grid
