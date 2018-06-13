@@ -80,9 +80,10 @@ class GeologicalModel(cpp.Model):
             import geomodelr
             mfile = open('/path/to/your/version.json')
             geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
-        
         Args:
             (dict) geolojson: The Geological JSON.
+            delete: Delete the geojson after creating the cpp model to free memory.
+            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover' }
         """
         
         self.geojson = geolojson

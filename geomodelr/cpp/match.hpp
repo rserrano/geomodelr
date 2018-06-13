@@ -45,6 +45,8 @@ protected:
 	map<wstring, std::tuple<int, int>> rel_faults; // Which fault is related to which other fault.
 	map<wstring, multi_polygon> excluded_area;
 	rtree_f * faultidx;
+	const map<wstring, wstring> * params;
+	bool faults_disabled;
 public:
 	Match( const Section * a, const Section * b );
 	virtual ~Match();
@@ -52,6 +54,7 @@ public:
 	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> match_lines( const map<wstring, wstring>& feature_types );
 	std::tuple<int, int, int> crosses_triangles(const point2& pt, double cut) const;
 	void set( const vector<std::pair<int, int>>& match );
+	void set_params( const map<wstring, wstring> * params );
 };
 
 class MatchPython : public Match {

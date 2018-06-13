@@ -112,7 +112,7 @@ class TestGeoModelR(unittest.TestCase):
         lines = [ [4, 5] ]
         lnames = ["l1"]
         section = cpp.Section("A-A", 0, (0, 1, 0, 1), points, polygons, units, lines, lnames, [])
-        
+        section.params = {'faults': 'cover'}
         # Basic tests.
         self.assertEqual(section.closest(( 0.5, -0.25 ))[0], "NONE")
         self.assertEqual(section.closest(( 0.5, -0.3 ))[0], "NONE" )
@@ -134,6 +134,7 @@ class TestGeoModelR(unittest.TestCase):
         
         points = [[0, 0], [1, 0], [1, 1], [0, 1], [-0.25, 0.25], [-0.25, 0.75] ]
         section = cpp.Section("A-A", 0, (0, 1, 0, 1), points, polygons, units, lines, lnames, [])
+        section.params = {'faults': 'cover'}
         
         self.assertEqual(section.closest(( -0.25, 0.5 ))[0], "NONE")
         self.assertEqual(section.closest(( -0.3, 0.5 ))[0], "NONE" )
@@ -155,10 +156,12 @@ class TestGeoModelR(unittest.TestCase):
         
         points = [[0, 0], [1, 0], [1, 1], [0, 1], [0, -0.1], [0, 1.1] ]
         section = cpp.Section("A-A", 0, (0, 1, 0, 1), points, polygons, units, lines, lnames, [])
+        section.params = {'faults': 'cover'}
         self.assertEqual(section.closest(( -0.25, 0.5 ))[0], "NONE")
         
         points = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0], [0, 1]]
         section = cpp.Section("A-A", 0, (0, 1, 0, 1), points, polygons, units, lines, lnames, [])
+        section.params = {'faults': 'cover'}
         self.assertEqual(section.closest(( -0.25, 0.5 ))[0], "NONE")
     
     # Test that you can create cross sections and that bugs throw something in python (and not segfault).
@@ -380,7 +383,7 @@ class TestGeoModelR(unittest.TestCase):
         #lanmes = []
         model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {},
             [["A-A", 0, points, polygons_1, units_1, lines, lnames, []],
-            ["B-B", 1., points, polygons_2, units_2, lines, lnames, []]], { "fault1": "FAULT" }, {})
+            ["B-B", 1., points, polygons_2, units_2, lines, lnames, []]], { "fault1": "FAULT" }, {'faults': 'cover'})
         model.make_matches()
         
         y_line = lambda u,v: np.sqrt((u-1)**2 + (v-1)**2)/( v-1 + np.sqrt((u-1)**2 + (v-1)**2))
@@ -414,7 +417,7 @@ class TestGeoModelR(unittest.TestCase):
         lines_2 = [[2,6,10]]
 
         model = cpp.Model([0,0,0,2,1,2],[0,0,0,2,1,2],[0,0],[1,0], {}, {}, [["A-A", 0, points, polygons_1, units_1, lines_1, lnames, []],
-            ["B-B", 1., points, polygons_2, units_2, lines_2, lnames, []]], { "fault1": "FAULT" }, {})
+            ["B-B", 1., points, polygons_2, units_2, lines_2, lnames, []]], { "fault1": "FAULT" }, {'faults': 'cover'})
         model.make_matches()
 
         for k in range(n):

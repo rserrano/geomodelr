@@ -34,7 +34,7 @@ Section::~Section()
 	}
 }
 
-Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr), fault_lines(nullptr)
+Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr), fault_lines(nullptr), params(nullptr)
 {
 	
 }
@@ -43,17 +43,29 @@ std::pair<int, double> Section::closest( const point2& pt ) const {
 	return this->closest(pt, always_true);
 }
 
+void Section::set_params( const map<wstring, wstring> * params ) {
+	this->params = params;
+	auto kv = this->params->find( L"faults" );
+	// Make all polygons use the corresponding function.
+	if ( kv != this->params->end() ) {
+		wstring fault_method = kv->second;
+		for ( Polygon * p: this->poly_trees ) {
+			p->set_distance_function( fault_method );
+		}
+	}
+}
+
 SectionPython::SectionPython(const wstring& name, double cut, 
 	const pyobject& bbox, const pylist& points, 
 	const pylist& polygons, const pylist& units, 
 	const pylist& lines, const pylist& lnames,
 	const pylist& anchored_lines ): Section( name, cut, std::make_tuple( std::tuple<double, double>(python::extract<double>(bbox[0]), python::extract<double>(bbox[1])),
-									     std::tuple<double, double>(python::extract<double>(bbox[2]), python::extract<double>(bbox[3])) ) )
+								       std::tuple<double, double>(python::extract<double>(bbox[2]), python::extract<double>(bbox[3])) ) )
 {
 	size_t npols = python::len(polygons);
 	vector<value_f> envelopes;
 	vector<value_l> f_segs;
-
+	
 	for ( size_t i = 0; i < npols; i++ ) {
 		polygon pol;
 		wstring unit = python::extract<wstring>( units[i] );
@@ -185,9 +197,8 @@ SectionPython::SectionPython(const wstring& name, double cut,
 				std::cerr << e.what() << std::endl;
 			}
 		}
-		
-		
 	}
+	
 }
 
 pydict SectionPython::info() 
@@ -352,4 +363,20 @@ double SectionPython::distance_poly(const pylist& pypt, int idx) const{
 	double x = python::extract<double>(pypt[0]);
 	double y = python::extract<double>(pypt[1]);
 	return this->poly_trees[idx]->distance_point(point2(x,y));
+}
+
+void SectionPython::set_params(const pydict& params) {
+	pylist keys = params.keys();
+	for ( int i = 0; i < python::len( keys ); i++ ) {
+		this->local_params[python::extract<wstring>(keys[i])] = python::extract<wstring>(params[keys[i]]);
+	}
+	Section::set_params(&(this->local_params));
+}
+
+pydict SectionPython::get_params() const {
+	pydict out;
+	for ( auto& kv: this->local_params ) {
+		out[kv.first] = kv.second;
+	}
+	return out;
 }

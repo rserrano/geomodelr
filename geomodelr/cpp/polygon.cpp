@@ -28,10 +28,32 @@ Polygon::~Polygon()
 	}
 }
 
-Polygon::Polygon(): x_corner(std::numeric_limits<double>::infinity()), poly_lines(nullptr) 
-{	
+Polygon::Polygon(): x_corner(std::numeric_limits<double>::infinity()), poly_lines(nullptr)
+{
+	this->distance_point = std::bind(&Polygon::distance_point_basic_faults, this, std::placeholders::_1);
 }
 
+double Polygon::distance_point_basic_faults(const point2& pt) const {
+	return geometry::distance(pt, this->boost_poly);
+}
+
+double Polygon::distance_point_cover_faults(const point2& pt) const {
+	/* Checks if pt is inside the bounding square of the polygon.
+	   After that, checks if pt is inside the polygon.*/
+	if (geometry::within(pt,this->bbox) && geometry::covered_by(pt,this->boost_poly)){
+		return 0.0;
+	} else {
+		std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
+		for ( auto it = this->section->fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
+			   it != this->section->fault_lines->qend(); it++ ) {
+			const point2& ps = this->section->line_ends[g1(*it)].first;
+			const point2& pe = this->section->line_ends[g1(*it)].second;
+			return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
+		}
+		return ray_dist_pair.second;
+	}
+}
+	
 vector<line_segment> poly_to_vecsegs(const polygon& poly){
 	// Exterior ring
 	int Nnodes = poly.outer().size();
@@ -55,6 +77,7 @@ Polygon::Polygon( const polygon& poly, const box& bbox, const Section * section 
 	this->x_corner = bbox.max_corner().get<0>() + epsilon;
 	this->poly_lines = new rtree_seg( poly_to_vecsegs(poly) );
 	this->boost_poly = poly;
+	this->distance_point = std::bind(&Polygon::distance_point_basic_faults, this, std::placeholders::_1);
 }
 
 std::pair<line_segment,double> cross_segment(const point2& pt, const line_segment& poly_edge){
@@ -140,21 +163,11 @@ double Polygon::ray_crossing ( const point2& pt, const point2& nd ) const {
 	return mind;
 }
 
-double Polygon::distance_point(const point2& pt) const {
-
-	/* Checks if pt is inside the bounding square of the polygon.
-	   After that, checks if pt is inside the polygon.*/
-	if (geometry::within(pt,this->bbox) && geometry::covered_by(pt,this->boost_poly)){
-		return 0.0;
+double Polygon::set_distance_function( const wstring& s ) {
+	if ( s == L"cover" ) {
+		this->distance_point = std::bind(&Polygon::distance_point_cover_faults, this, std::placeholders::_1);
 	} else {
-		std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
-		for ( auto it = this->section->fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
-			   it != this->section->fault_lines->qend(); it++ ) {
-			const point2& ps = this->section->line_ends[g1(*it)].first;
-			const point2& pe = this->section->line_ends[g1(*it)].second;
-			return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
-		}
-		return ray_dist_pair.second;
+		this->distance_point = std::bind(&Polygon::distance_point_basic_faults, this, std::placeholders::_1);
 	}
 }
 

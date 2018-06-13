@@ -24,8 +24,9 @@
 #include <boost/geometry/algorithms/intersection.hpp>
 
 Match::Match( const Section * a, const Section * b )
-:a(a), b(b), faultidx(nullptr)
+:a(a), b(b), faultidx(nullptr), params(nullptr), faults_disabled(false)
 {
+	
 }
 
 Match::~Match( )
@@ -43,6 +44,20 @@ void Match::set( const vector<std::pair<int, int>>& match ){
 	for ( size_t i = 0; i < match.size(); i++ ) {
 		a_to_b[match[i].first].push_back(match[i].second);
 		b_to_a[match[i].second].push_back(match[i].first);
+	}
+}
+
+void Match::set_params( const map<wstring, wstring> * params ) {
+	this->params = params;
+	auto it = this->params->find( L"faults" );
+	if ( it != this->params->end() ) {
+		if ( it->second == L"disabled" ) {
+			this->faults_disabled = true;
+		} else {
+			this->faults_disabled = false;
+		}
+	} else {
+		this->faults_disabled = false;
 	}
 }
 
@@ -64,6 +79,7 @@ void Match::match_polygons() {
 	for ( size_t i = 0; i < this->a->poly_trees.size(); i++ ) {
 		units_a[this->a->units[i]].push_back(i);
 	}
+	
 	for ( size_t i = 0; i < this->b->poly_trees.size(); i++ ) {
 		units_b[this->b->units[i]].push_back(i);
 	}
@@ -75,21 +91,35 @@ void Match::match_polygons() {
 			vector<int>& pols_b = units_b[it->first];
 			for ( size_t i = 0; i < pols_a.size(); i++ )
 			{
-				for ( size_t j = 0; j < pols_b.size(); j++ ) {
+				for ( size_t j = 0; j < pols_b.size(); j++ ) 
+				{
 					multi_polygon output;
-					try {
-						geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
-								       this->b->poly_trees[pols_b[j]]->boost_poly, 
-								       output);
-						if ( geometry::area( output ) > boost_tol ) {
-							if ( not covered_by_fault( output ) ) {;
-								// TODO: use tree.
+					if ( this->faults_disabled ) 
+					{
+						if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
+									   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
+						{
+							m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						}
+					} else {
+						try {
+							geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
+									       this->b->poly_trees[pols_b[j]]->boost_poly, 
+									       output);
+							if ( geometry::area( output ) > boost_tol ) {
+								if ( not covered_by_fault( output ) ) {;
+									// TODO: use tree.
+									m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+								}
+							}
+						} catch ( geometry::exception& e ) {
+							// TODO: What to do with these cases?
+							if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
+										   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
+							{
 								m.push_back(std::make_pair(pols_a[i], pols_b[j]));
 							}
 						}
-					} catch ( geometry::exception& e ) {
-						
-						std::cerr << "excep 1\n";
 					}
 				}
 			}

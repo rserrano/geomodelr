@@ -26,7 +26,7 @@
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, 
               const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox,
 	      const point2& base_point, const point2& direction )
-: bbox(bbox), abbox(abbox), base_point(base_point), direction(direction), topography(nullptr), horizontal(false)
+: bbox(bbox), abbox(abbox), base_point(base_point), direction(direction), topography(nullptr), horizontal(false), faults_disabled(false)
 {
 	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
 	point2 b1(g0(g1(bbox)), g1(g1(bbox)));
@@ -50,12 +50,12 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox,
               const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox)
-: bbox(bbox), abbox(abbox), base_point(), direction(), topography(nullptr), horizontal(true)
+: bbox(bbox), abbox(abbox), base_point(), direction(), topography(nullptr), horizontal(true), faults_disabled(false)
 {
 	this->cuts_range = std::make_pair(g2(g0(bbox)), g2(g1(bbox)));
 }
 
-Model::~Model(){
+Model::~Model() {
 	/* clears matches and sections from memory */
 	if ( this->topography != nullptr ) {
 		delete this->topography;
@@ -117,6 +117,7 @@ void Model::make_matches() {
 		// Match the polygons.
 		this->match.back()->match_polygons();
 		add_to_faults(m);
+		this->match.back()->set_params(&(this->params));
 	}
 	
 	// Get the extended faults from the begining.
@@ -817,8 +818,13 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 		const pylist& heights = python::extract<pylist>(topography["heights"]);
 		this->topography = new TopographyPython(point, sample, dims, heights);
 	}
-
+	
 	size_t nsects = python::len(sections);
+	
+	pylist keys = params.keys();
+	for ( int i = 0; i < python::len( keys ); i++ ) {
+		this->params[python::extract<wstring>(keys[i])] = python::extract<wstring>(params[keys[i]]);
+	}
 	
 	for ( size_t i = 0; i < nsects; i++ ) {
 		// Get all the information sent from python to create each cross section.
@@ -837,6 +843,7 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 		
 		// Pass all the information to the cross section, including the bounding box of the given section.
 		this->sections.push_back( new SectionPython( name, cut, bbox, points, polygons, units, lines, lnames, anchored_lines ) );
+		this->sections.back()->set_params( &(this->params) );
 	}
 	
 	std::sort(this->sections.begin(), this->sections.end(), [](const Section* a, const Section* b){ return a->cut < b->cut; });
@@ -844,14 +851,19 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 		this->cuts.push_back(this->sections[i]->cut);
 	}
 	
-	pylist keys = feature_types.keys();
+	keys = feature_types.keys();
 	for ( int i = 0; i < python::len( keys ); i++ ) {
 		this->feature_types[python::extract<wstring>(keys[i])] = python::extract<wstring>(feature_types[keys[i]]);
 	}
-
-	keys = params.keys();
-	for ( int i = 0; i < python::len( keys ); i++ ) {
-		this->params[python::extract<wstring>(keys[i])] = python::extract<wstring>(params[keys[i]]);
+	auto it = this->params.find( L"faults" );
+	if ( it != this->params.end() ) {
+		if ( it->second == L"disabled" ) {
+			this->faults_disabled = true;
+		} else {
+			this->faults_disabled = false;
+		}
+	} else {
+		this->faults_disabled = false;
 	}
 }
 

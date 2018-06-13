@@ -57,14 +57,14 @@ protected:
 	vector<Match *> match;
 	vector<double> cuts;
 	
-	
 	map<wstring, vector<triangle_pt>> global_faults;
 	map<wstring, vector<size_t>> extended_faults;
 	map<wstring, wstring> feature_types;
 	map<wstring, wstring> params;
 	Topography * topography;
 	bool horizontal;
-	
+	bool faults_disabled;
+		
 	std::pair<int, double> closest_match(bool a, int a_idx, int pol_idx, const point2& pt) const;
 	
 	struct Possible {
@@ -244,14 +244,16 @@ protected:
 		
 		// Check if it crosses a fault and then, evaluate the cross section in the side normally, but move the point to the fault in the other.
 		a_idx--;
-		std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(ft, sd);
 		
-		if ( g0(crosses) < 0 ) {
-			std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx+1]->lines[g2(crosses)] );
-			return closest_middle( ft, g0(closest_in_line) );
-		} else if ( g0(crosses) > 0 ) {
-			std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx]->lines[g1(crosses)] );
-			return closest_middle( g0(closest_in_line), ft );
+		if ( not this->faults_disabled ) {
+			std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(ft, sd);
+			if ( g0( crosses ) < 0 ) {
+				std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx+1]->lines[g2(crosses)] );
+				return closest_middle( ft, g0( closest_in_line ) );
+			} else if ( g0( crosses ) > 0 ) {
+				std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx]->lines[g1(crosses)] );
+				return closest_middle( g0( closest_in_line ), ft );
+			}
 		}
 		
 		return closest_middle( ft, ft );

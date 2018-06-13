@@ -52,6 +52,7 @@ protected:
 	rtree_f * polidx; // To be initialized after polygons and lines.
 	rtree_l * fault_lines;
 	vector<Polygon *> poly_trees;
+	const map<wstring, wstring> * params;
 	
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
@@ -125,22 +126,23 @@ public:
 		return std::make_pair(minidx, mindist); 
 	}
 	std::pair<int, double> closest( const point2& ) const;
-
+	void set_params( const map<wstring, wstring> * params );
 	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> last_lines(bool is_back, double end);
 	Section( const wstring& name, double cut, const bbox2& bbox );
 	virtual ~Section();
 };
 
 class SectionPython : public Section {
+	map<wstring, wstring> local_params; // For single section use only.
 public:
-	SectionPython(const wstring& name, double cut, const pyobject& bbox, const pylist& points, 
-		      const pylist& polygons, const pylist& units, 
-		      const pylist& lines, const pylist& lnames, const pylist& anchored_lines );
-	
+	SectionPython( const wstring& name, double cut, const pyobject& bbox, const pylist& points, 
+		       const pylist& polygons, const pylist& units, const pylist& lines,
+		       const pylist& lnames, const pylist& anchored_lines );
 	pydict info() const;
 	pytuple closest( const pyobject& pypt ) const;
+	void set_params( const pydict& params );
+	pydict get_params( ) const;
 	double distance_poly(const pylist& pypt, int poly_idx) const;
-
 };
 
 void extend_line( bool beg, const bbox2& bbox, line& l );

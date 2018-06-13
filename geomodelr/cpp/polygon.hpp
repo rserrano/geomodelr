@@ -18,6 +18,7 @@
 #ifndef GEOMODELR_Polygon_HPP
 #define GEOMODELR_Polygon_HPP
 #include "basic.hpp"
+#include <functional>
 
 class Match;
 class Model;
@@ -37,15 +38,20 @@ protected:
 	box bbox;
 	const Section * section;
 	rtree_seg * poly_lines;
+	std::function<double(const point2&)> distance_point;
+	
 public:
 	Polygon();
 	Polygon(const polygon& poly, const box& bbox, const Section * section);
 	virtual ~Polygon();
-
+	
 	std::pair<line_segment, double> ray_distance(const point2& pt) const;
 	double ray_crossing ( const point2& pt, const point2& nd ) const;
-	double distance_point(const point2& pt) const;
+	double distance_point_basic_faults(const point2& pt) const;
+	double distance_point_cover_faults(const point2& pt) const;
+	double set_distance_function( const wstring& s );
 };
+
 /*
 class PolygonPython : public Polygon {
 
