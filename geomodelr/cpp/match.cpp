@@ -77,7 +77,6 @@ void Match::match_polygons() {
 			{
 				for ( size_t j = 0; j < pols_b.size(); j++ ) {
 					multi_polygon output;
-					//m.push_back(std::make_pair(pols_a[i], pols_b[j]));
 					try {
 						geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 
 								       this->b->poly_trees[pols_b[j]]->boost_poly, 
@@ -86,11 +85,10 @@ void Match::match_polygons() {
 							if ( not covered_by_fault( output ) ) {;
 								// TODO: use tree.
 								m.push_back(std::make_pair(pols_a[i], pols_b[j]));
-							} else {
-								// std::cerr << "polygons did not match" << pols_a[i] << " " << pols_b[j] << "\n";
 							}
 						}
 					} catch ( geometry::exception& e ) {
+						
 						std::cerr << "excep 1\n";
 					}
 				}

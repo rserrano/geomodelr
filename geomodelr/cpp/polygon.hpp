@@ -42,7 +42,8 @@ public:
 	Polygon(const polygon& poly, const box& bbox, const Section * section);
 	virtual ~Polygon();
 
-	std::pair<line_segment,double> ray_distance(const point2& pt) const;
+	std::pair<line_segment, double> ray_distance(const point2& pt) const;
+	double ray_crossing ( const point2& pt, const point2& nd ) const;
 	double distance_point(const point2& pt) const;
 };
 /*

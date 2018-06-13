@@ -24,9 +24,11 @@ Section::~Section()
 	if ( this->polidx != nullptr ) {
 		delete this->polidx;
 	}
+
 	if ( this->fault_lines != nullptr ) {
 		delete this->fault_lines;
 	}
+
 	for ( Polygon * p: this->poly_trees ) {
 		delete p;
 	}
@@ -130,9 +132,26 @@ SectionPython::SectionPython(const wstring& name, double cut,
 			fault_segments.push_back(std::make_tuple(line_segment(aux,aux2),count_lines));
 		}
 		if ( not geometry::is_valid(lin) or not geometry::is_simple(lin) ) {
-			continue;
+			continue; // This should guarantee that the line has at least 2 points.
 		}
+		
 		this->lines.push_back(lin);
+		// Create the ends by projecting these a little bit.
+		point2& end = lin[lin.size()-1], beg = lin[0];
+		point2& pend = lin[lin.size()-2], nbeg = lin[1];
+		point2 ve = end, vb = beg;
+		geometry::subtract_point( ve, pend );
+		geometry::subtract_point( vb, nbeg );
+		geometry::divide_value( ve, std::sqrt( gx(ve)*gx(ve) + gy(ve)*gy(ve) ) );
+		geometry::multiply_value( ve, 2.0*boost_tol );
+		geometry::divide_value( vb, std::sqrt( gx(vb)*gx(vb) + gy(vb)*gy(vb) ) );
+		geometry::multiply_value( vb, 2.0*boost_tol );
+		
+		geometry::add_point( ve, end );
+		geometry::add_point( vb, beg );
+		
+		this->line_ends.push_back(std::make_pair(vb, ve));
+
 		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
 		
 		fault_segments.pop_back(); count_lines++;
@@ -185,13 +204,12 @@ const {
 	double y = python::extract<double>(pypt[1]);
 	point2 p(x, y);
 	
-	std::pair<int, int> cls = Section::closest(p);
+	std::pair<int, double> cls = Section::closest(p);
 	
 	if ( cls.first == -1 ) {
-		return python::make_tuple(-1, wstring(L"NONE"));
+		return python::make_tuple(wstring(L"NONE"), cls.second);
 	}
-	
-	return python::make_tuple(cls.first, this->units[cls.first]);
+	return python::make_tuple(this->units[cls.first], cls.second);
 }
 
 

@@ -61,7 +61,7 @@ protected:
 	map<wstring, vector<triangle_pt>> global_faults;
 	map<wstring, vector<size_t>> extended_faults;
 	map<wstring, wstring> feature_types;
-	
+	map<wstring, wstring> params;
 	Topography * topography;
 	bool horizontal;
 	
@@ -334,7 +334,8 @@ public:
 	            const pyobject& map, 
 	            const pyobject& topography,
 	            const pylist& sections,
-		    const pydict& lines);
+		    const pydict& lines,
+		    const pydict& params);
 	
 	ModelPython(const pyobject& bbox,
 		    const pyobject& abbox,
@@ -343,10 +344,11 @@ public:
 	            const pyobject& map, 
 	            const pyobject& topography,
 	            const pylist& sections,
-		    const pydict& lines);
+		    const pydict& lines,
+		    const pydict& params);
 	
 	// fill geological model.
-	void fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types );
+	void fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params );
 	
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).

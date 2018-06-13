@@ -267,9 +267,9 @@ BOOST_PYTHON_MODULE(cpp)
 
 	// Main exported class, Model.
 	python::class_<ModelPython>("Model", python::init<const pylist&, const pylist&, const pyobject&, const pyobject&, const pyobject&,
-					         const pyobject&, pylist&, pydict&>())
+					         const pyobject&, const pylist&, const pydict&, const pydict&>())
 					    .def(python::init<const pylist&, const pylist&, const pyobject&,
-					    	 const pyobject&, pylist&, pydict&>())
+					    	 const pyobject&, const pylist&, const pydict&, const pydict&>())
 					    .def("make_matches", &ModelPython::make_matches)
 					    .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
 					    .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)

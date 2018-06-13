@@ -46,6 +46,7 @@ protected:
 	bbox2 bbox;
 	vector<wstring> units;
 	vector<line> lines;
+	vector<std::pair<point2, point2>> line_ends;
 	std::set<line_anchor> anchored_lines;
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.

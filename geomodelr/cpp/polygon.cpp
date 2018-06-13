@@ -19,6 +19,7 @@
 #include "polygon.hpp"
 #include "section.hpp"
 #include <ctime>
+#include <cmath>
 
 Polygon::~Polygon()
 {
@@ -57,14 +58,14 @@ Polygon::Polygon( const polygon& poly, const box& bbox, const Section * section 
 }
 
 std::pair<line_segment,double> cross_segment(const point2& pt, const line_segment& poly_edge){
-
+	
 	double x0 = gx(poly_edge.first); double y0 = gy(poly_edge.first);
 	double xf = gx(poly_edge.second); double yf = gy(poly_edge.second);
 	double xp = gx(pt); double yp = gy(pt);
-
+	
 	double dx = xf-x0; double dy = yf-y0;
 	double t = ((xp-x0)*dx + (yp-y0)*dy)/(dx*dx + dy*dy);
-
+	
 	point2 output;
 	if (t>=1.0){
 		//output = point2(xf - xp, yf - yp);
@@ -90,6 +91,55 @@ std::pair<line_segment,double> Polygon::ray_distance(const point2& pt) const{
 	return cross_segment(pt, results.front());
 }
 
+double Polygon::ray_crossing ( const point2& pt, const point2& nd ) const {
+	// Check if the bounding box can hit the ray.
+	point2 v = nd;
+	geometry::subtract_point(v, pt);
+	double xl, yl;
+	if ( gx(v) > 0 ) {
+		xl = this->bbox.max_corner().get<0>();
+		if ( gx(nd) > xl ) {
+			return std::numeric_limits<double>::infinity();
+		}
+	} else {
+		xl = this->bbox.min_corner().get<0>();
+		if ( gx(nd) <= xl ) {
+			return std::numeric_limits<double>::infinity();
+		}
+	}
+	if ( gy(v) > 0 ) {
+		yl = this->bbox.max_corner().get<1>();
+		if ( gy(nd) > yl ) {
+			return std::numeric_limits<double>::infinity();
+		}
+	} else {
+		yl = this->bbox.min_corner().get<1>();
+		if ( gy(nd) <= yl ) {
+			return std::numeric_limits<double>::infinity();
+		}
+	}
+	
+	double minm = std::numeric_limits<double>::infinity();
+	
+	minm = std::min((xl-gx(nd))/gx(v), minm);
+	minm = std::min((yl-gy(nd))/gy(v), minm);
+	
+	if ( std::isinf( minm ) ) {
+		return std::numeric_limits<double>::infinity();
+	}
+	geometry::multiply_value(v, minm);
+	geometry::add_point(v, nd);
+	line_segment s(nd, v);
+	double mind = std::numeric_limits<double>::infinity();
+	for ( auto it = this->poly_lines->qbegin( geometry::index::intersects(s) );
+	      it != this->poly_lines->qend(); it++ ) {
+		vector<point2> intp;
+		geometry::intersection( *it, s, intp );
+		mind = std::min( mind, geometry::distance(pt, intp[0]) );
+	}
+	return mind;
+}
+
 double Polygon::distance_point(const point2& pt) const {
 
 	/* Checks if pt is inside the bounding square of the polygon.
@@ -98,12 +148,12 @@ double Polygon::distance_point(const point2& pt) const {
 		return 0.0;
 	} else {
 		std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
-	if ( this->section->fault_lines != nullptr ) {
 		for ( auto it = this->section->fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
 			   it != this->section->fault_lines->qend(); it++ ) {
-			return std::numeric_limits<double>::infinity();
+			const point2& ps = this->section->line_ends[g1(*it)].first;
+			const point2& pe = this->section->line_ends[g1(*it)].second;
+			return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
 		}
-	}
 		return ray_dist_pair.second;
 	}
 }

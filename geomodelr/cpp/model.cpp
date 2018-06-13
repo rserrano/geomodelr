@@ -279,8 +279,12 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	// std::cerr << g1(inside) << std::endl;
 	// std::wcerr << g0(outside) << ": ";
 	// std::cerr << g1(outside) << std::endl;
+
 	if ( g0(inside) == L"NONE" ) {
 		return g1(inside);
+	}
+	if ( g0(outside) == L"NONE" ) {
+		return -g1(outside);
 	}
 	return g1(inside) - g1(outside);
 }
@@ -584,7 +588,6 @@ std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
 
 std::tuple<wstring, double> Model::closest_topo_aligned( const point3& pt ) const {
 	if ( this->topography != nullptr ) {
-		point3 in = this->inverse_point(point2(gx(pt), gy(pt)), gz(pt));
 		if ( this->height(point2(gx(pt), gy(pt))) < gz(pt) ) {
 			return std::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
 		}
@@ -806,9 +809,8 @@ double TopographyPython::height( const pyobject& pypt ) const {
 	return ((Topography *)this)->height( point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])) );
 }
 
-void ModelPython::fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types ) {
+void ModelPython::fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params ) {
 	if ( python::len(topography) > 0 ) {// Get all the information sent from python to build the topography.
-		
 		const pyobject& point = python::extract<pyobject>(topography["point"]);
 		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
 		const pyobject& dims = python::extract<pyobject>(topography["dims"]);
@@ -846,13 +848,18 @@ void ModelPython::fill_model( const pyobject& topography, const pylist& sections
 	for ( int i = 0; i < python::len( keys ); i++ ) {
 		this->feature_types[python::extract<wstring>(keys[i])] = python::extract<wstring>(feature_types[keys[i]]);
 	}
+
+	keys = params.keys();
+	for ( int i = 0; i < python::len( keys ); i++ ) {
+		this->params[python::extract<wstring>(keys[i])] = python::extract<wstring>(params[keys[i]]);
+	}
 }
 
 // Model python for VERTICAL cross sections
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& base_point, 
 		    	 const pyobject& direction, const pyobject& map, 
 		    	 const pyobject& topography, const pylist& sections, 
-			 const pydict& feature_types ): 
+			 const pydict& feature_types, const pydict& params ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
@@ -866,13 +873,13 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyo
 		pylist pl = python::extract<pylist>( sections[i] );
 		pl.insert( 2, sbbox );
 	}
-	this->fill_model( topography, sections, feature_types );
+	this->fill_model( topography, sections, feature_types, params );
 }
 
 // Model python for HORIZONTAL cross sections.
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& map, 
 			  const pyobject& topography, const pylist& sections,
-			  const pydict& feature_types ): 
+			  const pydict& feature_types, const pydict& params ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
@@ -885,7 +892,7 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyo
 		pl.insert( 2, sbbox );
 	}
 	
-	this->fill_model( topography, sections, feature_types );
+	this->fill_model( topography, sections, feature_types, params );
 }
 
 
