@@ -52,13 +52,4 @@ public:
 	double set_distance_function( const wstring& s );
 };
 
-/*
-class PolygonPython : public Polygon {
-
-public:
-	PolygonPython(const pylist& points,const pylist& polygon);
- 	double distance_poly_test(const pylist& pt) const;
- 	pytuple time_poly_test(const pylist& pt,int N) const;
-};
-*/
 #endif

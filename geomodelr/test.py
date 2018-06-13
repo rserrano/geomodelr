@@ -784,7 +784,7 @@ class TestGeoModelR(unittest.TestCase):
         rt = { v: k for k, v in t.iteritems() }
         
         srt = sorted(usum.items(), key = lambda i: rt[i[0]])
-        self.assertEqual(map( lambda x: x[1], srt ),  [116, 43, 68, 7, 43, 5, 1, 52, 1, 1, 6])
+        self.assertEqual(map( lambda x: x[1], srt ), [116, 43, 68, 4, 43, 5, 1, 52, 3, 8 ])
        
         # Then test the fdm refined grid.
         ref_grid = utils.generate_fdm_grid(query_func, bbox, 5, 5)
@@ -800,24 +800,23 @@ class TestGeoModelR(unittest.TestCase):
         
         # Calculate bounded.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50 )
-        self.assertEqual(len(verts), 11018)
-        self.assertEqual(len(triangs), 22032)
+        self.assertEqual(len(verts), 11026)
+        self.assertEqual(len(triangs), 22048)
         
         # Calculate unbounded
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False )
-        self.assertEqual(len(verts), 8856)
-        self.assertEqual(len(triangs), 17314)
+        self.assertEqual(len(verts), 8865)
+        self.assertEqual(len(triangs), 17332)
         
         # Filter by normal.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
-        self.assertEqual(len(verts), 5848)
-        self.assertEqual(len(triangs), 10477)
+        self.assertEqual(len(verts), 4669)
+        self.assertEqual(len(triangs), 8867)
         
         # Filter by normal, negative.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
-        
-        self.assertEqual(len(verts), 4612)
-        self.assertEqual(len(triangs), 8526)
+        self.assertEqual(len(verts), 4485)
+        self.assertEqual(len(triangs), 8467)
 
     def test_modflow(self):
         
@@ -977,7 +976,6 @@ class TestGeoModelR(unittest.TestCase):
                 self.assertEqual(len(ls),lines_size[c_fp][c_ls])
                 c_ls+=1
  
-        print '\n'
         # topography
         topo = geo_model.geojson[u'features'][0][u'transform']
         start_time = datetime.now()
