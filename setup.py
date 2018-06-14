@@ -34,17 +34,17 @@ def_include_dirs = ['/usr/local/include']
 
 cppextension = Extension("geomodelr.cpp", ['geomodelr/cpp/basic.cpp', 'geomodelr/cpp/section.cpp', 'geomodelr/cpp/match.cpp', 
                                            'geomodelr/cpp/model.cpp', 'geomodelr/cpp/geomodel.cpp', 'geomodelr/cpp/faults.cpp',
-                                           'geomodelr/cpp/speed_up.cpp'],
+                                           'geomodelr/cpp/speed_up.cpp','geomodelr/cpp/polygon.cpp'],
                          depends=['geomodelr/cpp/basic.hpp', 'geomodelr/cpp/section.hpp', 'geomodelr/cpp/match.hpp', 
                                   'geomodelr/cpp/model.hpp', 'geomodelr/cpp/geomodel.hpp', 'geomodelr/cpp/faults.hpp',
-                                  'geomodelr/cpp/speed_up.hpp'],
+                                  'geomodelr/cpp/speed_up.hpp','geomodelr/cpp/polygon.hpp'],
                          include_dirs=if_env(INCLUDE_DIRS=def_include_dirs),
                          library_dirs=if_env(LIBRARY_DIRS=def_library_dirs), 
                          libraries=if_env(LIBRARIES=def_libraries),
                          extra_compile_args=['-std=c++11'])
 
 setup(name='geomodelr',
-    version='0.1.6',
+    version='0.1.7',
     description='Geomodelr is the open source query tool for geomodelr.com models.',
     url='http://github.com/rserrano/geomodelr',
     author='Ricardo Serrano',
