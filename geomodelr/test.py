@@ -1250,7 +1250,6 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(model.signed_distance_bounded_aligned("unit2", ( 3*hsq/2, 1.5,-3*hsq/2-3*dp5)), 3*dp5)
     
     def test_feflow(self):
-        return
         this_dir, this_filename = os.path.split(__file__)
         fn = os.path.join(this_dir, 'test_files', 'Version_06_07.json')
         geo_model = model.model_from_file(fn)
@@ -1258,7 +1257,7 @@ class TestGeoModelR(unittest.TestCase):
         Geo_Data = True
         Graph = True
 
-        Rows = 50;  Cols = 50; Layers = 50; Angle = 20; DZ = 1.0
+        Rows = 200;  Cols = 200; Layers = 50; Angle = 20; DZ = 0.5
         
         Units = geo_model.units
         Kh = np.arange(len(Units))
@@ -1288,7 +1287,8 @@ class TestGeoModelR(unittest.TestCase):
                        u"Corpo_agua": (1e-6, 1e-6, 1e-6, False), 
                        u'Urbano': (1e-6, 1e-6, 1e-6, False) }
         
-        depths = { "Latossolo Vermelho-Amarelo": 30, "Argissolo": 15, "Cambissolo": 2 }
+        geo_model.params = { 'faults': 'basic', 'map': 'soils' }
+        geo_model.soil_depths = { "Latossolo Vermelho-Amarelo": 30, "Argissolo": 15, "Cambissolo": 2, "Gleissolo": 3, "Urbano": 5 }
         
         Bounding_Box = geo_model.bbox
         file_name = 'Files_Test'
@@ -1297,7 +1297,7 @@ class TestGeoModelR(unittest.TestCase):
                                             len_units=2, rows=Rows, cols=Cols,layers=Layers,
                                             bbox=Bounding_Box, angle=Angle, dz_min=DZ, time_units=4,
                                             algorithm='adaptive',faults_data={})
-        os.remove("Files_Test.fem")
+        # os.remove("Files_Test.fem")
     
     def test_faults_matching( self ):
         points_1 = [[0, 0], [1, 0], [3, 0], [0, 0.5], [5.0/6.0, 0.5], [2.0/3.0, 1], [3, 1], [0.0, 1.5], [0.5, 1.5], [1.0/3.0, 2], [3, 2], [0, 2.5], [1.0/6.0, 2.5], [0, 3], [3,3]]

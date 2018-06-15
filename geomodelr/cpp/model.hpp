@@ -66,7 +66,8 @@ protected:
 	Topography * topography;
 	bool horizontal;
 	bool faults_disabled;
-		
+	bool check_soils;
+	
 	std::pair<int, double> closest_match(bool a, int a_idx, int pol_idx, const point2& pt) const;
 	
 	struct Possible {
@@ -202,7 +203,6 @@ protected:
 		if ( this->match.size()+1 != this->sections.size() ) {
 			throw GeomodelrException("You need to call make_matches before using this function.");
 		}
-
 		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);
 		
 		size_t a_idx = it - this->cuts.begin();
@@ -261,6 +261,8 @@ protected:
 		return closest_middle( ft, ft );
 	}
 	
+	std::tuple<wstring, double> soil( const point3& pt ) const;
+	
 	// Returns the closest unit in the coordinate system of parallel cross sections ( u, z, v ).
 	template<typename Predicates>
 	std::tuple<wstring, double> closest_aligned( const point3& pt, const Predicates& predicates ) const {
@@ -268,6 +270,7 @@ protected:
 		double s = gz(pt);
 		return this->closest_basic( p, s, predicates );
 	}
+	
 	// Returns the closest unit in the coordinate system defined for the model (x, y, z).
 	template<typename Predicates>
 	std::tuple<wstring, double> closest( const point3& pt, const Predicates& predicates ) const {

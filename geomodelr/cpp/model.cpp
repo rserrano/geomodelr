@@ -24,8 +24,8 @@
 #include <array>
 
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, 
-              const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox,
-	      const point2& base_point, const point2& direction )
+			  const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox,
+		  const point2& base_point, const point2& direction )
 : bbox(bbox), abbox(abbox), base_point(base_point), direction(direction), geomap(nullptr), topography(nullptr), horizontal(false), faults_disabled(false)
 {
 	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
@@ -49,7 +49,7 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 }
 
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox,
-              const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox)
+			  const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox)
 : bbox(bbox), abbox(abbox), base_point(), direction(), geomap(nullptr), topography(nullptr), horizontal(true), faults_disabled(false)
 {
 	this->cuts_range = std::make_pair(g2(g0(bbox)), g2(g1(bbox)));
@@ -71,6 +71,14 @@ Model::~Model() {
 		delete s;
 	}
 }
+
+void Model::clear_matches() {
+	/* clears all the matches from memory */
+	for ( Match * c: this->match ) {
+		delete c;
+	}
+	this->match.clear();
+};
 
 void Model::set_params( const map<wstring, wstring>& params ) {
 	this->params = params;
@@ -94,6 +102,16 @@ void Model::set_params( const map<wstring, wstring>& params ) {
 		}
 	} else {
 		this->faults_disabled = false;
+	}
+	it = this->params.find( L"map" );
+	if ( it != this->params.end() ) {
+		if ( it->second == L"soils" ) {
+			this->check_soils = true;
+		} else {
+			this->check_soils = false;
+		}
+	} else {
+		this->check_soils = false;
 	}
 }
 
@@ -328,21 +346,30 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 		const wstring& s = g1(v);
 		return s == unit;
 	};
-
+	
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	std::tuple<wstring, double> outside = this->closest( pt, all_except );
-	// std::wcerr << g0(inside) << ": ";
-	// std::cerr << g1(inside) << std::endl;
-	// std::wcerr << g0(outside) << ": ";
-	// std::cerr << g1(outside) << std::endl;
-
+	
+	double d;
 	if ( g0(inside) == L"NONE" ) {
-		return g1(inside);
+		d = g1(inside);
+	} else if ( g0(outside) == L"NONE" ) {
+		d = -g1(outside);
+	} else {
+		d = g1(inside) - g1(outside);
 	}
-	if ( g0(outside) == L"NONE" ) {
-		return -g1(outside);
+	if ( this->check_soils ) {
+		std::tuple<wstring, double> sl = this->soil( pt );
+		if ( g0(sl) == unit ) {
+			return std::min( d, g1(sl) );
+		} else {
+			if ( g1(sl) < 0 ) {
+				return std::max( d, -g1(sl) );
+			}
+			return d;
+		}
 	}
-	return g1(inside) - g1(outside);
+	return d;
 }
 
 double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) const {
@@ -410,10 +437,27 @@ double Model::signed_distance_aligned( const wstring& unit, const point3& pt ) c
 	
 	std::tuple<wstring, double> inside = this->closest_aligned( pt, just );
 	std::tuple<wstring, double> outside = this->closest_aligned( pt, all_except );
+
+	double d;
 	if ( g0(inside) == L"NONE" ) {
-		return g1(inside);
+		d = g1(inside);
+	} else if ( g0(outside) == L"NONE" ) {
+		d = -g1(outside);
+	} else {
+		d = g1(inside) - g1(outside);
 	}
-	return g1(inside) - g1(outside);
+	if ( this->check_soils ) {
+		std::tuple<wstring, double> sl = this->soil( this->inverse_point(point2(gx(pt), gy(pt)), gz(pt)) );
+		if ( g0(sl) == unit ) {
+			return std::min( d, g1(sl) );
+		} else {
+			if ( g1(sl) < 0 ) {
+				return std::max( d, -g1(sl) );
+			}
+			return d;
+		}
+	}
+	return d;
 }
 
 double Model::signed_distance_bounded_aligned( const wstring& unit, const point3& pt ) const {
@@ -462,7 +506,6 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 double Model::signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const {
 	double sdist = this->signed_distance_aligned( unit, pt );
 	
-	
 	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
 	
 	double x = gx(in);
@@ -477,6 +520,25 @@ double Model::signed_distance_unbounded_aligned( const wstring& unit, const poin
 	}
 	
 	return std::max(sdist, distz);
+}
+
+std::tuple<wstring, double> Model::soil( const point3& pt ) const {
+	if ( this->geomap == nullptr ) {
+		throw GeomodelrException("To check a soil you need a geological map.");
+	}
+	point2 xy( gx(pt), gy(pt) );
+	double h = this->height( xy );
+	std::pair<int, double> cls = this->geomap->closest(xy);
+	if ( cls.second > 0.0 ) {
+		return std::make_tuple( L"NONE", std::numeric_limits<double>::infinity() );
+	}
+	std::wstring unit = this->geomap->units[cls.first];
+	auto it = this->soil_depths.find(unit);
+	if ( it == this->soil_depths.end() ) {
+		return std::make_tuple( L"NONE", std::numeric_limits<double>::infinity() );
+	}
+	h -= it->second;
+	return std::make_tuple( unit, h-gz(pt) );
 }
 
 vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
@@ -608,9 +670,9 @@ point3 Model::inverse_point( const point2& pt, double cut ) const {
 	const double& p0 = gx(pt);
 	const double& p1 = gy(pt);
 	
-        double v1 = (cut*d0 + p0*d1)/dsq;
-        double v0 = ( std::fabs(d1) < tolerance ) ? p0/d0 : (d0*v1-cut)/d1;
-        
+		double v1 = (cut*d0 + p0*d1)/dsq;
+		double v0 = ( std::fabs(d1) < tolerance ) ? p0/d0 : (d0*v1-cut)/d1;
+		
 	return point3(gx(this->base_point) + v0, gy(this->base_point) + v1, p1);
 }
 
@@ -652,10 +714,22 @@ std::tuple<wstring, double> Model::closest_topo_aligned( const point3& pt ) cons
 }
 
 std::tuple<wstring, double> Model::closest( const point3& pt ) const {
+	if ( this->check_soils ) {
+		std::tuple<wstring, double> sl = this->soil( pt );
+		if ( g1( sl ) < 0.0 ) {
+			return std::make_tuple( g0(sl), 0.0 );
+		}
+	}
 	return this->closest(pt, always_true);
 }
 
 std::tuple<wstring, double> Model::closest_aligned( const point3& pt ) const {
+	if ( this->check_soils ) {
+		std::tuple<wstring, double> sl = this->soil( this->inverse_point(point2(gx(pt), gy(pt)), gz(pt)) );
+		if ( g1( sl ) < 0.0 ) {
+			return std::make_tuple( g0(sl), 0.0 );
+		}
+	}
 	return this->closest_aligned(pt, always_true);
 }
 
@@ -738,16 +812,15 @@ pytuple ModelPython::closest_aligned(const pyobject& pypt) const {
 pydict ModelPython::intersect_planes(const pylist& planes) const{
 	
 	vector<line_3d> planes_cpp;
-    for (int i=0; i<python::len(planes); i++){
-        int N = python::len(python::extract<pylist>(planes[i]));
-        line_3d plane;
-        for (int j=0; j<N; j++){
-            plane.push_back(point3(python::extract<double>(planes[i][j][0]),python::extract<double>(planes[i][j][1]),
-                python::extract<double>(planes[i][j][2])) );
-        }
-        planes_cpp.push_back(plane);
+	for (int i=0; i<python::len(planes); i++){
+		int N = python::len(python::extract<pylist>(planes[i]));
+		line_3d plane;
+		for (int j=0; j<N; j++){
+			plane.push_back(point3(python::extract<double>(planes[i][j][0]),python::extract<double>(planes[i][j][1]),
+			python::extract<double>(planes[i][j][2])) );
+		}
+		planes_cpp.push_back(plane);
 	}
-		
 	// Now convert intersections to python and return.
 	return (map_to_pydict(((Model *)this)->intersect_planes(planes_cpp)));
 	
@@ -756,31 +829,31 @@ pydict ModelPython::intersect_planes(const pylist& planes) const{
 pydict ModelPython::intersect_topography(const pydict& topography_info) const{
 	
 	double x_inf = python::extract<double>(topography_info["point"][0]);
-    double y_inf = python::extract<double>(topography_info["point"][1]);
+	double y_inf = python::extract<double>(topography_info["point"][1]);
 
-    double dx = python::extract<double>(topography_info["sample"][0]);
-    double dy = python::extract<double>(topography_info["sample"][1]);
+	double dx = python::extract<double>(topography_info["sample"][0]);
+	double dy = python::extract<double>(topography_info["sample"][1]);
 
-    int rows = python::extract<int>(topography_info["dims"][1]);
-    int cols = python::extract<int>(topography_info["dims"][0]);
+	int rows = python::extract<int>(topography_info["dims"][1]);
+	int cols = python::extract<int>(topography_info["dims"][0]);
 
-    double z_max, z_min;
-    vector<vector<double>> topography_array = topography_to_vector(python::extract<pylist>(topography_info["heights"]),
-        rows, cols, z_max, z_min);
+	double z_max, z_min;
+	vector<vector<double>> topography_array = topography_to_vector(python::extract<pylist>(topography_info["heights"]),
+		rows, cols, z_max, z_min);
 		
 	// Now convert intersections to python and return.
 	return map_to_pydict(((Model *)this)->intersect_topography(topography_array, z_max, z_min, x_inf, y_inf, dx, dy,
-        rows, cols));
+		rows, cols));
 	
 }
 
 pydict ModelPython::intersect_plane(const pylist& plane) const{
 	
-    line_3d plane_cpp;
-    for (int j=0; j<python::len(plane); j++){
-        plane_cpp.push_back(point3(python::extract<double>(plane[j][0]),python::extract<double>(plane[j][1]),
-            python::extract<double>(plane[j][2])));
-    }
+	line_3d plane_cpp;
+	for (int j=0; j<python::len(plane); j++){
+		plane_cpp.push_back(point3(python::extract<double>(plane[j][0]),python::extract<double>(plane[j][1]),
+			python::extract<double>(plane[j][2])));
+	}
 	// Now convert intersections to python and return.
 	return (map_to_pydict(((Model *)this)->intersect_plane(plane_cpp)));
 }
@@ -824,18 +897,18 @@ double Topography::height(const point2& pt) const {
 	int x = int(gx(pos));
 	int y = int(gy(pos));
 
-        if ( x < 0 )
-            x = 0;
-        
-        if ( y < 0 )
-            y = 0;
-        
-        if ( x >= this->dims[0] )
-            x = this->dims[0]-1;
-        
-        if ( y >= this->dims[1] )
-            y = this->dims[1]-1;
-        
+		if ( x < 0 )
+			x = 0;
+		
+		if ( y < 0 )
+			y = 0;
+		
+		if ( x >= this->dims[0] )
+			x = this->dims[0]-1;
+		
+		if ( y >= this->dims[1] )
+			y = this->dims[1]-1;
+		
 	return this->heights[x*dims[1]+y];
 }
 
@@ -844,7 +917,7 @@ double Topography::height(const point2& pt) const {
 TopographyPython::TopographyPython( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights ):
 Topography(point2(python::extract<double>(point[0]), python::extract<double>(point[1])),
 	   point2(python::extract<double>(sample[0]), python::extract<double>(sample[1])),
-           {python::extract<int>(dims[0]), python::extract<int>(dims[1])})
+		   {python::extract<int>(dims[0]), python::extract<int>(dims[1])})
 {
 	int rows = python::len(heights);
 	if ( rows != this->dims[0] ) {
@@ -889,8 +962,8 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 		const pyobject& sbbox   = python::extract<pyobject>(geomap[0]);
 		const pylist& points   = python::extract<pylist>(geomap[1]);
 		const pylist& polygons = python::extract<pylist>(geomap[2]);
-		const pylist& units    = python::extract<pylist>(geomap[3]); 
-		const pylist& lines    = python::extract<pylist>(geomap[4]);
+		const pylist& units	= python::extract<pylist>(geomap[3]); 
+		const pylist& lines	= python::extract<pylist>(geomap[4]);
 		const pylist& lnames   = python::extract<pylist>(geomap[5]);
 		const pylist& anchored_lines = python::extract<pylist>(geomap[6]);
 		
@@ -905,13 +978,13 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 			throw GeomodelrException("Every section needs 8 parameters.");
 		}
 		
-		wstring name    = python::extract<wstring>(sections[i][0]);
-		double cut             = python::extract<double>(sections[i][1]);
+		wstring name	= python::extract<wstring>(sections[i][0]);
+		double cut			 = python::extract<double>(sections[i][1]);
 		const pyobject& bbox   = python::extract<pyobject>(sections[i][2]);
 		const pylist& points   = python::extract<pylist>(sections[i][3]);
 		const pylist& polygons = python::extract<pylist>(sections[i][4]);
-		const pylist& units    = python::extract<pylist>(sections[i][5]); 
-		const pylist& lines    = python::extract<pylist>(sections[i][6]);
+		const pylist& units	= python::extract<pylist>(sections[i][5]); 
+		const pylist& lines	= python::extract<pylist>(sections[i][6]);
 		const pylist& lnames   = python::extract<pylist>(sections[i][7]);
 		const pylist& anchored_lines = python::extract<pylist>(sections[i][8]);
 		
@@ -943,12 +1016,12 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 
 // Model python for VERTICAL cross sections
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& base_point, 
-		    	 const pyobject& direction, const pylist& geomap, 
-		    	 const pyobject& topography, const pylist& sections, 
+				 const pyobject& direction, const pylist& geomap, 
+				 const pyobject& topography, const pylist& sections, 
 			 const pydict& feature_types, const pydict& params ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
-	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
+		  make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(abbox[3]),python::extract<double>(abbox[4]),python::extract<double>(abbox[5]))),
 		point2( python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
 		point2( python::extract<double>(direction[0]),  python::extract<double>(direction[1])  ))
@@ -973,7 +1046,7 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyl
 			  const pydict& feature_types, const pydict& params ): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
-	      make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
+		  make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(abbox[3]),python::extract<double>(abbox[4]),python::extract<double>(abbox[5]))))
 {
 	pytuple sbbox = python::make_tuple( bbox[0], bbox[1], bbox[3], bbox[4] );
@@ -1158,22 +1231,22 @@ pylist ModelPython::get_polygon(const wstring sec, int pol_idx){
 	auto input = ((Model *)this)->get_polygon(sec,pol_idx);
 
 	pylist output;
-    for (auto& it_point: input){
-        pylist point; point.append(gx(it_point)); point.append(gy(it_point));
-        output.append(point);
-    }
-    return output;
+	for (auto& it_point: input){
+		pylist point; point.append(gx(it_point)); point.append(gy(it_point));
+		output.append(point);
+	}
+	return output;
 }
 
 pylist ModelPython::get_fault(const wstring sec, int pol_idx){
 	auto input = ((Model *)this)->get_fault(sec,pol_idx);
 
 	pylist output;
-    for (auto& it_point: input){
-        pylist point; point.append(gx(it_point)); point.append(gy(it_point));
-        output.append(point);
-    }
-    return output;
+	for (auto& it_point: input){
+		pylist point; point.append(gx(it_point)); point.append(gy(it_point));
+		output.append(point);
+	}
+	return output;
 }
 
 pytuple calculate_section_bbox( const pyobject& bbox, const pyobject& point, const pyobject& direction, double cut ) {

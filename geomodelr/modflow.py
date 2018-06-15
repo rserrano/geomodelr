@@ -77,8 +77,7 @@ def get_fd_mesh(model, units_data, length_units, rows, cols, layers, bbox, angle
         for j in np.arange(cols):
             xp = X_inf + (2*j+1)*dX/2.0
             Z_top[i,j] = model.height((xp, yp))
-
-
+    
     Z_top_min = np.min(Z_top)
 
     if ((Z_top_min-bottom_min)/layers < dz_min):
