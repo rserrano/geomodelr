@@ -22,12 +22,15 @@
 #include <iostream>
 #include <functional>
 #include <openvdb/tools/VolumeToMesh.h>
+#include <openvdb/tools/GridTransformer.h>
+// #include <openvdb/tools/ChangeBackground.h>
 
 typedef openvdb::FloatGrid GridType;
 typedef openvdb::v3_1::Int32 Int32;
 
 class Model;
 
-unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions);
+unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions,
+    bool activeResampler);
 
 #endif //GEOMODELR_ISOSURFACES_VDB

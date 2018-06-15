@@ -276,10 +276,6 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	std::tuple<wstring, double> outside = this->closest( pt, all_except );
-	// std::wcerr << g0(inside) << ": ";
-	// std::cerr << g1(inside) << std::endl;
-	// std::wcerr << g0(outside) << ": ";
-	// std::cerr << g1(outside) << std::endl;
 	if ( g0(inside) == L"NONE" ) {
 		return g1(inside);
 	}
@@ -302,6 +298,41 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 	
 	double maxx = g0(g1(this->bbox));
 	double maxy = g1(g1(this->bbox));
+	double maxz = this->height( point2( x, y ) );
+	
+	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
+	
+	for ( size_t i = 0; i < 6; i++ ) {
+		if ( dists[i] >= 0 ) {
+			outside = true;
+			odist += dists[i]*dists[i];
+		} else {
+			idist = std::max(idist, dists[i]);
+		}
+	}
+	
+	if ( outside ) {
+		return std::max(sdist, std::sqrt(odist));
+	}
+	return std::max(sdist, idist);
+}
+
+double Model::signed_distance_unbounded_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const {
+	double sdist = this->signed_distance( unit, pt );
+	bool outside = false;
+	double odist = 0.0;
+	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
+	
+	double x = gx(pt);
+	double y = gy(pt);
+	double z = gz(pt);
+	
+	double minx = g0(g0(bbox));
+	double miny = g1(g0(bbox));
+	double minz = g2(g0(bbox));
+	
+	double maxx = g0(g1(bbox));
+	double maxy = g1(g1(bbox));
 	double maxz = this->height( point2( x, y ) );
 	
 	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
@@ -400,6 +431,51 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	
 	return std::max(sdist, idist);
 }
+
+double Model::signed_distance_unbounded_aligned_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const {
+	double sdist = this->signed_distance_aligned( unit, pt );
+	bool outside = false;
+	double odist = 0.0;
+	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
+	
+	
+	double minu = g0(g0(bbox));
+	double minv = g1(g0(bbox));
+	double minw = g2(g0(bbox));
+	
+	double maxu = g0(g1(bbox));
+	double maxv = g1(g1(bbox));
+	double maxw = g2(g1(bbox));
+	
+	double u = gx(pt);
+	double v = gy(pt);
+	double w = gz(pt);
+	
+	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
+	double maxh = this->height( point2( gx(in), gy(in) ) );
+	if ( this->horizontal ) {
+		maxw = maxh;
+	} else {
+		maxv = maxh;
+	}
+	
+	double dists[6] = { minu - u, minv - v, minw - w, u - maxu, v - maxv, w - maxw };
+	for ( size_t i = 0; i < 6; i++ ) {
+		if ( dists[i] >= 0 ) {
+			outside = true;
+			odist += dists[i]*dists[i];
+		} else {
+			idist = std::max(idist, dists[i]);
+		}
+	}
+	
+	if ( outside ) {
+		return std::max(sdist, std::sqrt(odist));
+	}
+	
+	return std::max(sdist, idist);
+}
+
 double Model::signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const {
 	double sdist = this->signed_distance_aligned( unit, pt );
 	
@@ -582,8 +658,9 @@ bbox3 Model::get_abbox() const{
 	return this->abbox;
 }
 
-unitMesh Model::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions){
-	return getIsosurface(this, unit, bounded, aligned, grid_divisions);
+unitMesh Model::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+	bool activeResampler){
+	return getIsosurface(this, unit, bounded, aligned, grid_divisions, activeResampler);
 }
 
 std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
@@ -745,14 +822,14 @@ pytuple ModelPython::find_unit_limits(double xp, double yp, double z_max, double
 	return python::make_tuple(output.first,output.second);
 }
 
-pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions){
+pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+	bool activeResampler){
 	
-	unitMesh output = ((Model *)this)->calculate_isosurface(unit, bounded, aligned, grid_divisions);
-
+	unitMesh output = ((Model *)this)->calculate_isosurface(unit, bounded, aligned, grid_divisions, activeResampler);
 	pylist points;
 	if (aligned){
 		for (auto& pt: output.first){
-			point3 realPt = this->inverse_point(point2(pt.x(),pt.y()),pt.z());
+			point3 realPt = ((Model *)this)->inverse_point(point2(pt.x(),pt.y()),pt.z());
 			points.append(python::make_tuple(gx(realPt),gy(realPt),gz(realPt)));
 		}
 	} else{
@@ -765,7 +842,6 @@ pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool align
 	for (auto& tri: output.second){
 		triangles.append(python::make_tuple(tri.x(),tri.y(),tri.z()));
 	}
-
 	return python::make_tuple(points,triangles);
 }
 
