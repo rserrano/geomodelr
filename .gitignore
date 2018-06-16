@@ -56,3 +56,4 @@ target/
 # Swap files.
 *.swp
 
+geomodelr/test_files/Version_06_07.json
