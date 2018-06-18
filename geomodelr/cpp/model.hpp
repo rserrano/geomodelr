@@ -395,6 +395,9 @@ public:
 	double signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const;
 
+	double signed_distance_unbounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+
 	double geomodelr_distance( const wstring& unit, const pylist& point ) const;
 	pylist get_polygon(const wstring sec, int pol_idx);
 	pylist get_fault(const wstring sec, int pol_idx);

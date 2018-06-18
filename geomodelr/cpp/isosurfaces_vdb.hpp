@@ -23,7 +23,7 @@
 #include <functional>
 #include <openvdb/tools/VolumeToMesh.h>
 #include <openvdb/tools/GridTransformer.h>
-// #include <openvdb/tools/ChangeBackground.h>
+#include <openvdb/math/Math.h> // for isApproxEqual()
 
 typedef openvdb::FloatGrid GridType;
 typedef openvdb::v3_1::Int32 Int32;

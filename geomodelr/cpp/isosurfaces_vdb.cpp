@@ -29,12 +29,12 @@ void set_sdfVoxels(GridType::Accessor& accessor, const vector<float>& vals,
     for (Int32 i = indexBB.min().x(); i <= indexBB.max().x(); i+=2) {
         for (Int32 j = indexBB.min().y(); j <= indexBB.max().y(); j+=2) {
             for (Int32 k = indexBB.min().z(); k <= indexBB.max().z(); k+=2) {
-                if (std::abs(vals[C])< bg){
-                    accessor.setValueOnly(openvdb::Coord(i,j,k),vals[C]);
-                } else{
-                    // accessor.setValueOnly(openvdb::Coord(i,j,k),sgn(vals[C])*bg);
-                    accessor.setValueOnly(openvdb::Coord(i,j,k),vals[C]);
+
+                float dist = vals[C];
+                if (openvdb::math::isApproxEqual(dist,bg)){
+                        dist += epsilon;
                 }
+                accessor.setValueOnly(openvdb::Coord(i,j,k),dist);
                 C++;
             }
         }
@@ -110,48 +110,47 @@ GridType::Ptr get_openvdbGrid(std::function<double (const point3&)>& signed_dist
                 
                 // level 1: InternalNode
                 case 2:{
+                    if ( openvdb::math::isApproxEqual(iter.getValue(), bg)){
+                        iter.getBoundingBox(indexBB);
+                        vector<float> vals = get_sdfVoxels(signed_distance, dx, dy, dz, xi, yi, zi, indexBB);
 
-                    iter.getBoundingBox(indexBB);
-                    vector<float> vals = get_sdfVoxels(signed_distance, dx, dy, dz, xi, yi, zi, indexBB);
+                        if (checkCorrectTile(vals,bg)){
+                            set_sdfVoxels(accessor, vals, indexBB, bg);
+                            change = true;
+                        } else{
 
-                    if (checkCorrectTile(vals,bg)){
-                        set_sdfVoxels(accessor, vals, indexBB, bg);
-                        change = true;
-                    } else{
-                        iter.setValue(vals[32]);
-                        // iter.setValue(sgn(vals[32])*bg);
-                        // iter.setValueOff();
+                            float dist = vals[32];
+                            if (openvdb::math::isApproxEqual(dist,bg)){
+                                dist += epsilon;
+                            }
+                            iter.setValue(dist);
+                        }
                     }
                     break;
                 }
 
                 // level 0: LeafNode
                 case 3:{
-                    if (iter.getValue() == bg){
+                    if ( openvdb::math::isApproxEqual(iter.getValue(), bg)){
+                        
                         openvdb::Coord coord  = iter.getCoord();
                         float dist = signed_distance( point3(dx*coord.x() + xi, dy*coord.y() + yi, dz*coord.z() + zi) );
-
-                        if (std::abs(dist)<bg){ 
-                            iter.setValue(dist);
-                        } else{
-                            // iter.setValue(sgn(dist)*bg);
-                            iter.setValue(dist);
-                            // iter.setValueOff();
+                        if (openvdb::math::isApproxEqual(dist,bg)){
+                            dist += epsilon;
                         }
+                        iter.setValue(dist);
                     }
                     break;
                 }
                 // Other cases
                 default:{
+
                     openvdb::Coord coord = iter.getBoundingBox().min();
-                    std::cerr << "Depth: " << iter.getDepth() << std::endl;
                     float dist = signed_distance( point3(dx*coord.x() + xi, dy*coord.y() + yi, dz*coord.z() + zi) );
-                    if (std::abs(dist)<bg){
-                        accessor.setValueOnly(coord,dist);
-                    } else{
-                        // accessor.setValueOnly(coord,sgn(dist)*bg);
-                        accessor.setValueOnly(coord,dist);
+                    if (openvdb::math::isApproxEqual(dist,bg)){
+                        dist += epsilon;
                     }
+                    accessor.setValueOnly(coord,dist);
                     change = true;
                     break;
                 }
@@ -228,18 +227,27 @@ vector<float> check_BboxSurface(const GridType::Ptr& grid, int ndelta, int grid_
 
     float inf = std::numeric_limits<float>::infinity();
     vector<float> output = {inf, inf, inf, -inf, -inf, -inf};
+
+    auto updateBbox = [&output](const openvdb::Coord& coord){
+
+        output[0] = std::min(float(coord.x()) , output[0]);
+        output[1] = std::min(float(coord.y()) , output[1]);
+        output[2] = std::min(float(coord.z()) , output[2]);
+
+        output[3] = std::max(float(coord.x()) , output[3]);
+        output[4] = std::max(float(coord.y()) , output[4]);
+        output[5] = std::max(float(coord.z()) , output[5]);    
+    };
     
     for (GridType::ValueOnCIter iter = grid->cbeginValueOn(); iter; ++iter){
         if (iter.getValue()<0.0){
-
-            openvdb::Coord coord  = iter.getCoord();
-            output[0] = std::min(float(coord.x()) , output[0]);
-            output[1] = std::min(float(coord.y()) , output[1]);
-            output[2] = std::min(float(coord.z()) , output[2]);
-
-            output[3] = std::max(float(coord.x()) , output[3]);
-            output[4] = std::max(float(coord.y()) , output[4]);
-            output[5] = std::max(float(coord.z()) , output[5]);            
+            if (iter.isVoxelValue()){
+                updateBbox(iter.getCoord());
+            } else{
+                updateBbox(iter.getBoundingBox().min());
+                updateBbox(iter.getBoundingBox().max());
+            }
+        
         }
     }
 
@@ -364,19 +372,24 @@ GridType::Ptr resample_openvdbGrid(const GridType::Ptr& grid_old, std::function<
     typename GridType::ConstAccessor accessor_old = grid_old->getConstAccessor();
 
     for (GridType::ValueOnCIter iter = grid_old->cbeginValueOn(); iter; ++iter){
-
+        if (iter.isVoxelValue()){
         openvdb::Coord coord  = iter.getCoord();
         bool need_resample = checkResample(accessor_old, accessor_new, coord, dx, dy, dz, rs_x, rs_y, rs_z);
 
-        if (need_resample){
-            for (Int32 i = rs_x*coord.x(); i <= rs_x*coord.x()+rs_x; i++) {
-                for (Int32 j = rs_y*coord.y(); j <= rs_y*coord.y()+rs_y; j++) {
-                    for (Int32 k = rs_z*coord.z(); k <= rs_z*coord.z()+rs_z; k++) {
+            if (need_resample){
+                for (Int32 i = rs_x*coord.x(); i <= rs_x*coord.x()+rs_x; i++) {
+                    for (Int32 j = rs_y*coord.y(); j <= rs_y*coord.y()+rs_y; j++) {
+                        for (Int32 k = rs_z*coord.z(); k <= rs_z*coord.z()+rs_z; k++) {
 
-                        auto ijk =  openvdb::Coord(i,j,k);
-                        if (accessor_new.getValue(ijk) == bg){                            
-                            float dist = signed_distance( point3(dx_new*i + xi, dy_new*j + yi, dz_new*k + zi) );
-                            accessor_new.setValueOn(ijk,dist);
+                            auto ijk =  openvdb::Coord(i,j,k);
+                            if (openvdb::math::isApproxEqual(accessor_new.getValue(ijk), bg)){                            
+                                float dist = signed_distance( point3(dx_new*i + xi, dy_new*j + yi, dz_new*k + zi) );
+
+                                if (openvdb::math::isApproxEqual(dist,bg)){
+                                    dist += epsilon;
+                                }
+                                accessor_new.setValueOn(ijk,dist);
+                            }
                         }
                     }
                 }
@@ -401,36 +414,38 @@ openvdb::Vec3i getNumberResamples(const GridType::Ptr& grid){
 
     for (GridType::ValueOnCIter iter = grid->cbeginValueOn(); iter; ++iter){
         
-        openvdb::Coord coord  = iter.getCoord();
-        vector<bool> states; states.reserve(8);
+        if (iter.isVoxelValue()){
+            openvdb::Coord coord  = iter.getCoord();
+            vector<bool> states; states.reserve(8);
 
-        for (Int32 k = coord.z(); k <= coord.z()+1; k++) {
-            for (Int32 j = coord.y(); j <= coord.y()+1; j++) {
-                for (Int32 i = coord.x(); i <= coord.x()+1; i++) {
-                    states.push_back(accessor.isValueOn(openvdb::Coord(i,j,k)));
-               }
-            }
-        }
-
-        if (std::all_of(states.cbegin(),states.cend(),[](bool b){return b; })) {
-            
-            float val0 = accessor.getValue(coord);
-
-            float valx = accessor.getValue(openvdb::Coord(coord.x()+1,coord.y(),coord.z()));
-            if ((val0*valx > 0) && (std::abs(val0 + valx)<dx)){
-                nx++;
-            }
-            
-            float valy = accessor.getValue(openvdb::Coord(coord.x(),coord.y()+1,coord.z()));
-            if ((val0*valy > 0) && (std::abs(val0 + valy)<dy)){
-                ny++;
+            for (Int32 k = coord.z(); k <= coord.z()+1; k++) {
+                for (Int32 j = coord.y(); j <= coord.y()+1; j++) {
+                    for (Int32 i = coord.x(); i <= coord.x()+1; i++) {
+                        states.push_back(accessor.isValueOn(openvdb::Coord(i,j,k)));
+                   }
+                }
             }
 
-            float valz = accessor.getValue(openvdb::Coord(coord.x(),coord.y(),coord.z()+1));
-            if ((val0*valz > 0) && (std::abs(val0 + valz)<dz)){
-                nz++;
-            }
+            if (std::all_of(states.cbegin(),states.cend(),[](bool b){return b; })) {
+                
+                float val0 = accessor.getValue(coord);
 
+                float valx = accessor.getValue(openvdb::Coord(coord.x()+1,coord.y(),coord.z()));
+                if ((val0*valx > 0) && (std::abs(val0 + valx)<dx)){
+                    nx++;
+                }
+                
+                float valy = accessor.getValue(openvdb::Coord(coord.x(),coord.y()+1,coord.z()));
+                if ((val0*valy > 0) && (std::abs(val0 + valy)<dy)){
+                    ny++;
+                }
+
+                float valz = accessor.getValue(openvdb::Coord(coord.x(),coord.y(),coord.z()+1));
+                if ((val0*valz > 0) && (std::abs(val0 + valz)<dz)){
+                    nz++;
+                }
+
+            }
         }
     }
 
@@ -477,32 +492,30 @@ GridType::Ptr resample_unitSurface(const GridType::Ptr& sourceGrid, std::functio
     targetGrid->tree().prune();
 
     auto def_ValueState = [bg](openvdb::CombineArgs<float>& args){
-        if (std::abs(args.a()-bg) > tolerance) {
-            // Transfer the A value and its active state.
-            args.setResult(args.a());
-            args.setResultIsActive(args.aIsActive());
-        } else {
-            // Preserve the B value and its active state.
+        if (openvdb::math::isApproxEqual(args.a(),bg)) {
+            // Transfer the B value and its active state.
             args.setResult(args.b());
             args.setResultIsActive(args.bIsActive());
+        } else {
+            // Preserve the A value and its active state.
+            args.setResult(args.a());
+            args.setResultIsActive(args.aIsActive());
         }
     };
 
-    typename GridType::ConstAccessor accessor = targetGrid->getConstAccessor();
+    // targetGrid->setName("target");
+    // new_grid->setName("new_grid");
+    // sourceGrid->setName("old_grid");
 
-    targetGrid->setName("target");
-    new_grid->setName("new_grid");
-    sourceGrid->setName("old_grid");
-
-    openvdb::io::File file("/media/sf_CompartidaVB/OpenVDB/Petroleo/allGrids.vdb");
-    // Add the grid pointer to a container.
-    openvdb::GridPtrVec grids;
-    grids.push_back(targetGrid);
-    grids.push_back(new_grid);
-    grids.push_back(sourceGrid);
-    // Write out the contents of the container.
-    file.write(grids);
-    file.close();
+    // openvdb::io::File file("/media/sf_CompartidaVB/OpenVDB/Petroleo/allGrids.vdb");
+    // // Add the grid pointer to a container.
+    // openvdb::GridPtrVec grids;
+    // grids.push_back(targetGrid);
+    // grids.push_back(new_grid);
+    // grids.push_back(sourceGrid);
+    // // Write out the contents of the container.
+    // file.write(grids);
+    // file.close();
 
     // targetGrid->tree().combineExtended(new_grid->tree(), def_ValueState);
     new_grid->tree().combineExtended(targetGrid->tree(), def_ValueState);
@@ -579,18 +592,29 @@ unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded
     gridToMesh(grid, points, triangles);
 
     if (!bounded){
-        deleteBorders(points, triangles, xyzBB, grid->metaValue<openvdb::Vec3d>("deltas"), activeResampler);
+        // deleteBorders(points, triangles, xyzBB, grid->metaValue<openvdb::Vec3d>("deltas"), activeResampler);
     }
 
-    // Create a VDB file object.
-    grid->setName("algorithm");
-    openvdb::io::File file("/media/sf_CompartidaVB/OpenVDB/Petroleo/mygrids.vdb");
-    // // Add the grid pointer to a container.
-    openvdb::GridPtrVec grids;
-    grids.push_back(grid);
-    // // Write out the contents of the container.
-    file.write(grids);
-    file.close();
+    // // Create a VDB file object.
+    // grid->setName("algorithm");
+    // openvdb::io::File file("/media/sf_CompartidaVB/OpenVDB/Petroleo/mygrids.vdb");
+    // // // Add the grid pointer to a container.
+    // openvdb::GridPtrVec grids;
+    // grids.push_back(grid);
+    // // // Write out the contents of the container.
+    // file.write(grids);
+    // file.close();
+
+    // double xi = g0(g0(xyzBB));
+    // double yi = g1(g0(xyzBB));
+    // double zi = g2(g0(xyzBB));
+
+    // double xf = g0(g1(xyzBB));
+    // double yf = g1(g1(xyzBB));
+    // double zf = g2(g1(xyzBB));
+
+    // std::cerr << xi << " " << yi  << " " << zi << std::endl;
+    // std::cerr << xf << " " << yf  << " " << zf << std::endl;
 
     return std::make_pair(points,triangles);
 }

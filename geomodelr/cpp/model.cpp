@@ -1158,6 +1158,34 @@ double ModelPython::signed_distance_unbounded_aligned( const wstring& unit, cons
 	return ((Model *)this)->signed_distance_unbounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
+double ModelPython::signed_distance_unbounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const {
+	
+	double xi = python::extract<double>(bb[0]);
+	double yi = python::extract<double>(bb[1]);
+	double zi = python::extract<double>(bb[2]);
+	double xf = python::extract<double>(bb[3]);
+	double yf = python::extract<double>(bb[4]);
+	double zf = python::extract<double>(bb[5]);
+	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
+
+	return ((Model *)this)->signed_distance_unbounded_restricted(unit, Bbox,
+		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
+double ModelPython::signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb,const pyobject& pt ) const {
+	
+	double xi = python::extract<double>(bb[0]);
+	double yi = python::extract<double>(bb[1]);
+	double zi = python::extract<double>(bb[2]);
+	double xf = python::extract<double>(bb[3]);
+	double yf = python::extract<double>(bb[4]);
+	double zf = python::extract<double>(bb[5]);
+	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
+
+	return ((Model *)this)->signed_distance_unbounded_aligned_restricted(unit, Bbox,
+		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+}
+
 double ModelPython::geomodelr_distance( const wstring& unit, const pylist& point ) const{
 
 	double x = python::extract<double>( point[0] );
