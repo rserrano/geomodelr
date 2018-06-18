@@ -264,6 +264,7 @@ def create_feflow_input(name, model, units_data,
                                                                                                                            dz_min, time_units, algorithm, 
                                                                                                                            faults_data, faults_method)
     
+    
     fd = open( name+".fem", "w" )
     
     # PROBLEM
@@ -298,7 +299,7 @@ def create_feflow_input(name, model, units_data,
     bdiff = [ bbox[5]-bbox[2], bbox[4]-bbox[1], bbox[3]-bbox[0] ]
     maxd = max( bdiff )
     fd.write("%(scale_fac)13.6e,%(scale_l)13.6e,%(scale_ratio)13.6e,%(eps)13.6e,%(x_o)13.6e,%(y_o)13.6e\n" % 
-             {"scale_fac": PIX/maxd, "scale_l": PIX, "scale_ratio": 1, "eps": 1.0e-7, "x_o": X_inf, "y_o": Y_sup-bdiff[1]})
+             {"scale_fac": PIX/maxd, "scale_l": PIX, "scale_ratio": 1, "eps": 1.0e-7, "x_o": 0, "y_o": 0})
     
     if nump < 10000:
         num_columns = 80/6
