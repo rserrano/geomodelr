@@ -119,7 +119,7 @@ class GeologicalModel(cpp.Model):
     with a transformation. Go to Geomodelr.com, create a new model and use it with this 
     tool.
     """
-    def __init__( self, geolojson, delete=True, params={'faults': 'basic'} ):
+    def __init__( self, geolojson, delete=True, params={'faults': 'basic', 'map': 'disabled'} ):
         """ 
         Initializes the geological model from a Geological JSON 
         file created in www.geomodelr.com.
@@ -136,7 +136,8 @@ class GeologicalModel(cpp.Model):
         Args:
             (dict) geolojson: The Geological JSON.
             delete: Delete the geojson after creating the cpp model to free memory.
-            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover' }
+            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover',
+                                                           'map': 'disabled'|'soils' }
         """
         
         self.geojson = geolojson

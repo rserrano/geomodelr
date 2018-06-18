@@ -1257,7 +1257,7 @@ class TestGeoModelR(unittest.TestCase):
         Geo_Data = True
         Graph = True
 
-        Rows = 40;  Cols = 40; Layers = 6; Angle = 20; DZ = 0.5
+        Rows = 150;  Cols = 150; Layers = 50; Angle = 20; DZ = 0.5
         
         Units = geo_model.units
         Kh = np.arange(len(Units))
