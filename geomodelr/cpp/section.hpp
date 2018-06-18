@@ -145,6 +145,13 @@ public:
 	double distance_poly(const pylist& pypt, int poly_idx) const;
 };
 
+class GeologicalMapPython: public SectionPython {
+public:
+	GeologicalMapPython( const pyobject& bbox, const pylist& points, 
+			     const pylist& polygons, const pylist& units, const pylist& lines,
+			     const pylist& lnames, const pylist& anchored_lines );
+};
+
 void extend_line( bool beg, const bbox2& bbox, line& l );
 pylist test_extend_line( bool beg, const pyobject& bbox, const pylist& line );
 

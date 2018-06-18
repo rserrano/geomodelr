@@ -380,3 +380,13 @@ pydict SectionPython::get_params() const {
 	}
 	return out;
 }
+
+GeologicalMapPython::GeologicalMapPython( const pyobject& bbox, const pylist& points, 
+					  const pylist& polygons, const pylist& units, const pylist& lines,
+					  const pylist& lnames, const pylist& anchored_lines ):SectionPython( wstring(L"Geological Map"), 0.0, 
+					  								      bbox, points, polygons, 
+													      units, lines, lnames, 
+													      anchored_lines )
+{
+	
+}

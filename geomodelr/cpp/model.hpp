@@ -52,7 +52,7 @@ protected:
 	
 	point2 base_point;
 	point2 direction;
-	
+	Section * geomap;
 	vector<Section *> sections;
 	vector<Match *> match;
 	vector<double> cuts;
@@ -61,10 +61,13 @@ protected:
 	map<wstring, vector<size_t>> extended_faults;
 	map<wstring, wstring> feature_types;
 	map<wstring, wstring> params;
+	map<wstring, double> soil_depths;
+	
 	Topography * topography;
 	bool horizontal;
 	bool faults_disabled;
-		
+	bool check_soils;
+	
 	std::pair<int, double> closest_match(bool a, int a_idx, int pol_idx, const point2& pt) const;
 	
 	struct Possible {
@@ -200,7 +203,6 @@ protected:
 		if ( this->match.size()+1 != this->sections.size() ) {
 			throw GeomodelrException("You need to call make_matches before using this function.");
 		}
-
 		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);
 		
 		size_t a_idx = it - this->cuts.begin();
@@ -259,6 +261,8 @@ protected:
 		return closest_middle( ft, ft );
 	}
 	
+	std::tuple<wstring, double> soil( const point3& pt ) const;
+	
 	// Returns the closest unit in the coordinate system of parallel cross sections ( u, z, v ).
 	template<typename Predicates>
 	std::tuple<wstring, double> closest_aligned( const point3& pt, const Predicates& predicates ) const {
@@ -266,6 +270,7 @@ protected:
 		double s = gz(pt);
 		return this->closest_basic( p, s, predicates );
 	}
+	
 	// Returns the closest unit in the coordinate system defined for the model (x, y, z).
 	template<typename Predicates>
 	std::tuple<wstring, double> closest( const point3& pt, const Predicates& predicates ) const {
@@ -279,6 +284,8 @@ public:
 	      const point2& basepoint, const point2& direction); // Sections perpendicular to surface.
 	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
 	      const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox); // Horizontal sections.
+	
+	void set_params( const map<wstring, wstring>& params );
 	virtual ~Model();
 	
 	map<wstring,vector<line>> intersect_plane(const line_3d& plane) const;
@@ -296,7 +303,7 @@ public:
 
 	point3 inverse_point(const point2& pt, double cut) const;
 	
-	// CLOSES FUNCTIONS.
+	// CLOSEST FUNCTIONS.
 	// Returns the closest unit with its distance in the coordinate system of the model.
 	std::tuple<wstring, double> closest( const point3& pt ) const;
 	// Returns the closest unit with its distance in the coordinate system aligned to the cross sections.
@@ -307,9 +314,11 @@ public:
 	std::tuple<wstring, double> closest_topo_aligned(const point3& pt) const;
 	
 	double geomodelr_distance( const wstring& unit, const point3& point ) const;
+	
 	vector<point2> get_polygon(const wstring sec, int poly_idx) const;
+	
 	vector<point2> get_fault(const wstring sec, int fault_idx) const;
-
+	
 	// In this case the signed distance is not bounded by anything.
 	double signed_distance( const wstring& unit, const point3& pt ) const;
 	// In this case the bounding box bounds all the solids.
@@ -330,10 +339,9 @@ public:
 class ModelPython : public Model {
 	pydict filter_lines( bool ext, const wstring& ft ) const;
 public:
-	
 	ModelPython(const pyobject& bbox,
 		    const pyobject& abbox,
-	            const pyobject& map, 
+	            const pylist& geomap, 
 	            const pyobject& topography,
 	            const pylist& sections,
 		    const pydict& lines,
@@ -343,14 +351,14 @@ public:
 		    const pyobject& abbox,
 	            const pyobject& basepoint,
 	            const pyobject& direction,
-	            const pyobject& map, 
+	            const pylist& geomap, 
 	            const pyobject& topography,
 	            const pylist& sections,
 		    const pydict& lines,
 		    const pydict& params);
 	
 	// fill geological model.
-	void fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params );
+	void fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params );
 	
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -369,6 +377,15 @@ public:
 	pydict get_not_extended_veins() const;
 	
 	pylist get_matches() const;
+	
+
+	// Set/get dynamically parameters for the interpolation.
+	pydict get_params() const;
+	void set_params(const pydict& params);
+	
+	// Set/get dynamically soil depths in case the 'map': 'soils' parameter is active.
+	pydict get_soil_depths() const;
+	void set_soil_depths(const pydict& depths );
 	
 	pylist pybbox() const;
 	pylist pyabbox() const;
