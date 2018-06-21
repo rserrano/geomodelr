@@ -264,6 +264,7 @@ def create_feflow_input(name, model, units_data,
                                                                                                                            dz_min, time_units, algorithm, 
                                                                                                                            faults_data, faults_method)
     
+    
     fd = open( name+".fem", "w" )
     
     # PROBLEM
@@ -298,14 +299,17 @@ def create_feflow_input(name, model, units_data,
     bdiff = [ bbox[5]-bbox[2], bbox[4]-bbox[1], bbox[3]-bbox[0] ]
     maxd = max( bdiff )
     fd.write("%(scale_fac)13.6e,%(scale_l)13.6e,%(scale_ratio)13.6e,%(eps)13.6e,%(x_o)13.6e,%(y_o)13.6e\n" % 
-             {"scale_fac": PIX/maxd, "scale_l": PIX, "scale_ratio": 1, "eps": 1.0e-7, "x_o": X_inf, "y_o": Y_sup-bdiff[1]})
+             {"scale_fac": PIX/maxd, "scale_l": PIX, "scale_ratio": 1, "eps": 1.0e-7, "x_o": 0, "y_o": 0})
     
     if nump < 10000:
         num_columns = 80/6
         node_str = lambda n: "%5d" % (n+1)
-    else:
+    elif nump < 1000000:
         num_columns = 80/8
         node_str = lambda n: "%7d" % (n+1)
+    else:
+        num_columns = 80/10
+        node_str = lambda n: "%9d" % (n+1)
     
     #NODE
     all_elems = write_node( fd, nump, shape, node_str )
@@ -323,15 +327,26 @@ def create_feflow_input(name, model, units_data,
     fd.write("%(head_ini_level)21.14le 1-%(nump)s\n" % { "head_ini_level": 0.0, "nump": nump})
     
     # MAT_I_FLOW
+    first_elems = (shape[1]+1)*(shape[2]+1)
     elem_units = []
-    for e in all_elems:
-        mid = [0, 0, 0]
-        for n in e:
+    for i, e in enumerate(all_elems):
+        if model.params.get('map', 'basic') == 'soils' and i < first_elems:
+            mid = [0, 0, 0]
+            for n in e[:4]:
+                for i in range(3):
+                    mid[i] += all_points[n][i]
             for i in range(3):
-                mid[i] += all_points[n][i]
-        for i in range(3):
-            mid[i]=mid[i]/8.0
-        unit = model.closest( mid )[0]
+                mid[i]=mid[i]/4.0
+            h = model.height( (mid[0], mid[1]) )
+            unit = model.closest( (mid[0], mid[1], h) )[0]
+        else:
+            mid = [0, 0, 0]
+            for n in e:
+                for i in range(3):
+                    mid[i] += all_points[n][i]
+            for i in range(3):
+                mid[i]=mid[i]/8.0
+            unit = model.closest( mid )[0]
         elem_units.append(unit)
     
     unit_indices = {}

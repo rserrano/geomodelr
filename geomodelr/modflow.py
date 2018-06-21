@@ -44,13 +44,13 @@ class ALGORITHM:
     REGULAR = u'regular'
     ADAPTIVE = u'adaptive'
 
-def get_fd_mesh(model, units_data, length_units, rows, cols, layers, bbox, angle, dz_min, time_units, algorithm, faults_data, faults_method ):
+def get_fd_mesh(model, units_data, length_units, rows, cols, layers, bbox, angle, dz_min, time_units, algorithm, faults_data, faults_method, soil=None, soil_depts={} ):
     if (bbox is None):
         bbox = model.bbox
-
+    
     X_inf = bbox[0]
     X_sup = bbox[3]
-
+    
     Y_inf = bbox[1]
     Y_sup = bbox[4]
 
@@ -77,8 +77,7 @@ def get_fd_mesh(model, units_data, length_units, rows, cols, layers, bbox, angle
         for j in np.arange(cols):
             xp = X_inf + (2*j+1)*dX/2.0
             Z_top[i,j] = model.height((xp, yp))
-
-
+    
     Z_top_min = np.min(Z_top)
 
     if ((Z_top_min-bottom_min)/layers < dz_min):
@@ -155,13 +154,10 @@ def create_modflow_inputs(name, model, units_data,
 
     """
     
-    layers,  Z_top, Z_bottoms, 
-    dY, dX, X_inf, Y_sup, 
-    I_bound, chani_var, K_hor, 
-    K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, length_units, 
-                                          rows, cols, layers, bbox, angle, 
-                                          dz_min, time_units, algorithm, 
-                                          faults_data, faults_method)
+    layers,  Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, length_units, 
+                                                                                                                            rows, cols, layers, bbox, angle, 
+                                                                                                                            dz_min, time_units, algorithm, 
+                                                                                                                            faults_data, faults_method)
 
     #  ------- Flowpy Packages ----
     # Grid

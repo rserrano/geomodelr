@@ -15,6 +15,7 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
+
 #include "isosurfaces_vdb.hpp"
 #include "model.hpp"
 
@@ -24,6 +25,19 @@ int sgn(float v) {
 
 void set_sdfVoxels(GridType::Accessor& accessor, const vector<float>& vals,
     const openvdb::CoordBBox& indexBB, float bg){
+    /*
+    Set the values of the signed distance function to the tile.
+
+    Args:
+        accessor: accessor of the openvdb grid.
+
+        vals: vector that contains the value of the signed distance function to assign to
+            the tile.
+
+        indexBB: bounding box of the tile with index coordinates.
+
+        bg: background value of the openvdb grid.
+    */
 
     int C=0;
     for (Int32 i = indexBB.min().x(); i <= indexBB.max().x(); i+=2) {
@@ -34,7 +48,7 @@ void set_sdfVoxels(GridType::Accessor& accessor, const vector<float>& vals,
                 if (openvdb::math::isApproxEqual(dist,bg)){
                         dist += epsilon;
                 }
-                accessor.setValueOnly(openvdb::Coord(i,j,k),dist);
+                accessor.setValueOnly(openvdb::Coord(i,j,k),dist);                    
                 C++;
             }
         }
@@ -43,6 +57,26 @@ void set_sdfVoxels(GridType::Accessor& accessor, const vector<float>& vals,
 
 vector<float> get_sdfVoxels(std::function<double (const point3&)>& signed_distance,
     double dx, double dy, double dz, double xi, double yi, double zi, const openvdb::CoordBBox& indexBB){
+    /*
+    Get the values of the signed distance function of the tile.
+
+    Args:
+        signed_distance: signed distance function.
+
+        dx: size of the voxel in the X direction.
+
+        dy: size of the voxel in the Y direction.
+
+        dz: size of the voxel in the Z direction.
+
+        xi: x coordinate of the lower-left corner of the model.
+
+        yi: y coordinate of the lower-left corner of the model.
+
+        zi: z coordinate of the lower-left corner of the model.
+
+        indexBB: bounding box of the tile with index coordinates.
+    */
 
     vector<float> vals; vals.reserve(64);
     for (Int32 i = indexBB.min().x(); i <= indexBB.max().x(); i+=2) {
@@ -57,6 +91,14 @@ vector<float> get_sdfVoxels(std::function<double (const point3&)>& signed_distan
 }
 
 bool checkCorrectTile(vector<float>& vals, float bg){
+    /*
+    Check if the whole tile is inactive and if it is positive or negative.
+
+    Args:
+        vals: vector that contains the value of the signed distance function of the tile.
+
+        bg: background value of the openvdb grid.
+    */
 
     bool active = std::any_of(vals.cbegin(), vals.cend(), [bg](float v){ return std::abs(v)<bg; });
     bool any_positive = std::any_of(vals.cbegin(), vals.cend(), [bg](float v){ return v>0; });
@@ -68,6 +110,21 @@ bool checkCorrectTile(vector<float>& vals, float bg){
 template<typename func>
 GridType::Ptr get_openvdbGrid(std::function<double (const point3&)>& signed_distance, int grid_divisions, bbox3& xyzBB, int ndelta,
     const func& setSignedDistance){
+    /*
+    Return an openvdb grid that represents the unit surface.
+
+    Args:
+        signed_distance: signed distance function.
+
+        grid_divisions: The number of divisions for all the axes.
+
+        xyzBB: the values of [minx, miny, minz, maxx, maxy, maxz].
+
+        ndelta: number of voxels to use to increase the bounding box in all directions.
+
+        setSignedDistance: function to upgrade the signed distance function when unit surface
+            is ubounded.
+    */
 
     // Initial parameters
     double xi = g0(g0(xyzBB));
@@ -118,11 +175,7 @@ GridType::Ptr get_openvdbGrid(std::function<double (const point3&)>& signed_dist
                             set_sdfVoxels(accessor, vals, indexBB, bg);
                             change = true;
                         } else{
-
-                            float dist = vals[32];
-                            if (openvdb::math::isApproxEqual(dist,bg)){
-                                dist += epsilon;
-                            }
+                            float dist = sgn(vals[32])*(bg + epsilon);
                             iter.setValue(dist);
                         }
                     }
@@ -195,11 +248,18 @@ void gridToMesh(const GridType::Ptr& grid, vector<openvdb::Vec3s>& points, vecto
 
     int av = grid->activeVoxelCount();
     openvdb::Vec3i rs = grid->metaValue<openvdb::Vec3i>("resample");
-    double adaptivity =  std::max(0.0,0.2*(double(av)/681472.0 - 1.0))/double(rs.x()*rs.y()*rs.z());
-    std::cerr << "adaptivity: " << adaptivity << std::endl;
+    double adaptivity =  std::min(1.0, std::max(0.0,0.2*(double(av)/681472.0 - 1.0))/double(rs.x()*rs.y()*rs.z()));
 
     vector<openvdb::Vec4I> quads;
     openvdb::tools::volumeToMesh(*grid, points, triangles, quads, tolerance, adaptivity);
+
+    double size = (4*points.size() + 4*triangles.size() + 8*quads.size())*4.0/(1024.0*1024.0);
+    
+    if (size>7.0){
+        adaptivity = 1.0;
+        points.clear(); triangles.clear(); quads.clear();
+        openvdb::tools::volumeToMesh(*grid, points, triangles, quads, tolerance, adaptivity);
+    }
 
     triangles.reserve(triangles.size() + 2*distance(quads.begin(),quads.end()));
 
@@ -219,7 +279,7 @@ vector<float> check_BboxSurface(const GridType::Ptr& grid, int ndelta, int grid_
     Args:
         grid: tree of openvdb that represents the unit surface.
 
-        ndelta: number of voxels to use to increase the bounding box.
+        ndelta: number of voxels to use to increase the bounding box in all directions.
 
         grid_divisions: divisions of the grid in the X, Y and Z directions.
 
@@ -264,10 +324,23 @@ vector<float> check_BboxSurface(const GridType::Ptr& grid, int ndelta, int grid_
 
     return output;
 }
-// void closeUnbounded()
 
 void deleteBorders(const vector<openvdb::Vec3s>& points, vector<openvdb::Vec3I>& triangles, const bbox3& xyzBB,
     openvdb::Vec3d& dL, bool activeResampler){
+    /*
+    Deletes the borders of the mesh when unit surface is unbounded.
+    
+    Args:
+        points: points of the mesh.
+
+        triangles: elements of the mesh.
+
+        xyzBB: the values of [minx, miny, minz, maxx, maxy, maxz].
+
+        dL: dx, dy and dz.
+
+        activeResampler: resampler is active or not.
+    */
 
     double min_x = g0(g0(xyzBB)) + epsilon + 0.6*dL.x();
     double min_y = g1(g0(xyzBB)) + epsilon + 0.6*dL.y();
@@ -307,6 +380,16 @@ void deleteBorders(const vector<openvdb::Vec3s>& points, vector<openvdb::Vec3I>&
    ---------------- Begin: RESAMPLE -----------------
    -------------------------------------------------- */
 
+    /* CHECKERS
+    Check if a block of 2x2x2 voxels has to be resampled in the
+    X, Y or Z direction.
+    
+    Args:
+        vals: values of the voxels.
+
+        dl: size of a voxel in the X, Y or Z direction.
+    */
+
 bool x_checker(vector<float>& vals,double dl){
     bool b1 = (vals[0]*vals[1]> -epsilon) && (std::abs(vals[0]+vals[1])<dl);
     bool b2 = (vals[2]*vals[3]> -epsilon) && (std::abs(vals[2]+vals[3])<dl);
@@ -331,6 +414,26 @@ bool z_checker(vector<float>& vals,double dl){
 
 bool checkResample(GridType::ConstAccessor& accessor_old, GridType::Accessor& accessor_new, openvdb::Coord& coord,
     double dx, double dy, double dz, int rs_x, int rs_y, int rs_z){
+    /*
+    Check if a block of 2x2x2 voxels has to be resampled.
+    
+    Args:
+        accessor_old: accessor of the openvdb grid created with "get_openvdbGrid" function.
+
+        accessor_new: accessor of the openvdb grid where the resampled values will store. 
+
+        dx: size of the voxel in the X direction.
+
+        dy: size of the voxel in the Y direction.
+
+        dz: size of the voxel in the Z direction.
+
+        rs_x: size of the resample in the X direction.
+
+        rs_y: size of the resample in the Y direction.
+
+        rs_z: size of the resample in the Z direction.
+    */
 
     vector<float> vals; vals.reserve(8);
     bool states = true;
@@ -353,6 +456,20 @@ bool checkResample(GridType::ConstAccessor& accessor_old, GridType::Accessor& ac
 
 GridType::Ptr resample_openvdbGrid(const GridType::Ptr& grid_old, std::function<double (const point3&)>& signed_distance,
     int rs_x, int rs_y, int rs_z){
+    /*
+    Creates a resampled grid based on initial grid.
+    
+    Args:
+        grid_old: initial grid created with "get_openvdbGrid" function.
+
+        signed_distance: signed distance function.
+
+        rs_x: size of the resample in the X direction.
+
+        rs_y: size of the resample in the Y direction.
+
+        rs_z: size of the resample in the Z direction.
+    */
 
     double dx = (grid_old->metaValue<openvdb::Vec3d>("deltas")).x();
     double dy = (grid_old->metaValue<openvdb::Vec3d>("deltas")).y();
@@ -382,7 +499,7 @@ GridType::Ptr resample_openvdbGrid(const GridType::Ptr& grid_old, std::function<
                         for (Int32 k = rs_z*coord.z(); k <= rs_z*coord.z()+rs_z; k++) {
 
                             auto ijk =  openvdb::Coord(i,j,k);
-                            if (openvdb::math::isApproxEqual(accessor_new.getValue(ijk), bg)){                            
+                            if (openvdb::math::isApproxEqual(accessor_new.getValue(ijk), bg)){
                                 float dist = signed_distance( point3(dx_new*i + xi, dy_new*j + yi, dz_new*k + zi) );
 
                                 if (openvdb::math::isApproxEqual(dist,bg)){
@@ -405,6 +522,12 @@ GridType::Ptr resample_openvdbGrid(const GridType::Ptr& grid_old, std::function<
 }
 
 openvdb::Vec3i getNumberResamples(const GridType::Ptr& grid){
+    /*
+    Gets the size of the resampler in all directions.
+    
+    Args:
+        grid: initial grid created with "get_openvdbGrid" function.
+    */
 
     typename GridType::ConstAccessor accessor = grid->getConstAccessor();
     size_t nx = 0, ny = 0, nz = 0;
@@ -454,12 +577,18 @@ openvdb::Vec3i getNumberResamples(const GridType::Ptr& grid){
     int rs_y = int(std::ceil(double(10*ny)/total));
     int rs_z = int(std::ceil(double(10*nz)/total));
 
-    std::cerr << "Resamples: " << rs_x << " " << rs_y << " " << rs_z << "\n";
     return openvdb::Vec3i(rs_x, rs_y, rs_z);
-
 }
 
 GridType::Ptr resample_unitSurface(const GridType::Ptr& sourceGrid, std::function<double (const point3&)>& signed_distance){
+    /*
+    Creates a resampled grid using a resampler and openvdb interpolator.
+    
+    Args:
+        sourceGrid: initial grid created with "get_openvdbGrid" function.
+
+        signed_distance: signed distance function.
+    */
 
     auto rs = getNumberResamples(sourceGrid);
     GridType::Ptr new_grid = resample_openvdbGrid(sourceGrid, signed_distance, rs.x(), rs.y(), rs.z());
@@ -471,22 +600,9 @@ GridType::Ptr resample_unitSurface(const GridType::Ptr& sourceGrid, std::functio
     targetGrid->insertMeta("deltas", openvdb::Vec3DMetadata((new_grid->metaValue<openvdb::Vec3d>("deltas"))));
     targetGrid->insertMeta("corner", openvdb::Vec3DMetadata((new_grid->metaValue<openvdb::Vec3d>("corner"))));
     setLinear_Transforms(targetGrid);
-
-    // Get the source and target grids' index space to world space transforms.
-    const openvdb::math::Transform
-        &sourceXform = sourceGrid->transform(),
-        &targetXform = targetGrid->transform();
-
-    // Compute a source grid to target grid transform.
-    openvdb::Mat4R xform =
-        sourceXform.baseMap()->getAffineMap()->getMat4() *
-        targetXform.baseMap()->getAffineMap()->getMat4().inverse();
     
-    // Create the transformer.
-    openvdb::tools::GridTransformer transformer(xform);
-    
-    // Resample using trilinear interpolation.
-    transformer.transformGrid<openvdb::tools::BoxSampler, openvdb::FloatGrid>(*sourceGrid, *targetGrid);
+    // // Resample using trilinear interpolation.
+    openvdb::tools::resampleToMatch<openvdb::tools::BoxSampler>(*sourceGrid, *targetGrid);
     
     // Prune the target tree for optimal sparsity.
     targetGrid->tree().prune();
@@ -503,21 +619,6 @@ GridType::Ptr resample_unitSurface(const GridType::Ptr& sourceGrid, std::functio
         }
     };
 
-    // targetGrid->setName("target");
-    // new_grid->setName("new_grid");
-    // sourceGrid->setName("old_grid");
-
-    // openvdb::io::File file("/media/sf_CompartidaVB/OpenVDB/Petroleo/allGrids.vdb");
-    // // Add the grid pointer to a container.
-    // openvdb::GridPtrVec grids;
-    // grids.push_back(targetGrid);
-    // grids.push_back(new_grid);
-    // grids.push_back(sourceGrid);
-    // // Write out the contents of the container.
-    // file.write(grids);
-    // file.close();
-
-    // targetGrid->tree().combineExtended(new_grid->tree(), def_ValueState);
     new_grid->tree().combineExtended(targetGrid->tree(), def_ValueState);
     new_grid->insertMeta("resample", openvdb::Vec3IMetadata(rs));
 
@@ -530,6 +631,21 @@ GridType::Ptr resample_unitSurface(const GridType::Ptr& sourceGrid, std::functio
 
 unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions,
     bool activeResampler){
+    /*Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in openvdb.
+    
+    Args:
+        geo_model: The geomodelr geological model.
+
+        unit: The unit to calculate the isosurface for.
+
+        bounded: calculates the surface using the bounding box. This will result in a solid.
+    
+        aligned: The model is aligned with the cross sections direction.
+
+        grid_divisions: The number of divisions for all the axes.
+
+        activeResampler: resampler is active or not.
+    */
 
     openvdb::initialize();
 
@@ -550,7 +666,7 @@ unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded
     }
 
     //Define lambda function to get the correct signed function in case of undounded surface.
-    auto setSignedDistance = [bounded,aligned,&geo_model,&unit](const bbox3& Bbox, std::function<double (const point3&)>& signed_distance){
+    auto setSignedDistance = [&bounded,&aligned,&geo_model,&unit](const bbox3& Bbox, std::function<double (const point3&)>& signed_distance){
         if (!bounded){
             if (aligned){
                 signed_distance = std::bind(&Model::signed_distance_unbounded_aligned_restricted,
@@ -565,12 +681,11 @@ unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded
     // Creates a openvdb grid
     GridType::Ptr grid = get_openvdbGrid(signed_distance, grid_divisions, xyzBB, ndelta, setSignedDistance);
 
-    // If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
+    // If the object is at least 6 times smaller than the full bbox, it will benefit lots from a thinner sample.
     vector<float> bb = check_BboxSurface(grid, ndelta, grid_divisions);
     float obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2]);
     if (float(pow(grid_divisions,3))/obj_cells > 6){
 
-        std::cerr << "Malla burda.\n";
         openvdb::Vec3d ds = grid->metaValue<openvdb::Vec3d>("deltas");
         openvdb::Vec3d Xs = grid->metaValue<openvdb::Vec3d>("corner");
         auto min_Bbox = std::make_tuple(bb[0]*ds.x()+Xs.x(), bb[1]*ds.y()+Xs.y(), bb[2]*ds.z()+Xs.z());
@@ -592,29 +707,8 @@ unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded
     gridToMesh(grid, points, triangles);
 
     if (!bounded){
-        // deleteBorders(points, triangles, xyzBB, grid->metaValue<openvdb::Vec3d>("deltas"), activeResampler);
+        deleteBorders(points, triangles, xyzBB, grid->metaValue<openvdb::Vec3d>("deltas"), activeResampler);
     }
-
-    // // Create a VDB file object.
-    // grid->setName("algorithm");
-    // openvdb::io::File file("/media/sf_CompartidaVB/OpenVDB/Petroleo/mygrids.vdb");
-    // // // Add the grid pointer to a container.
-    // openvdb::GridPtrVec grids;
-    // grids.push_back(grid);
-    // // // Write out the contents of the container.
-    // file.write(grids);
-    // file.close();
-
-    // double xi = g0(g0(xyzBB));
-    // double yi = g1(g0(xyzBB));
-    // double zi = g2(g0(xyzBB));
-
-    // double xf = g0(g1(xyzBB));
-    // double yf = g1(g1(xyzBB));
-    // double zf = g2(g1(xyzBB));
-
-    // std::cerr << xi << " " << yi  << " " << zi << std::endl;
-    // std::cerr << xf << " " << yf  << " " << zf << std::endl;
 
     return std::make_pair(points,triangles);
 }

@@ -24,15 +24,35 @@ Section::~Section()
 	if ( this->polidx != nullptr ) {
 		delete this->polidx;
 	}
+
+	if ( this->fault_lines != nullptr ) {
+		delete this->fault_lines;
+	}
+
+	for ( Polygon * p: this->poly_trees ) {
+		delete p;
+	}
 }
 
-Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr) 
+Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr), fault_lines(nullptr), params(nullptr)
 {
-	
+
 }
 
 std::pair<int, double> Section::closest( const point2& pt ) const {
 	return this->closest(pt, always_true);
+}
+
+void Section::set_params( const map<wstring, wstring> * params ) {
+	this->params = params;
+	auto kv = this->params->find( L"faults" );
+	// Make all polygons use the corresponding function.
+	if ( kv != this->params->end() ) {
+		wstring fault_method = kv->second;
+		for ( Polygon * p: this->poly_trees ) {
+			p->set_distance_function( fault_method );
+		}
+	}
 }
 
 SectionPython::SectionPython(const wstring& name, double cut, 
@@ -40,12 +60,12 @@ SectionPython::SectionPython(const wstring& name, double cut,
 	const pylist& polygons, const pylist& units, 
 	const pylist& lines, const pylist& lnames,
 	const pylist& anchored_lines ): Section( name, cut, std::make_tuple( std::tuple<double, double>(python::extract<double>(bbox[0]), python::extract<double>(bbox[1])),
-									     std::tuple<double, double>(python::extract<double>(bbox[2]), python::extract<double>(bbox[3])) ) )
+								       std::tuple<double, double>(python::extract<double>(bbox[2]), python::extract<double>(bbox[3])) ) )
 {
 	size_t npols = python::len(polygons);
 	vector<value_f> envelopes;
 	vector<value_l> f_segs;
-
+	
 	for ( size_t i = 0; i < npols; i++ ) {
 		polygon pol;
 		wstring unit = python::extract<wstring>( units[i] );
@@ -56,14 +76,12 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		ring& outer = pol.outer();
 		
 		// Start filling the first ring.
-		vector<line_segment> poly_segments;
 		size_t nnodes = python::len(polygons[i][0]);
 		for ( size_t k = 0; k < nnodes; k++ ) {
 			pylist pypt = pylist(points[polygons[i][0][k]]);
 			outer.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
 		}
-
-		//this->poly_lines.push_back(new rtree_seg(poly_segments));
+		
 		// Then fill the rest of the rings.
 		if ( nrings > 1 ) { 
 			pol.inners().resize(nrings-1);
@@ -99,7 +117,7 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		envelopes.push_back(std::make_tuple(env, unit, this->poly_trees.size()));
 		
 		// Now add the actual polygon and its unit.
-		this->poly_trees.push_back(new Polygon(pol));
+		this->poly_trees.push_back(new Polygon(pol, env, this));
 		this->units.push_back(unit);
 	}
 
@@ -116,18 +134,36 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		size_t nnodes = python::len(lines[i]);
 		vector<value_l> fault_segments;
 		for ( size_t j = 0; j < nnodes; j++ ) {
+			
 			pylist pypt = pylist(points[lines[i][j]]);
 			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
 			lin.push_back(aux);
-
+			
 			pypt = pylist(points[lines[i][(j+1)%nnodes]]);
 			point2 aux2 = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
 			fault_segments.push_back(std::make_tuple(line_segment(aux,aux2),count_lines));
 		}
 		if ( not geometry::is_valid(lin) or not geometry::is_simple(lin) ) {
-			continue;
+			continue; // This should guarantee that the line has at least 2 points.
 		}
+		
 		this->lines.push_back(lin);
+		// Create the ends by projecting these a little bit.
+		point2& end = lin[lin.size()-1], beg = lin[0];
+		point2& pend = lin[lin.size()-2], nbeg = lin[1];
+		point2 ve = end, vb = beg;
+		geometry::subtract_point( ve, pend );
+		geometry::subtract_point( vb, nbeg );
+		geometry::divide_value( ve, std::sqrt( gx(ve)*gx(ve) + gy(ve)*gy(ve) ) );
+		geometry::multiply_value( ve, 2.0*boost_tol );
+		geometry::divide_value( vb, std::sqrt( gx(vb)*gx(vb) + gy(vb)*gy(vb) ) );
+		geometry::multiply_value( vb, 2.0*boost_tol );
+		
+		geometry::add_point( ve, end );
+		geometry::add_point( vb, beg );
+		
+		this->line_ends.push_back(std::make_pair(vb, ve));
+
 		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
 		
 		fault_segments.pop_back(); count_lines++;
@@ -161,9 +197,8 @@ SectionPython::SectionPython(const wstring& name, double cut,
 				std::cerr << e.what() << std::endl;
 			}
 		}
-		
-		
 	}
+	
 }
 
 pydict SectionPython::info() 
@@ -180,13 +215,12 @@ const {
 	double y = python::extract<double>(pypt[1]);
 	point2 p(x, y);
 	
-	std::pair<int, int> cls = Section::closest(p);
+	std::pair<int, double> cls = Section::closest(p);
 	
 	if ( cls.first == -1 ) {
-		return python::make_tuple(-1, wstring(L"NONE"));
+		return python::make_tuple(wstring(L"NONE"), cls.second);
 	}
-	
-	return python::make_tuple(cls.first, this->units[cls.first]);
+	return python::make_tuple(this->units[cls.first], cls.second);
 }
 
 
@@ -328,5 +362,31 @@ double SectionPython::distance_poly(const pylist& pypt, int idx) const{
 
 	double x = python::extract<double>(pypt[0]);
 	double y = python::extract<double>(pypt[1]);
-	return this->poly_trees[idx]->distance_point_new(point2(x,y), this->fault_lines);
+	return this->poly_trees[idx]->distance_point(point2(x,y));
+}
+
+void SectionPython::set_params(const pydict& params) {
+	pylist keys = params.keys();
+	for ( int i = 0; i < python::len( keys ); i++ ) {
+		this->local_params[python::extract<wstring>(keys[i])] = python::extract<wstring>(params[keys[i]]);
+	}
+	Section::set_params(&(this->local_params));
+}
+
+pydict SectionPython::get_params() const {
+	pydict out;
+	for ( auto& kv: this->local_params ) {
+		out[kv.first] = kv.second;
+	}
+	return out;
+}
+
+GeologicalMapPython::GeologicalMapPython( const pyobject& bbox, const pylist& points, 
+					  const pylist& polygons, const pylist& units, const pylist& lines,
+					  const pylist& lnames, const pylist& anchored_lines ):SectionPython( wstring(L"Geological Map"), 0.0, 
+					  								      bbox, points, polygons, 
+													      units, lines, lnames, 
+													      anchored_lines )
+{
+	
 }

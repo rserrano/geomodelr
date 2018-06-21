@@ -255,18 +255,14 @@ BOOST_PYTHON_MODULE(cpp)
 							      const pylist&, const pylist&, const pylist&>())
 							      .def("info", &SectionPython::info)
 							      .def("closest", &SectionPython::closest)
-							      .def("distance", &SectionPython::distance_poly);
+							      .def("distance", &SectionPython::distance_poly)
+							      .add_property("params", &SectionPython::get_params, &SectionPython::set_params);
 
-  	// Single polygon class. Mainly exported for testing purposes.
-	python::class_<PolygonPython>("Polygon",python::init<const pylist& ,const pylist&>())
-							      .def("distance", &PolygonPython::distance_poly_test)
-							      .def("time", &PolygonPython::time_poly_test);
-	
 	// Main exported class, Model.
-	python::class_<ModelPython>("Model", python::init<const pylist&, const pylist&, const pyobject&, const pyobject&, const pyobject&,
-					         const pyobject&, pylist&, pydict&>())
-					    .def(python::init<const pylist&, const pylist&, const pyobject&,
-					    	 const pyobject&, pylist&, pydict&>())
+	python::class_<ModelPython>("Model", python::init<const pyobject&, const pyobject&, const pyobject&, const pyobject&, const pylist&,
+					         const pyobject&, const pylist&, const pydict&, const pydict&>())
+					    .def(python::init<const pyobject&, const pyobject&, const pylist&,
+					    	 const pyobject&, const pylist&, const pydict&, const pydict&>())
 					    .def("make_matches", &ModelPython::make_matches)
 					    .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
 					    .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)
@@ -293,6 +289,8 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("find_unit_limits", &ModelPython::find_unit_limits)
 					    .def("calculate_isosurface", &ModelPython::calculate_isosurface)
 					    .def("info", &ModelPython::info)
+					    .add_property("params", &ModelPython::get_params, &ModelPython::set_params)
+					    .add_property("soil_depths", &ModelPython::get_soil_depths, &ModelPython::set_soil_depths)
 					    .add_property("bbox", &ModelPython::pybbox)
 					    .add_property("abbox", &ModelPython::pyabbox)
 					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches)
