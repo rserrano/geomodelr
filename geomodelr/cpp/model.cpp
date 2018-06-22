@@ -363,10 +363,7 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 		if ( g0(sl) == unit ) {
 			return std::min( d, g1(sl) );
 		} else {
-			if ( g1(sl) < 0 ) {
-				return std::max( d, -g1(sl) );
-			}
-			return d;
+			return std::max( d, -g1(sl) );
 		}
 	}
 	return d;
@@ -716,7 +713,7 @@ std::tuple<wstring, double> Model::closest_topo_aligned( const point3& pt ) cons
 std::tuple<wstring, double> Model::closest( const point3& pt ) const {
 	if ( this->check_soils ) {
 		std::tuple<wstring, double> sl = this->soil( pt );
-		if ( g1( sl ) < 0.0 ) {
+		if ( g1( sl ) <= 0.0 ) {
 			return std::make_tuple( g0(sl), 0.0 );
 		}
 	}
@@ -939,6 +936,8 @@ double TopographyPython::height( const pyobject& pypt ) const {
 }
 
 void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params ) {
+	this->set_params( params );
+	
 	if ( python::len(topography) > 0 ) {// Get all the information sent from python to build the topography.
 		const pyobject& point = python::extract<pyobject>(topography["point"]);
 		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
@@ -949,10 +948,7 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 	
 	size_t nsects = python::len(sections);
 	
-	pylist keys = params.keys();
-	for ( int i = 0; i < python::len( keys ); i++ ) {
-		this->params[python::extract<wstring>(keys[i])] = python::extract<wstring>(params[keys[i]]);
-	}
+	
 	int lgeomap = python::len( geomap );
 	if ( lgeomap > 1 ) {
 		// Get all the information sent from python to create each cross section.
@@ -998,19 +994,9 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 		this->cuts.push_back(this->sections[i]->cut);
 	}
 	
-	keys = feature_types.keys();
+	pylist keys = feature_types.keys();
 	for ( int i = 0; i < python::len( keys ); i++ ) {
 		this->feature_types[python::extract<wstring>(keys[i])] = python::extract<wstring>(feature_types[keys[i]]);
-	}
-	auto it = this->params.find( L"faults" );
-	if ( it != this->params.end() ) {
-		if ( it->second == L"disabled" ) {
-			this->faults_disabled = true;
-		} else {
-			this->faults_disabled = false;
-		}
-	} else {
-		this->faults_disabled = false;
 	}
 }
 

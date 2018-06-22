@@ -251,7 +251,7 @@ def write_xyzcoor( fd, shape, dX, dY, X_inf, Y_sup, Z_top, Z_bottoms ):
     return node_lists, all_points
 
 def create_feflow_input(name, model, units_data, 
-                        len_units=LENGTH_UNIT.METERS, 
+                        length_units=LENGTH_UNIT.METERS, 
                         rows=100, cols=100, layers=100, 
                         bbox=None, angle=20, dz_min=1.0, 
                         time_units=TIME_UNIT.SECONDS, 
@@ -259,7 +259,7 @@ def create_feflow_input(name, model, units_data,
                         faults_data={},
                         faults_method=u'regular'):
     
-    layers, Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, len_units, 
+    layers, Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, length_units, 
                                                                                                                            rows, cols, layers, bbox, angle, 
                                                                                                                            dz_min, time_units, algorithm, 
                                                                                                                            faults_data, faults_method)
@@ -505,5 +505,6 @@ def create_feflow_input(name, model, units_data,
     
     # END
     fd.write("END\n")
-
-
+    
+    output = {'num_layers': layers}
+    return(output)

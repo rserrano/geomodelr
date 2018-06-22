@@ -1257,7 +1257,7 @@ class TestGeoModelR(unittest.TestCase):
         Geo_Data = True
         Graph = True
 
-        Rows = 150;  Cols = 150; Layers = 50; Angle = 20; DZ = 0.5
+        Rows = 20;  Cols = 20; Layers = 10; Angle = 20; DZ = 0.5
         
         Units = geo_model.units
         Kh = np.arange(len(Units))
@@ -1294,10 +1294,10 @@ class TestGeoModelR(unittest.TestCase):
         file_name = 'Files_Test'
         
         layers = feflow.create_feflow_input(file_name, geo_model, units_data,
-                                            len_units=2, rows=Rows, cols=Cols,layers=Layers,
+                                            length_units=2, rows=Rows, cols=Cols,layers=Layers,
                                             bbox=Bounding_Box, angle=Angle, dz_min=DZ, time_units=4,
                                             algorithm='adaptive',faults_data={})
-        # os.remove("Files_Test.fem")
+        os.remove("Files_Test.fem")
     
     def test_faults_matching( self ):
         points_1 = [[0, 0], [1, 0], [3, 0], [0, 0.5], [5.0/6.0, 0.5], [2.0/3.0, 1], [3, 1], [0.0, 1.5], [0.5, 1.5], [1.0/3.0, 2], [3, 2], [0, 2.5], [1.0/6.0, 2.5], [0, 3], [3,3]]
@@ -1380,6 +1380,55 @@ class TestGeoModelR(unittest.TestCase):
         model.make_matches()
         self.assertEqual( model.matches, [((u's1', u's2'), [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])])
 
+    def test_soils(self):
+        # Evaluate a model that has a hole in the middle.
+        points_map = [[0, 0], [3, 0], [3, 3], [0, 3]]
+        points_1 = [[0, 0], [3, 0], [3, 3], [0, 3], [1, 1], [2, 1], [2, 2], [1, 2]]
+        points_2 = [[0, 0], [3, 0], [3, 3], [0, 3]]
+        
+        polygons_map = [[[0, 1, 2, 3]]]
+        polygons_1 = [[[0, 1, 2, 3], [7, 6, 5, 4]], [[4, 5, 6, 7]]]
+        polygons_2 = [[[0, 1, 2, 3]]]
+        
+        units_map = ["unit2"]
+        units_1 = ["unit1", "unit2"]
+        units_2 = ["unit1"]
+        
+        topography = { 'point': [0, 0], 'dims': [1, 1], 'sample': [3, 3], 'heights': [[3]] }
+
+        model = cpp.Model([0,0,0,3,3,3],[0,0,0,3,3,3],[0, 0], [1, 0], [points_map, polygons_map, units_map, [], [], []], topography, 
+                          [["A-A", 1, points_1, polygons_1, units_1, [], [], []], ["B-B", 2, points_2, polygons_2, units_2, [], [], []]], {}, {})
+        model.make_matches()
+        model.params = {'map': 'soils'}
+        model.soil_depths = {'unit2': 0.5}
+        
+        self.assertEqual(model.height( ( 0.0, 0.0 ) ), 3.0)
+        self.assertEqual(model.closest( ( 0.0, 0.0, 3.0 ) )[0], "unit2")
+        self.assertEqual(model.closest( ( 0.0, 0.0, 2.5 ) )[0], "unit2")
+        self.assertEqual(model.closest( ( 0.0, 0.0, 2.0 ) )[0], "unit1")
+        self.assertEqual(model.closest( ( 0.0, 0.0, 1.5 ) )[0], "unit1")
+        
+        self.assertEqual(model.signed_distance( "unit2", ( 0.0, 0.0, 3.0 ) ), -0.5)
+        self.assertEqual(model.signed_distance( "unit2", ( 0.0, 0.0, 2.5 ) ),  0.0)
+        self.assertEqual(model.signed_distance( "unit2", ( 0.0, 0.0, 2.0 ) ),  0.5)
+        self.assertEqual(model.signed_distance( "unit2", ( 0.0, 0.0, 1.5 ) ),  1.0)
+        
+        self.assertEqual(model.signed_distance( "unit1", ( 0.0, 0.0, 3.0 ) ),  0.5)
+        self.assertEqual(model.signed_distance( "unit1", ( 0.0, 0.0, 2.5 ) ),  0.0)
+        self.assertEqual(model.signed_distance( "unit1", ( 0.0, 0.0, 2.0 ) ), -0.5)
+        self.assertEqual(model.signed_distance( "unit1", ( 0.0, 0.0, 1.5 ) ), -1.0)
+        
+        self.assertEqual(model.signed_distance( "unit2", ( 1.5, 0.0, 3.0 ) ),  -0.5 )
+        self.assertEqual(model.signed_distance( "unit2", ( 1.5, 0.0, 2.5 ) ),   0.0 )
+        self.assertEqual(model.signed_distance( "unit2", ( 1.5, 0.0, 2.25 ) ),  0.25)
+        self.assertEqual(model.signed_distance( "unit2", ( 1.5, 0.0, 2.0 ) ),   0.0 )
+        self.assertEqual(model.signed_distance( "unit2", ( 1.5, 0.0, 1.5 ) ),  -0.5 )
+        
+        self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 3.0 ) ),   0.5 )
+        self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 2.5 ) ),   0.0 )
+        self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 2.25 ) ), -0.25)
+        self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 2.0 ) ),   0.0 )
+        self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 1.5 ) ),   0.5 )
         
 def main(args=None):
     unittest.main()

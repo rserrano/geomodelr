@@ -156,7 +156,7 @@ class GeologicalModel(cpp.Model):
                 topography = feature['transform']
                 break
         else:
-            geomap = None
+            geomap = []
         
         # First get the base section, which will locate all other sections.
         base_section = None
