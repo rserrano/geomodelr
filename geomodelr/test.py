@@ -800,23 +800,23 @@ class TestGeoModelR(unittest.TestCase):
         
         # Calculate bounded.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50 )
-        self.assertEqual(len(verts), 11026)
-        self.assertEqual(len(triangs), 22048)
+        self.assertEqual(len(verts), 34748)
+        self.assertEqual(len(triangs), 69472)
         
         # Calculate unbounded
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False )
-        self.assertEqual(len(verts), 8865)
-        self.assertEqual(len(triangs), 17332)
+        self.assertEqual(len(verts), 38660)
+        self.assertEqual(len(triangs), 68407)
         
         # Filter by normal.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
-        self.assertEqual(len(verts), 4669)
-        self.assertEqual(len(triangs), 8867)
+        self.assertEqual(len(verts), 13092)
+        self.assertEqual(len(triangs), 24029)
         
         # Filter by normal, negative.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
-        self.assertEqual(len(verts), 4485)
-        self.assertEqual(len(triangs), 8467)
+        self.assertEqual(len(verts), 23631)
+        self.assertEqual(len(triangs), 45203)
 
     def test_modflow(self):
         
