@@ -160,8 +160,7 @@ def marching_cube(model, unit, grid_divisions, bounded, aligned):
 
     return vertices, simplices
 
-def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=False,
-    resample = True ):
+def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=False, method = "MCUBES" ):
     """
     Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in skimage.measure.
     
@@ -184,7 +183,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
 
         (list) triangles: The list of triangles indexes to vertexes.
     """
-    if resample:
+    if method == "OPENVDB":
         vertices, simplices = model.calculate_isosurface(unit, bounded, aligned, grid_divisions, True)
         vertices = np.array(vertices, dtype = 'float32')
         simplices = np.array(simplices, dtype = 'int32')
@@ -279,7 +278,7 @@ def stl_mesh( vertices, simplices ):
             m.vectors[i][j] = vertices[f[j]]
     return m
 
-def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False ):
+def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False, method="MCUBES" ):
     """
     Saves the wireframe of a geological unit to the disk. It uses a marching cubes and a signed distance from
     the model.
@@ -302,13 +301,13 @@ def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal
         the triangles that look down.
     """
     assert MESH_AVAILABLE, "To be able to save units, you need the following packages installed: scipy, numpy-stl, scikit-image."
-    v, s = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned=False )
+    v, s = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned=False, method="MCUBES" )
     m = stl_mesh( v, s )
     del v
     del s
     m.save(name)
 
-def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False ):
+def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False, method="MCUBES" ):
     """
     Triangulates a geological unit and returns it for further processing, (or saving it to the database).
     It uses a marching cubes and a signed distance from the model.
@@ -332,7 +331,7 @@ def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_norma
     """
     
     assert MESH_AVAILABLE, "To be able to triangulate units, you need the following packages installed: scipy, numpy-stl, scikit-image."
-    vertices, triangles = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned )
+    vertices, triangles = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned, method )
     m = stl_mesh( vertices, triangles )
     volume, cog, inertia = m.get_mass_properties()
     del m

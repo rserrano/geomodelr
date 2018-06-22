@@ -86,15 +86,16 @@ void Match::match_polygons() {
 	
 	vector<std::pair<int, int>> m;
 	for ( auto it = units_a.begin(); it != units_a.end(); it++ ) {
-		if ( units_b.find(it->first) != units_b.end() ) {
+		auto jt = units_b.find(it->first);
+		if ( jt != units_b.end() ) {
 			vector<int>& pols_a = it->second;
-			vector<int>& pols_b = units_b[it->first];
+			vector<int>& pols_b = jt->second;
 			for ( size_t i = 0; i < pols_a.size(); i++ )
 			{
 				for ( size_t j = 0; j < pols_b.size(); j++ ) 
 				{
 					multi_polygon output;
-					if ( this->faults_disabled ) 
+					if ( this->faults_disabled )
 					{
 						if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
 									   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
@@ -108,12 +109,10 @@ void Match::match_polygons() {
 									       output);
 							if ( geometry::area( output ) > boost_tol ) {
 								if ( not covered_by_fault( output ) ) {;
-									// TODO: use tree.
 									m.push_back(std::make_pair(pols_a[i], pols_b[j]));
 								}
 							}
 						} catch ( geometry::exception& e ) {
-							// TODO: What to do with these cases?
 							if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
 										   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
 							{

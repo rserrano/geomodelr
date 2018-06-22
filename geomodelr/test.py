@@ -799,22 +799,22 @@ class TestGeoModelR(unittest.TestCase):
         self.assertAlmostEqual(vols[t["Anfibolitas"]]/1e13, 2.71, 2)
         
         # Calculate bounded.
-        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50 )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, method="OPENVDB" )
         self.assertEqual(len(verts), 34748)
         self.assertEqual(len(triangs), 69472)
         
         # Calculate unbounded
-        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, method="OPENVDB" )
         self.assertEqual(len(verts), 38660)
         self.assertEqual(len(triangs), 68407)
         
         # Filter by normal.
-        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True, method="OPENVDB" )
         self.assertEqual(len(verts), 13092)
         self.assertEqual(len(triangs), 24029)
         
         # Filter by normal, negative.
-        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False )
+        verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False, method="OPENVDB" )
         self.assertEqual(len(verts), 23631)
         self.assertEqual(len(triangs), 45203)
 
