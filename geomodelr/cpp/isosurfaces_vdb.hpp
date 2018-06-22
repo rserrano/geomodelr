@@ -15,15 +15,22 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef GEOMODELR_GEOMODEL_HPP
-#define GEOMODELR_GEOMODEL_HPP
+#ifndef GEOMODELR_ISOSURFACES_VDB
+#define GEOMODELR_ISOSURFACES_VDB
 
 #include "basic.hpp"
-#include "section.hpp"
-#include "match.hpp"
-#include "model.hpp"
-#include "faults.hpp"
-#include "speed_up.hpp"
-#include "isosurfaces_vdb.hpp"
+#include <iostream>
+#include <functional>
+#include <openvdb/tools/VolumeToMesh.h>
+#include <openvdb/tools/GridTransformer.h>
+#include <openvdb/math/Math.h> // for isApproxEqual()
 
-#endif
+typedef openvdb::FloatGrid GridType;
+typedef openvdb::v3_1::Int32 Int32;
+
+class Model;
+
+unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions,
+    bool activeResampler);
+
+#endif //GEOMODELR_ISOSURFACES_VDB

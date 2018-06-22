@@ -23,6 +23,7 @@
 #include "match.hpp"
 #include "faults.hpp"
 #include "speed_up.hpp"
+#include "isosurfaces_vdb.hpp"
 
 class Topography {
 protected:
@@ -49,6 +50,7 @@ protected:
 	std::pair<double, double> cuts_range;
 	bbox3 bbox;
 	bbox3 abbox;
+	double bbox_diag;
 	
 	point2 base_point;
 	point2 direction;
@@ -294,6 +296,11 @@ public:
 		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
 	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
+	unitMesh calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+		bool activeResampler);
+
+	bbox3 get_bbox() const;
+	bbox3 get_abbox() const;
 
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -325,6 +332,8 @@ public:
 	double signed_distance_bounded( const wstring& unit, const point3& pt ) const;
 	// In this case the solids are not bounded by the bounding box, only by the topography.
 	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
+
+	double signed_distance_unbounded_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const ;
 	
 	// In this case the signed distance is not bounded by anything. cs of cross sections.
 	double signed_distance_aligned( const wstring& unit, const point3& pt ) const;
@@ -332,6 +341,8 @@ public:
 	double signed_distance_bounded_aligned( const wstring& unit, const point3& pt ) const;
 	// In this case the solids are not bounded by the bounding box, only by the topography. cs of cross sections.
 	double signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const;
+
+	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const ;
 	
 	double height(const point2& pt) const;
 };
@@ -406,6 +417,9 @@ public:
 	double signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const;
 
+	double signed_distance_unbounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+
 	double geomodelr_distance( const wstring& unit, const pylist& point ) const;
 	pylist get_polygon(const wstring sec, int pol_idx);
 	pylist get_fault(const wstring sec, int pol_idx);
@@ -414,7 +428,9 @@ public:
 	pydict intersect_planes(const pylist& planes) const;
 	pydict intersect_topography(const pydict& topography_info) const;
 	pytuple find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
-
+	pytuple calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+		bool activeResampler = false);
+	
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };

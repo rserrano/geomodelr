@@ -676,8 +676,13 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
     
                 xp = X_inf + (2*j+1)*dX/2.0
 
+                
                 Unit = model.closest([xp,yp,mid_points[i,j]])[0]
-                Data = units_data[Unit]
+                try: 
+                    Data = units_data[Unit]
+                except KeyError:
+                    raise TaskException("This model contains a None unit.")
+
                 K_hor[L,i,j] = Data[0];
                 if anisotropy_bool:
                     K_anisotropy_hor[L,i,j] = Data[1]

@@ -105,29 +105,8 @@ def calculate_normals(vertices, simplices):
     v2 = vertices[simplices[:,2]] - vertices[simplices[:,0]]
     return np.cross(v1, v2)
 
-def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=False ):
-    """
-    Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in skimage.measure.
-    
-    Args:
-        (geomodelr.model.GeologicalModel) model: The geomodelr geological model.
+def marching_cube(model, unit, grid_divisions, bounded, aligned):
 
-        (unicode) unit: The unit to calculate the isosurface for.
-
-        (int) grid_divisions: The number of divisions for all the axes.
-
-        (bool) bounded: calculates the surface using the bounding box. This will result in a solid.
-
-        (bool) filter_by_normal: filters by the normal of each triangle, depending on the normal_upwards argument.
-
-        (bool) normal_upwards: if filter_by_normal is True, filters the triangles depending on its normal. It returns only
-        the triangles pointing upwards if it's True, otherwise it returns the triangles pointing downwards.
-    
-    Returns:
-        (list) vertices: The list of vertices.
-
-        (list) triangles: The list of triangles indexes to vertexes.
-    """
     bbox = list(model.bbox) if not aligned else list(model.abbox) # Copy so original is not modified.
     if aligned:
         if bounded:
@@ -146,7 +125,7 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     bb = check_bbox_surface( sd )
     total_cells = grid_divisions ** 3
     obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
-    
+
     # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
     if ( float(total_cells) / float(obj_cells) ) > 8.0:
         bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
@@ -178,7 +157,40 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
     
     for i in xrange(vertices.shape[0]):
         vertices[i,:] = real_pt(vertices[i,:])
+
+    return vertices, simplices
+
+def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=False,
+    resample = True ):
+    """
+    Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in skimage.measure.
     
+    Args:
+        (geomodelr.model.GeologicalModel) model: The geomodelr geological model.
+
+        (unicode) unit: The unit to calculate the isosurface for.
+
+        (int) grid_divisions: The number of divisions for all the axes.
+
+        (bool) bounded: calculates the surface using the bounding box. This will result in a solid.
+
+        (bool) filter_by_normal: filters by the normal of each triangle, depending on the normal_upwards argument.
+
+        (bool) normal_upwards: if filter_by_normal is True, filters the triangles depending on its normal. It returns only
+        the triangles pointing upwards if it's True, otherwise it returns the triangles pointing downwards.
+    
+    Returns:
+        (list) vertices: The list of vertices.
+
+        (list) triangles: The list of triangles indexes to vertexes.
+    """
+    if resample:
+        vertices, simplices = model.calculate_isosurface(unit, bounded, aligned, grid_divisions, True)
+        vertices = np.array(vertices, dtype = 'float32')
+        simplices = np.array(simplices, dtype = 'int32')
+    else:
+        vertices, simplices = marching_cube(model, unit, grid_divisions, bounded, aligned)
+
     if filter_by_normal:
         normals = calculate_normals( vertices, simplices )
         # First, remove triangles with the normal incorrect.

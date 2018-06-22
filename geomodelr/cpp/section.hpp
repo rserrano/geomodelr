@@ -123,6 +123,7 @@ public:
 		} while ( new_to_check && maxboxdist < mindist );
 		
 		//if (minidx==-1){std::cerr << "No hay poligono cerca" << std::endl;}
+
 		return std::make_pair(minidx, mindist); 
 	}
 	std::pair<int, double> closest( const point2& ) const;

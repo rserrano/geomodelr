@@ -36,7 +36,7 @@ Section::~Section()
 
 Section::Section( const wstring& name, double cut, const bbox2& bbox ): name(name), cut(cut), bbox( bbox ), polidx(nullptr), fault_lines(nullptr), params(nullptr)
 {
-	
+
 }
 
 std::pair<int, double> Section::closest( const point2& pt ) const {

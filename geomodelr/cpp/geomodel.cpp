@@ -277,12 +277,17 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("signed_distance_bounded_aligned", &ModelPython::signed_distance_bounded_aligned, python::args("unit", "point"), doc_signed_distance_bounded_aligned)
 					    .def("signed_distance_unbounded_aligned", &ModelPython::signed_distance_unbounded_aligned, 
 					    					      python::args("unit", "point"), doc_signed_distance_unbounded_aligned)
+
+					    .def("signed_distance_unbounded_restricted", &ModelPython::signed_distance_unbounded_restricted)
+					    .def("signed_distance_unbounded_aligned_restricted", &ModelPython::signed_distance_unbounded_aligned_restricted)
+					    
 					    .def("geomodelr_distance", &ModelPython::geomodelr_distance, python::args("unit", "point"))
 					    .def("height", &ModelPython::height, python::args("point"), doc_height)
 					    .def("intersect_plane", &ModelPython::intersect_plane, doc_intersect_plane)
 					    .def("intersect_planes", &ModelPython::intersect_planes, doc_intersect_planes)
 					    .def("intersect_topography", &ModelPython::intersect_topography)
 					    .def("find_unit_limits", &ModelPython::find_unit_limits)
+					    .def("calculate_isosurface", &ModelPython::calculate_isosurface)
 					    .def("info", &ModelPython::info)
 					    .add_property("params", &ModelPython::get_params, &ModelPython::set_params)
 					    .add_property("soil_depths", &ModelPython::get_soil_depths, &ModelPython::set_soil_depths)

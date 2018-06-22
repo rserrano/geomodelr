@@ -23,7 +23,9 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/geometries.hpp>
 #include <boost/lambda/lambda.hpp>
+#include <openvdb/openvdb.h>
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <tuple>
 #include <utility>
@@ -32,6 +34,8 @@
 #include <map>
 #include <memory>
 #include <limits>
+#include <assert.h>
+#include <cmath>
 
 using namespace boost;
 using std::vector;
@@ -45,6 +49,8 @@ static const double tolerance = 1e-15;
 static const double epsilon = 1e-5;
 static const double boost_tol = std::numeric_limits<double>::epsilon();
 
+
+typedef std::pair<vector<openvdb::Vec3f>,vector<openvdb::Vec3I>> unitMesh;
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;
 typedef geometry::model::point<double, 3, geometry::cs::cartesian> point3;
 typedef geometry::model::segment<point2> line_segment;
