@@ -248,14 +248,13 @@ void gridToMesh(const GridType::Ptr& grid, vector<openvdb::Vec3s>& points, vecto
 
     int av = grid->activeVoxelCount();
     openvdb::Vec3i rs = grid->metaValue<openvdb::Vec3i>("resample");
-    double adaptivity =  std::min(1.0, std::max(0.0,0.2*(double(av)/681472.0 - 1.0))/double(rs.x()*rs.y()*rs.z()));
-
+    double adaptivity =  std::min(1.0, std::max(0.0,1.0*(double(av)/681472.0 - 1.0))/double(rs.x()*rs.y()*rs.z()));
     vector<openvdb::Vec4I> quads;
     openvdb::tools::volumeToMesh(*grid, points, triangles, quads, tolerance, adaptivity);
 
-    double size = (4*points.size() + 4*triangles.size() + 8*quads.size())*4.0/(1024.0*1024.0);
+    double size = (4*points.size() + 4*triangles.size() + 8*quads.size())*3.0/(1024.0*1024.0);
     
-    if (size>7.0){
+    if (size>6.0){
         adaptivity = 1.0;
         points.clear(); triangles.clear(); quads.clear();
         openvdb::tools::volumeToMesh(*grid, points, triangles, quads, tolerance, adaptivity);
