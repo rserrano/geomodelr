@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import linalg as la
 from modflow import get_fd_mesh, ALGORITHM, LENGTH_UNIT, TIME_UNIT
+import unicodedata
 
 def to_range(indices):
     indices.sort()
@@ -92,10 +93,12 @@ def write_elev_i( fd, shape, dX, dY, X_inf, Y_sup, Z_top, Z_bottoms, node_str ):
     node_lists = { }
     node_lists["top"] = []
     slice_values = []
+    conv_range = lambda r: str(r[0]+1) if r[0]==r[1] else "%s-%s" % (r[0]+1, r[1]+1)
     
     def write_slice( ):
         for Z, idxs in slice_values:
-            fd.write("%21.14le %s\n" % ( Z, " ".join(map( lambda n: str(n+1), idxs)) ))
+            f = "%21.14le %s\n" if Z > 0 else " %21.14le %s\n"
+            fd.write(f % ( Z, " ".join(map(conv_range,to_range(idxs) ) )))
     
     for row in xrange(shape[1]+1):
         for col in xrange(shape[2]+1):
@@ -162,7 +165,7 @@ def write_elev_i( fd, shape, dX, dY, X_inf, Y_sup, Z_top, Z_bottoms, node_str ):
                 all_points.append(point)
                 idx = len(slice_values)
                 slice_values.append( (Z, idx) )
-        
+
         fd.write( "%d\n" % (lay+2) ) 
         slice_values.sort()
         slice_values = redu_range( slice_values )
@@ -263,8 +266,6 @@ def create_feflow_input(name, model, units_data,
                                                                                                                            rows, cols, layers, bbox, angle, 
                                                                                                                            dz_min, time_units, algorithm, 
                                                                                                                            faults_data, faults_method)
-    
-    
     fd = open( name+".fem", "w" )
     
     # PROBLEM
@@ -365,7 +366,8 @@ def create_feflow_input(name, model, units_data,
     comments = ["K_xx", "K_yy", "K_zz", "Inactive"]
     for u in units_data:
         ud = units_data[u]
-        units_data[u] = (ud[1], ud[1]*ud[2], ud[3], 1.0-ud[0])
+        # units_data[u] = (ud[1], ud[1]*ud[2], ud[3], 1.0-ud[0])
+        units_data[u] = (ud[0], ud[0]*ud[1], ud[2], ud[3])
     
     defaults = [ min( [ v[0] for k, v in units_data.iteritems() ] ),
                  min( [ v[1] for k, v in units_data.iteritems() ] ),
@@ -495,6 +497,8 @@ def create_feflow_input(name, model, units_data,
     for u in ranges:
         rngs = ranges[u]
         j = num_columns
+        u = unicodedata.normalize('NFKD', u).encode('ascii','ignore')
+        u = u.replace(" ", "_")
         node_list = " ".join( map( conv_range, rngs[:j] ) )
         fd.write("  %(setname)s %(setlist)s\n" % { "setname": u, "setlist": node_list })
         while j < len(rngs):
