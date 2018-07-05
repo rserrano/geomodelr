@@ -49,7 +49,7 @@ public:
 	double ray_crossing ( const point2& pt, const point2& nd ) const;
 	double distance_point_basic_faults(const point2& pt) const;
 	double distance_point_cover_faults(const point2& pt) const;
-	double set_distance_function( const wstring& s );
+	void set_distance_function( const wstring& s );
 };
 
 #endif

@@ -44,8 +44,10 @@ double Polygon::distance_point_cover_faults(const point2& pt) const {
 		return 0.0;
 	} else {
 		std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
+		// std::cerr << geometry::wkt(ray_dist_pair.first) << " " << ray_dist_pair.second << "\n";
 		for ( auto it = this->section->fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
 			   it != this->section->fault_lines->qend(); it++ ) {
+
 			const point2& ps = this->section->line_ends[g1(*it)].first;
 			const point2& pe = this->section->line_ends[g1(*it)].second;
 			return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
@@ -163,7 +165,7 @@ double Polygon::ray_crossing ( const point2& pt, const point2& nd ) const {
 	return mind;
 }
 
-double Polygon::set_distance_function( const wstring& s ) {
+void Polygon::set_distance_function( const wstring& s ) {
 	if ( s == L"cover" ) {
 		this->distance_point = std::bind(&Polygon::distance_point_cover_faults, this, std::placeholders::_1);
 	} else {
