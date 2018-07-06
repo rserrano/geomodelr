@@ -362,7 +362,7 @@ def create_feflow_input(name, model, units_data,
         indices = unit_indices[u]
         ranges[u] = to_range(indices)
     
-    mtidxs = [101, 103, 107 ,137]
+    mtidxs = [101, 103, 105 ,137]
     comments = ["K_xx", "K_yy", "K_zz", "Inactive"]
     for u in units_data:
         ud = units_data[u]
