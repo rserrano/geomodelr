@@ -80,7 +80,7 @@ class GeologicalSection(cpp.Section):
         Args:
             (dict) geolojson: The Geological JSON.
             delete: Delete the geojson after creating the cpp model to free memory.
-            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover' }
+            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover', 'map': 'disabled'|'soils' }
         """
         
         self.geojson = geolojson

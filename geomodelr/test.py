@@ -36,7 +36,7 @@ import copy
 import math
 from shapely.geometry import Polygon, Point
 
-class TestGeoModelR(unittest.TestCase):
+class Tests(unittest.TestCase):
     def setUp(self):
         pass
         #Profile GeoModelR
@@ -800,23 +800,23 @@ class TestGeoModelR(unittest.TestCase):
         
         # Calculate bounded.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, method="OPENVDB" )
-        self.assertEqual(len(verts), 34748)
-        self.assertEqual(len(triangs), 69472)
+        self.assertEqual(len(verts), 22974)
+        self.assertEqual(len(triangs), 45924)
         
         # Calculate unbounded
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, method="OPENVDB" )
-        self.assertEqual(len(verts), 38660)
-        self.assertEqual(len(triangs), 68407)
+        self.assertEqual(len(verts), 23845)
+        self.assertEqual(len(triangs), 42130)
         
         # Filter by normal.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, True, method="OPENVDB" )
-        self.assertEqual(len(verts), 13092)
-        self.assertEqual(len(triangs), 24029)
+        self.assertEqual(len(verts), 8813)
+        self.assertEqual(len(triangs), 15696)
         
         # Filter by normal, negative.
         verts, triangs = isosurfaces.calculate_isosurface(m, "Anfibolitas", 50, False, True, False, method="OPENVDB" )
-        self.assertEqual(len(verts), 23631)
-        self.assertEqual(len(triangs), 45203)
+        self.assertEqual(len(verts), 14528)
+        self.assertEqual(len(triangs), 27184)
 
     def test_modflow(self):
         
@@ -1429,7 +1429,22 @@ class TestGeoModelR(unittest.TestCase):
         self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 2.25 ) ), -0.25)
         self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 2.0 ) ),   0.0 )
         self.assertEqual(model.signed_distance( "unit1", ( 1.5, 0.0, 1.5 ) ),   0.5 )
-        
+
+    def test_v1(self):
+        this_dir, this_filename = os.path.split(__file__)
+        fn = os.path.join(this_dir, 'test_files', 'v1.json')
+        geo_model = model.model_from_file(fn)
+        geo_model.params = { "faults": "cover" }
+        self.assertEqual(geo_model.matches, [((u'name2', u'name1'), [(0, 0), (1, 1), (2, 2)])])
+        cls = geo_model.closest((834590.52,1174732.73,1450.80))
+        self.assertEqual(cls[0], "U2")
+        self.assertAlmostEqual(cls[1], 51.996853528295254)
+        cls = geo_model.closest((834588,1174732.73,1450.80))
+        self.assertEqual(cls[0], "U1")
+        self.assertAlmostEqual(cls[1], 0)
+
+
+
 def main(args=None):
     unittest.main()
 

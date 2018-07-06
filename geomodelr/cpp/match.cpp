@@ -66,13 +66,14 @@ void Match::match_polygons() {
 	// Check if any of the polygons is covered by a fault.
 	auto covered_by_fault = [&] ( const multi_polygon& intersect ) -> bool {
 		for ( const multi_polygon& flt: this->excluded_area | boost::adaptors::map_values ) {
+			// std::cerr << "fault" << geometry::wkt(flt) << " \n";
 			if ( geometry::covered_by( intersect, flt ) ) {
 				return true;
 			}
 		}
 		return false;
 	};
-	
+
 	map<wstring, vector<int>> units_a;
 	map<wstring, vector<int>> units_b;
 	
@@ -113,6 +114,7 @@ void Match::match_polygons() {
 								}
 							}
 						} catch ( geometry::exception& e ) {
+							// std::cerr << "error intersecting\n"; 
 							if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
 										   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
 							{
@@ -315,7 +317,7 @@ std::pair<vector<triangle>, bool> faultplane_for_lines(const vector<point3>& l_a
 	if ( angle <= M_PI/2.0 ) {
 		return std::make_pair(test_start( l_a, l_b, false ), false);
 	}
-	return std::make_pair(test_start( l_a, l_b, true  ), false);
+	return std::make_pair(test_start( l_a, l_b, true  ), true);
 }
 
 multi_polygon fix_polygon( polygon& pol ) {
@@ -325,12 +327,13 @@ multi_polygon fix_polygon( polygon& pol ) {
 	geometry::correct(pol);
 	geometry::remove_spikes(pol);
 	
-	/*
 	string reason;
+	/*
 	if ( not geometry::is_valid( pol, reason ) ) {
+		std::cerr << geometry::wkt(pol) << "\n";
 		std::cerr << "invlid reason " << reason << "\n";
-	}
-	*/
+	}*/
+	
 	// Check for infinite buckle with max_iters.
 	size_t max_iters = pol.outer().size();
 	while( split.size() ) {
@@ -348,10 +351,15 @@ multi_polygon fix_polygon( polygon& pol ) {
 		size_t n = curr.size();
 		for ( size_t i = 0; i < n-1; i++ ) {
 			segment s1(curr[i], curr[(i+1)%n]);
-			for ( size_t j = i+2; j < n-1; j++ ) {
+			for ( size_t j = i+2; j < n; j++ ) {
+				if ( (j+1)%n == i ) {
+					continue;
+				}
 				segment s2(curr[j], curr[(j+1)%n]);
 				std::vector<point2> output;
 				bool inter = boost::geometry::intersection(s1, s2, output);
+				// std::cerr << "output " << i << " " << j << " size " << output.size() << "\n";
+
 				if ( inter && output.size() == 1 ) {
 					polygon p1, p2;
 					ring& o1 = p1.outer();

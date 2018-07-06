@@ -1039,16 +1039,16 @@ double Topography::height(const point2& pt) const {
 	double B = this->heights[(i+1)*dims[1] + j];
 	double C = this->heights[(i+1)*dims[1] + j+1];
 	double D = this->heights[i*dims[1] + j+1];
-
+	
 	double x = 2.0*(gx(pos)- double(i)) - 1.0;
 	double y = 2.0*(gy(pos)- double(j)) - 1.0;
-
-	x = std::max(std::min(x,1.0),-1.0);
-	y = std::max(std::min(y,1.0),-1.0);
+	
+	x = std::max( std::min( x, 1.0), -1.0 );
+	y = std::max( std::min( y, 1.0), -1.0 );
 
 	double v1 = B + A + x*(B - A);
 	double v2 = C + D + x*(C - D);
-		
+	
 	return 0.25*(v2 + v1 + y*(v2 - v1));
 }
 
