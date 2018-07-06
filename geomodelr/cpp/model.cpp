@@ -359,7 +359,13 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	std::tuple<wstring, double> outside = this->closest( pt, all_except );
+
+	// std::wcerr << L"Inside: " << g0(inside) << L"\t";
+	// std::cerr << g1(inside) << "\n";
 	
+	// std::wcerr << L"Outide: " << g0(outside) << L"\t";
+	// std::cerr << g1(outside) << "\n";
+
 	double d;
 	if ( g0(inside) == L"NONE" ) {
 		d = g1(inside);
