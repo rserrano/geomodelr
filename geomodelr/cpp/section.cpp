@@ -127,24 +127,51 @@ SectionPython::SectionPython(const wstring& name, double cut,
 	}
 	// Add the lines.
 	size_t nlines = python::len(lines);
+	map<int, bool> ancl;
+	// Add which are the anchors, (for signaling later), but also extend the previously added lines.
+	size_t nanchs = python::len(anchored_lines);
+	for ( size_t i = 0; i < nanchs; i++ ) {
+		int lidx = python::extract<int>(anchored_lines[i][0]);
+		bool lbeg = python::extract<bool>(anchored_lines[i][1]);
+		line_anchor la = std::make_pair( size_t(lidx), lbeg );
+		if ( lidx < 0 or size_t(lidx) >= nlines ) {
+			if ( geomodelr_verbose ) {
+				std::wcerr << L"Wrong input to anchored_lines\n";
+			}
+			continue;
+		}
+		ancl.insert( la );
+	}
+	
 	int count_lines = 0;
-
 	for ( size_t i = 0; i < nlines; i++ ) {
 		line lin;
 		size_t nnodes = python::len(lines[i]);
-		vector<value_l> fault_segments;
 		for ( size_t j = 0; j < nnodes; j++ ) {
 			
 			pylist pypt = pylist(points[lines[i][j]]);
 			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
 			lin.push_back(aux);
-			
-			pypt = pylist(points[lines[i][(j+1)%nnodes]]);
-			point2 aux2 = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
-			fault_segments.push_back(std::make_tuple(line_segment(aux,aux2),count_lines));
 		}
+		
 		if ( not geometry::is_valid(lin) or not geometry::is_simple(lin) ) {
 			continue; // This should guarantee that the line has at least 2 points.
+		}
+		
+		for ( auto it = ancl.find( i ); it != ancl.end(); it++ ) {
+			if ( it->first != i ) {
+				break;
+			}
+			try {
+				// First extend line.
+				extend_line( it->second, this->bbox, lin );
+				// Then insert to the given anchors.
+				this->anchored_lines.insert( *it );
+			} catch ( const GeomodelrException& e ) {
+				if ( geomodelr_verbose ) {
+					std::cerr << e.what() << std::endl;
+				}
+			}
 		}
 		
 		this->lines.push_back(lin);
@@ -163,42 +190,20 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		geometry::add_point( vb, beg );
 		
 		this->line_ends.push_back(std::make_pair(vb, ve));
-
 		this->lnames.push_back(python::extract<wstring>( lnames[i] ));
 		
-		fault_segments.pop_back(); count_lines++;
+		vector<value_l> fault_segments;
+		
+		for ( size_t i = 0; i < lin.size()-1; i++ ) {	
+			fault_segments.push_back(std::make_tuple(line_segment(lin[i],lin[i+1]),count_lines));
+		}
+		
 		f_segs.reserve(f_segs.size() + distance(fault_segments.begin(),fault_segments.end()));
-		f_segs.insert(f_segs.end(),fault_segments.begin(),fault_segments.end());
+		f_segs.insert(f_segs.end(), fault_segments.begin(),fault_segments.end());
+		
+		count_lines++;
 	}
-	
 	this->fault_lines =  new rtree_l( f_segs );
-	// Add which are the anchors, (for signaling later), but also extend the previously added lines.
-	size_t nanchs = python::len(anchored_lines);
-	for ( size_t i = 0; i < nanchs; i++ ) {
-		int lidx = python::extract<int>(anchored_lines[i][0]);
-		bool lbeg = python::extract<bool>(anchored_lines[i][1]);
-		
-		line_anchor la = std::make_pair( lidx, lbeg );
-		
-		
-		if ( lidx < 0 or size_t(lidx) >= this->lines.size() ) {
-			if ( geomodelr_verbose ) {
-				std::wcerr << L"Wrong input to anchored_lines\n";
-			}
-			continue;
-		}
-		
-		line& ln = this->lines[lidx];
-		try {
-			extend_line( lbeg, this->bbox, ln );
-			this->anchored_lines.insert(la);
-		} catch ( const GeomodelrException& e ) {
-			if ( geomodelr_verbose ) {
-				std::cerr << e.what() << std::endl;
-			}
-		}
-	}
-	
 }
 
 pydict SectionPython::info() 
@@ -273,7 +278,6 @@ std::tuple<map<wstring, vector<triangle_pt>>,
 }
 
 void extend_line( bool beg, const bbox2& bbox, line& l ) {
-
 	if ( l.size() <= 1 ) {
 		throw GeomodelrException("An input line has a single point.");
 	}
