@@ -47,12 +47,15 @@ double Polygon::distance_point_cover_faults(const point2& pt) const {
 		std::cerr << geometry::wkt(ray_dist_pair.first) << " " << ray_dist_pair.second << "\n";
 		for ( auto it = this->section->fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
 			   it != this->section->fault_lines->qend(); it++ ) {
-			std::cerr << "intersects\n\n";
+			std::cerr << "intersects: ";
+			std::cerr << geometry::wkt(g0(*it)) << std::endl;
 			const point2& ps = this->section->line_ends[g1(*it)].first;
 			const point2& pe = this->section->line_ends[g1(*it)].second;
+			std::cerr << "first: " << geometry::wkt(ps) << "\n";
+			std::cerr << "second: " << geometry::wkt(pe) << "\n";
 			return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
 		}
-		std::cerr << "NO intersects\n\n";
+		std::cerr << "NO intersects\n";
 		return ray_dist_pair.second;
 	}
 }
@@ -107,6 +110,7 @@ std::pair<line_segment,double> cross_segment(const point2& pt, const line_segmen
 	double Re = (norm + epsilon)/norm;
 
 	return std::make_pair(line_segment(pt,point2(xf*Re + xp, yf*Re + yp)),norm);
+	// return std::make_pair(line_segment(pt,point2(xf + xp, yf + yp)),norm);
 
 }
 
