@@ -43,19 +43,42 @@ double Polygon::distance_point_cover_faults(const point2& pt) const {
 	if (geometry::within(pt,this->bbox) && geometry::covered_by(pt,this->boost_poly)){
 		return 0.0;
 	} else {
-		std::pair<line_segment,double> ray_dist_pair = this->ray_distance(pt);
-		std::cerr << geometry::wkt(ray_dist_pair.first) << " " << ray_dist_pair.second << "\n";
-		for ( auto it = this->section->fault_lines->qbegin( geometry::index::intersects(ray_dist_pair.first));
-			   it != this->section->fault_lines->qend(); it++ ) {
-			std::cerr << "intersects: ";
-			std::cerr << geometry::wkt(g0(*it)) << std::endl;
-			const point2& ps = this->section->line_ends[g1(*it)].first;
-			const point2& pe = this->section->line_ends[g1(*it)].second;
-			std::cerr << "first: " << geometry::wkt(ps) << "\n";
-			std::cerr << "second: " << geometry::wkt(pe) << "\n";
-			return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
+		const auto& fault_lines = this->section->fault_lines;
+		auto ray_dist_pair = this->ray_distance(pt);
+		auto& allRays = ray_dist_pair.first;
+		// std::cerr << geometry::wkt(allRays[0]) << " " << ray_dist_pair.second << "\n";
+		if (allRays.size()==1){
+			for ( auto it = fault_lines->qbegin( geometry::index::intersects(allRays[0]));
+				   it != fault_lines->qend(); it++ ) {
+				// std::cerr << "intersects: ";
+				// std::cerr << geometry::wkt(g0(*it)) << std::endl;
+				const point2& ps = this->section->line_ends[g1(*it)].first;
+				const point2& pe = this->section->line_ends[g1(*it)].second;
+				// std::cerr << "first: " << geometry::wkt(ps) << "\n";
+				// std::cerr << "second: " << geometry::wkt(pe) << "\n";
+				return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
+			}
+		} else{
+			for ( auto it = this->section->fault_lines->qbegin( geometry::index::intersects(allRays[0]) );
+				   it != this->section->fault_lines->qend(); it++ ) {
+				if (fault_lines->qbegin( geometry::index::intersects(allRays[1])) != fault_lines->qend() &&
+					fault_lines->qbegin( geometry::index::intersects(allRays[2])) != fault_lines->qend() ){
+					
+					// std::cerr << "intersects: ";
+					// std::cerr << geometry::wkt(g0(*it)) << std::endl;
+					const point2& ps = this->section->line_ends[g1(*it)].first;
+					const point2& pe = this->section->line_ends[g1(*it)].second;
+					// std::cerr << "first: " << geometry::wkt(ps) << "\n";
+					// std::cerr << "second: " << geometry::wkt(pe) << "\n";
+					return std::min( this->ray_crossing( pt, ps ), this->ray_crossing(pt, pe) );
+				} else{
+					break;
+				}
+				
+			}
 		}
-		std::cerr << "NO intersects\n";
+
+		// std::cerr << "NO intersects\n";
 		return ray_dist_pair.second;
 	}
 }
@@ -86,7 +109,7 @@ Polygon::Polygon( const polygon& poly, const box& bbox, const Section * section 
 	this->distance_point = std::bind(&Polygon::distance_point_basic_faults, this, std::placeholders::_1);
 }
 
-std::pair<line_segment,double> cross_segment(const point2& pt, const line_segment& poly_edge){
+std::pair<line_segment,double> cross_segment(const point2& pt, const line_segment& poly_edge, int& corner){
 	
 	double x0 = gx(poly_edge.first); double y0 = gy(poly_edge.first);
 	double xf = gx(poly_edge.second); double yf = gy(poly_edge.second);
@@ -99,9 +122,11 @@ std::pair<line_segment,double> cross_segment(const point2& pt, const line_segmen
 	if (t>=1.0){
 		//output = point2(xf - xp, yf - yp);
 		xf -= xp; yf -= yp;
+		corner = 1;
 	} else if(t<=0.0){
 		//output = point2(x0 - xp, y0 - yp);
 		xf = x0 - xp; yf = y0 - yp;
+		corner = 0;
 	} else{
 		//output = point2(x0 + t*dx - xp, y0 + t*dy - yp);
 		xf = x0 + t*dx - xp; yf = y0 + t*dy -yp;
@@ -109,16 +134,61 @@ std::pair<line_segment,double> cross_segment(const point2& pt, const line_segmen
 	double norm = std::sqrt(xf*xf + yf*yf);
 	double Re = (norm + epsilon)/norm;
 
+	// std::cerr << "Point: " << geometry::wkt(pt) << std::endl;
 	return std::make_pair(line_segment(pt,point2(xf*Re + xp, yf*Re + yp)),norm);
-	// return std::make_pair(line_segment(pt,point2(xf + xp, yf + yp)),norm);
+
+}
+line_segment get_otherRays(const point2& pt, const point2& X0, const line_segment& edge){
+
+	double x0 =  gx(X0);
+	double y0 =  gy(X0);
+	double xf = gx(edge.first) - x0;
+	double yf = gy(edge.first) - y0;
+
+	double xp =  gx(pt);
+	double yp =  gy(pt);
+
+	if ((xf*xf + yf*yf) < tolerance){
+		xf = gx(edge.second) - x0;
+		yf = gy(edge.second) - y0;
+	}
+
+	xf = x0 + epsilon*xf - xp;
+	yf = y0 + epsilon*yf - yp;
+
+	double norm = std::sqrt(xf*xf + yf*yf);
+	norm = (norm + epsilon)/norm;
+
+	return line_segment(pt, point2( xp + norm*xf, yp + norm*yf ));
 
 }
 
-std::pair<line_segment,double> Polygon::ray_distance(const point2& pt) const{
+std::pair<vector<line_segment>,double> Polygon::ray_distance(const point2& pt) const{
 
+	int corner = -1;
 	vector<line_segment> results;   
 	this->poly_lines->query(geometry::index::nearest(pt,1), std::back_inserter(results));
-	return cross_segment(pt, results.front());
+	vector<line_segment> allRays;
+	auto mainRay = cross_segment(pt, results.front(), corner);
+	allRays.push_back( mainRay.first );
+	// std::cerr << "Corner: " << corner << std::endl;
+
+	if (corner >= 0){
+		point2 x0, x1, x2;
+		if (corner==0){
+			x0 = results.front().first;
+		} else{
+			x0 = results.front().second;
+		}
+		results.clear();
+		this->poly_lines->query(geometry::index::nearest(x0,2), std::back_inserter(results));
+		for (auto& l: results){
+			// std::cerr << "Segment: " << geometry::wkt( l ) << std::endl;
+			// std::cerr << "Rays: " << geometry::wkt( get_otherRays(pt, x0, l) ) << std::endl;
+			allRays.push_back( get_otherRays(pt, x0, l) );
+		}
+	}
+	return std::make_pair(allRays, mainRay.second);
 }
 
 double Polygon::ray_crossing ( const point2& pt, const point2& nd ) const {

@@ -77,9 +77,6 @@ std::tuple<point2, double> point_line_projection( const point2& pt, const line& 
 	double yo = gy(pt);
 	double xe = xo + p*(xp-xo);
 	double ye = yo + p*(yp-yo);
-	std::cerr << std::setprecision(15) <<"d: " << d << std::endl;
-	std::cerr << std::setprecision(15) <<"d+e: " << d+epsilon << std::endl;
-	std::cerr << std::setprecision(15) <<"p: " << p << std::endl;
 	return std::make_tuple( point2(xe, ye), d+epsilon );
 }
 

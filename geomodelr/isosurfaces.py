@@ -54,7 +54,7 @@ def calculate_isovalues( signed_distance, unit, grid_divisions, bbox ):
     bbox[5] += 2*dz
     
     X,Y,Z = np.mgrid[bbox[0]:bbox[3]:dx, bbox[1]:bbox[4]:dy, bbox[2]:bbox[5]:dz]
-    
+
     vsigned_distance = np.vectorize(signed_distance, otypes=[np.float])
     sd = vsigned_distance( X, Y, Z )
     return (X, Y, Z, sd)

@@ -265,11 +265,7 @@ std::pair<int, double> Model::closest_match( bool a, int a_idx, int pol_idx, con
 	int minidx = -1;
 	for ( size_t i = 0; i < op.size(); i++ ) {
 		size_t pl = op[i];
-		std::wcerr << L"Section: " << s.name << std::endl;
-		std::wcerr << L"Polygon: " << s.units[pl] << " "; std::cerr << pl << std::endl;
-		std::cerr << "Point: " << geometry::wkt(pt) << std::endl;
 		double dist = s.poly_trees[pl]->distance_point(pt);
-		std::cerr << "Distance: " << dist << "\n\n";
 		if ( dist < mindist ) {
 			mindist = dist;
 			minidx = pl;
@@ -364,12 +360,6 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	std::tuple<wstring, double> inside = this->closest( pt, just );
 	std::tuple<wstring, double> outside = this->closest( pt, all_except );
 
-	std::wcerr << L"Inside: " << g0(inside) << L"\t";
-	std::cerr << g1(inside) << "\n";
-	
-	std::wcerr << L"Outide: " << g0(outside) << L"\t";
-	std::cerr << g1(outside) << "\n";
-
 	double d;
 	if ( g0(inside) == L"NONE" ) {
 		d = g1(inside);
@@ -379,12 +369,13 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 		d = g1(inside) - g1(outside);
 	}
 
-	// Check if d is +- infinity.
+	// Check if d is +-infinity.
 	if (std::isinf(d)){
-		d = bbox_diag;
-
-	} else if (std::isinf(-d)){
-		d = -bbox_diag;
+		if (d > 0){
+			d = bbox_diag;
+		} else{
+			d = -bbox_diag;
+		}
 	}
 
 	if ( this->check_soils ) {
