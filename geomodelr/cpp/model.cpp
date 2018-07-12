@@ -992,7 +992,7 @@ pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool align
 
 	pylist triangles;
 	for (auto& tri: output.second){
-		triangles.append(python::make_tuple(tri.x(),tri.y(),tri.z()));
+		triangles.append(python::make_tuple(tri.x(),tri.z(),tri.y()));
 	}
 	return python::make_tuple(points,triangles);
 }
