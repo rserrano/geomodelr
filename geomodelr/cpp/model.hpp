@@ -23,6 +23,7 @@
 #include "match.hpp"
 #include "faults.hpp"
 #include "speed_up.hpp"
+#include "isosurfaces_vdb.hpp"
 
 class Topography {
 protected:
@@ -49,21 +50,25 @@ protected:
 	std::pair<double, double> cuts_range;
 	bbox3 bbox;
 	bbox3 abbox;
+	double bbox_diag;
 	
 	point2 base_point;
 	point2 direction;
-	
+	Section * geomap;
 	vector<Section *> sections;
 	vector<Match *> match;
 	vector<double> cuts;
 	
-	
 	map<wstring, vector<triangle_pt>> global_faults;
 	map<wstring, vector<size_t>> extended_faults;
 	map<wstring, wstring> feature_types;
+	map<wstring, wstring> params;
+	map<wstring, double> soil_depths;
 	
 	Topography * topography;
 	bool horizontal;
+	bool faults_disabled;
+	bool check_soils;
 	
 	std::pair<int, double> closest_match(bool a, int a_idx, int pol_idx, const point2& pt) const;
 	
@@ -200,7 +205,6 @@ protected:
 		if ( this->match.size()+1 != this->sections.size() ) {
 			throw GeomodelrException("You need to call make_matches before using this function.");
 		}
-
 		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);
 		
 		size_t a_idx = it - this->cuts.begin();
@@ -244,18 +248,22 @@ protected:
 		
 		// Check if it crosses a fault and then, evaluate the cross section in the side normally, but move the point to the fault in the other.
 		a_idx--;
-		std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(ft, sd);
 		
-		if ( g0(crosses) < 0 ) {
-			std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx+1]->lines[g2(crosses)] );
-			return closest_middle( ft, g0(closest_in_line) );
-		} else if ( g0(crosses) > 0 ) {
-			std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx]->lines[g1(crosses)] );
-			return closest_middle( g0(closest_in_line), ft );
+		if ( not this->faults_disabled ) {
+			std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(ft, sd);
+			if ( g0( crosses ) < 0 ) {
+				std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx+1]->lines[g2(crosses)] );
+				return closest_middle( ft, g0( closest_in_line ) );
+			} else if ( g0( crosses ) > 0 ) {
+				std::tuple<point2, double> closest_in_line = point_line_projection( ft, this->sections[a_idx]->lines[g1(crosses)] );
+				return closest_middle( g0( closest_in_line ), ft );
+			}
 		}
 		
 		return closest_middle( ft, ft );
 	}
+	
+	std::tuple<wstring, double> soil( const point3& pt ) const;
 	
 	// Returns the closest unit in the coordinate system of parallel cross sections ( u, z, v ).
 	template<typename Predicates>
@@ -264,6 +272,7 @@ protected:
 		double s = gz(pt);
 		return this->closest_basic( p, s, predicates );
 	}
+	
 	// Returns the closest unit in the coordinate system defined for the model (x, y, z).
 	template<typename Predicates>
 	std::tuple<wstring, double> closest( const point3& pt, const Predicates& predicates ) const {
@@ -277,6 +286,8 @@ public:
 	      const point2& basepoint, const point2& direction); // Sections perpendicular to surface.
 	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
 	      const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox); // Horizontal sections.
+	
+	void set_params( const map<wstring, wstring>& params );
 	virtual ~Model();
 	
 	map<wstring,vector<line>> intersect_plane(const line_3d& plane) const;
@@ -285,6 +296,11 @@ public:
 		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
 	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
+	unitMesh calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+		bool activeResampler);
+
+	bbox3 get_bbox() const;
+	bbox3 get_abbox() const;
 
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -294,7 +310,7 @@ public:
 
 	point3 inverse_point(const point2& pt, double cut) const;
 	
-	// CLOSES FUNCTIONS.
+	// CLOSEST FUNCTIONS.
 	// Returns the closest unit with its distance in the coordinate system of the model.
 	std::tuple<wstring, double> closest( const point3& pt ) const;
 	// Returns the closest unit with its distance in the coordinate system aligned to the cross sections.
@@ -304,12 +320,20 @@ public:
 	// Returns the closest but also air if there's topography in the cs aligned to the cross sections.
 	std::tuple<wstring, double> closest_topo_aligned(const point3& pt) const;
 	
+	double geomodelr_distance( const wstring& unit, const point3& point ) const;
+	
+	vector<point2> get_polygon(const wstring sec, int poly_idx) const;
+	
+	vector<point2> get_fault(const wstring sec, int fault_idx) const;
+	
 	// In this case the signed distance is not bounded by anything.
 	double signed_distance( const wstring& unit, const point3& pt ) const;
 	// In this case the bounding box bounds all the solids.
 	double signed_distance_bounded( const wstring& unit, const point3& pt ) const;
 	// In this case the solids are not bounded by the bounding box, only by the topography.
 	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
+
+	double signed_distance_unbounded_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const ;
 	
 	// In this case the signed distance is not bounded by anything. cs of cross sections.
 	double signed_distance_aligned( const wstring& unit, const point3& pt ) const;
@@ -317,6 +341,8 @@ public:
 	double signed_distance_bounded_aligned( const wstring& unit, const point3& pt ) const;
 	// In this case the solids are not bounded by the bounding box, only by the topography. cs of cross sections.
 	double signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const;
+
+	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const ;
 	
 	double height(const point2& pt) const;
 };
@@ -324,25 +350,26 @@ public:
 class ModelPython : public Model {
 	pydict filter_lines( bool ext, const wstring& ft ) const;
 public:
-	
 	ModelPython(const pyobject& bbox,
 		    const pyobject& abbox,
-	            const pyobject& map, 
+	            const pylist& geomap, 
 	            const pyobject& topography,
 	            const pylist& sections,
-		    const pydict& lines);
+		    const pydict& lines,
+		    const pydict& params);
 	
 	ModelPython(const pyobject& bbox,
 		    const pyobject& abbox,
 	            const pyobject& basepoint,
 	            const pyobject& direction,
-	            const pyobject& map, 
+	            const pylist& geomap, 
 	            const pyobject& topography,
 	            const pylist& sections,
-		    const pydict& lines);
+		    const pydict& lines,
+		    const pydict& params);
 	
 	// fill geological model.
-	void fill_model( const pyobject& topography, const pylist& sections, const pydict& feature_types );
+	void fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params );
 	
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -362,6 +389,15 @@ public:
 	
 	pylist get_matches() const;
 	
+
+	// Set/get dynamically parameters for the interpolation.
+	pydict get_params() const;
+	void set_params(const pydict& params);
+	
+	// Set/get dynamically soil depths in case the 'map': 'soils' parameter is active.
+	pydict get_soil_depths() const;
+	void set_soil_depths(const pydict& depths );
+	
 	pylist pybbox() const;
 	pylist pyabbox() const;
 
@@ -380,12 +416,21 @@ public:
 	double signed_distance_aligned( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const;
+
+	double signed_distance_unbounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+
+	double geomodelr_distance( const wstring& unit, const pylist& point ) const;
+	pylist get_polygon(const wstring sec, int pol_idx);
+	pylist get_fault(const wstring sec, int pol_idx);
 	
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;
 	pydict intersect_topography(const pydict& topography_info) const;
 	pytuple find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
-
+	pytuple calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+		bool activeResampler = false);
+	
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };

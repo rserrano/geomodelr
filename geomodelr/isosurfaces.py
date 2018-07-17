@@ -54,7 +54,7 @@ def calculate_isovalues( signed_distance, unit, grid_divisions, bbox ):
     bbox[5] += 2*dz
     
     X,Y,Z = np.mgrid[bbox[0]:bbox[3]:dx, bbox[1]:bbox[4]:dy, bbox[2]:bbox[5]:dz]
-    
+
     vsigned_distance = np.vectorize(signed_distance, otypes=[np.float])
     sd = vsigned_distance( X, Y, Z )
     return (X, Y, Z, sd)
@@ -105,7 +105,62 @@ def calculate_normals(vertices, simplices):
     v2 = vertices[simplices[:,2]] - vertices[simplices[:,0]]
     return np.cross(v1, v2)
 
-def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=False ):
+def marching_cube(model, unit, grid_divisions, bounded, aligned):
+
+    bbox = list(model.bbox) if not aligned else list(model.abbox) # Copy so original is not modified.
+    if aligned:
+        if bounded:
+            signed_distance = lambda x,y,z: model.signed_distance_bounded_aligned(unit, (x,y,z))
+        else:
+            signed_distance = lambda x,y,z: model.signed_distance_unbounded_aligned(unit, (x,y,z))
+    else:
+        if bounded:
+            signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
+        else:
+            signed_distance = lambda x,y,z: model.signed_distance_unbounded(unit, (x,y,z))
+    
+    X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
+    
+    # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
+    bb = check_bbox_surface( sd )
+    total_cells = grid_divisions ** 3
+    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
+
+    # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
+    if ( float(total_cells) / float(obj_cells) ) > 8.0:
+        bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
+        X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
+    try:
+        vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
+        del normals
+    except ValueError:
+        raise TaskException("This model does not contain the unit or the sample is too coarse")
+    
+    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
+    
+    def real_pt_simple( pt ):
+        gr = map( lambda c: ( int(c), c-int(c) ), pt )
+        outp = []
+        for i in range(3):
+            assert gr[i][0] < len(ranges[i])
+            if gr[i][0]+1 == len(ranges[i]):
+                c = ranges[i][gr[i][0]]
+            else:
+                c = ranges[i][gr[i][0]]*(1-gr[i][1]) + ranges[i][gr[i][0]+1]*gr[i][1]
+            outp.append( c )
+        return outp
+    
+    if aligned:
+        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
+    else:
+        real_pt = real_pt_simple
+    
+    for i in xrange(vertices.shape[0]):
+        vertices[i,:] = real_pt(vertices[i,:])
+
+    return vertices, simplices
+
+def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=True, aligned=False, method = "MCUBES" ):
     """
     Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in skimage.measure.
     
@@ -128,42 +183,27 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
 
         (list) triangles: The list of triangles indexes to vertexes.
     """
-    bbox = list(model.bbox) if not aligned else list(model.abbox) # Copy so original is not modified.
-    if aligned:
-        if bounded:
-            signed_distance = lambda x,y,z: model.signed_distance_bounded_aligned(unit, (x,y,z))
-        else:
-            signed_distance = lambda x,y,z: model.signed_distance_unbounded_aligned(unit, (x,y,z))
+    if method == "OPENVDB":
+        vertices, simplices = model.calculate_isosurface(unit, bounded, aligned, grid_divisions, True)
+        vertices = np.array(vertices, dtype = 'float32')
+        simplices = np.array(simplices, dtype = 'int32')
     else:
-        if bounded:
-            signed_distance = lambda x,y,z: model.signed_distance_bounded(unit, (x,y,z))
-        else:
-            signed_distance = lambda x,y,z: model.signed_distance_unbounded(unit, (x,y,z))
-    
-    X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
-    
-    # Check if the surface covers a very small volume, then reduce the bbox to calculate surface.
-    bb = check_bbox_surface( sd )
-    total_cells = grid_divisions ** 3
-    obj_cells = (bb[3]-bb[0])*(bb[4]-bb[1])*(bb[5]-bb[2])
-    
-    # If the object is at least 8 times smaller than the full bbox, it will benefit lots from a thinner sample.
-    if ( float(total_cells) / float(obj_cells) ) > 8.0:
-        bbox = [X[bb[0], 0, 0], Y[0, bb[1], 0], Z[0, 0, bb[2]], X[bb[3], 0, 0], Y[0, bb[4], 0], Z[0, 0, bb[5]]]
-        X, Y, Z, sd = calculate_isovalues( signed_distance, unit, grid_divisions, bbox )
-    try:
-        vertices, simplices, normals, values = measure.marching_cubes(sd, 0)
-        del normals
-    except ValueError:
-        raise TaskException("This model does not contain the unit or the sample is too coarse")
-    
+        vertices, simplices = marching_cube(model, unit, grid_divisions, bounded, aligned)
+
     if filter_by_normal:
         normals = calculate_normals( vertices, simplices )
         # First, remove triangles with the normal incorrect.
-        if normal_upwards:
-            fltr = normals[:,2] >= 0
+        if aligned:
+            if normal_upwards:
+                fltr = normals[:,2] <= 0
+            else:
+                fltr = normals[:,2] >= 0
         else:
-            fltr = normals[:,2] <= 0
+            if normal_upwards:
+                fltr = normals[:,2] >= 0
+            else:
+                fltr = normals[:,2] <= 0
+
         simplices = simplices[fltr,:]
         
         # Remove vertices that don't belong to any triangle.
@@ -185,28 +225,8 @@ def calculate_isosurface(model, unit, grid_divisions, bounded=True, filter_by_no
             for j in xrange(3):
                 simplices[i,j] = renum[simplices[i,j]]
     
-    ranges = [ X[:,0,0], Y[0,:,0], Z[0,0,:] ]
     
-    def real_pt_simple( pt ):
-        gr = map( lambda c: ( int(c), c-int(c) ), pt )
-        outp = []
-        for i in range(3):
-            assert gr[i][0] < len(ranges[i])
-            if gr[i][0]+1 == len(ranges[i]):
-                c = ranges[i][gr[i][0]]
-            else:
-                c = ranges[i][gr[i][0]]*(1-gr[i][1]) + ranges[i][gr[i][0]+1]*gr[i][1]
-            outp.append( c )
-        return outp
-    
-    if aligned:
-        real_pt = lambda p: model.inverse_point( real_pt_simple( p ) )
-    else:
-        real_pt = real_pt_simple
-    
-    vertices = map(real_pt, vertices)
-    
-    return vertices, simplices.tolist()
+    return vertices.tolist(), simplices.tolist()
 
 def plot_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False ):
     """
@@ -258,7 +278,7 @@ def stl_mesh( vertices, simplices ):
             m.vectors[i][j] = vertices[f[j]]
     return m
 
-def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False ):
+def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False, method="MCUBES" ):
     """
     Saves the wireframe of a geological unit to the disk. It uses a marching cubes and a signed distance from
     the model.
@@ -281,13 +301,13 @@ def save_unit( name, model, unit, grid_divisions, bounded=True, filter_by_normal
         the triangles that look down.
     """
     assert MESH_AVAILABLE, "To be able to save units, you need the following packages installed: scipy, numpy-stl, scikit-image."
-    v, s = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned=False )
+    v, s = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned=False, method="MCUBES" )
     m = stl_mesh( v, s )
     del v
     del s
     m.save(name)
 
-def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False ):
+def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_normal=False, normal_upwards=False, aligned=False, method="MCUBES" ):
     """
     Triangulates a geological unit and returns it for further processing, (or saving it to the database).
     It uses a marching cubes and a signed distance from the model.
@@ -311,7 +331,7 @@ def triangulate_unit( model, unit, grid_divisions, bounded=True, filter_by_norma
     """
     
     assert MESH_AVAILABLE, "To be able to triangulate units, you need the following packages installed: scipy, numpy-stl, scikit-image."
-    vertices, triangles = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned )
+    vertices, triangles = calculate_isosurface( model, unit, grid_divisions, bounded, filter_by_normal, normal_upwards, aligned, method )
     m = stl_mesh( vertices, triangles )
     volume, cog, inertia = m.get_mass_properties()
     del m

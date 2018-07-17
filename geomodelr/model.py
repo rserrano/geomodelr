@@ -59,14 +59,11 @@ def validate_feature_collection(fc):
     for f in fc:
         validate_feature(f)
 
-class GeologicalModel(cpp.Model):
+class GeologicalSection(cpp.Section):
     """
-    Interface to query a Geological model from Geomodelr.com. The models in Geomodelr.com
-    are saved in Geological JSON. A Geological JSON is a set of GeoJSON FeatureCollections 
-    with a transformation. Go to Geomodelr.com, create a new model and use it with this 
-    tool.
+    Interface to query a single Geological Cross Section or Map.
     """
-    def __init__( self, geolojson, delete=True ):
+    def __init__( self, geolojson, delete=True, params={'faults': 'basic'} ):
         """ 
         Initializes the geological model from a Geological JSON 
         file created in www.geomodelr.com.
@@ -80,9 +77,67 @@ class GeologicalModel(cpp.Model):
             import geomodelr
             mfile = open('/path/to/your/version.json')
             geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
-        
         Args:
             (dict) geolojson: The Geological JSON.
+            delete: Delete the geojson after creating the cpp model to free memory.
+            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover', 'map': 'disabled'|'soils' }
+        """
+        
+        self.geojson = geolojson
+        cs = shared.points_index_repr(self.geojson)
+        sect = [feature['name'], feature['transform']['height'], cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
+        sections.append(sect) 
+        cpp.Section("section", 0, (0, 1, 0, 1), points, polygons, units, lines, lnames, [])
+        # Obtain the possible farthest cuts to add triangles towards them.
+        bbox = self.geojson['bbox']
+        if orientation == 'horizontal':
+            abbox = bbox
+        else:
+            abbox[1] = bbox[2]
+            abbox[4] = bbox[5]
+        
+        lines = self.geojson['properties']['lines']
+        if orientation == 'horizontal':
+            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params)
+        else:
+            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines, params)
+        
+        self.make_matches()
+        
+        # Add units to model before deleting geojson.
+        units = self.geojson['properties']['units'].keys()
+        self.units = units
+        
+        # Save space.
+        if delete:
+            del self.geojson
+     
+class GeologicalModel(cpp.Model):
+    """
+    Interface to query a Geological model from Geomodelr.com. The models in Geomodelr.com
+    are saved in Geological JSON. A Geological JSON is a set of GeoJSON FeatureCollections 
+    with a transformation. Go to Geomodelr.com, create a new model and use it with this 
+    tool.
+    """
+    def __init__( self, geolojson, delete=True, params={'faults': 'basic', 'map': 'disabled'} ):
+        """ 
+        Initializes the geological model from a Geological JSON 
+        file created in www.geomodelr.com.
+        
+        You can create a free user at https://geomodelr.com and it will allow you to create the 
+        Geological Model. After you are finished, create a version and it will allow you
+        to download it as a Geological JSON. You can use this constructor by loading the 
+        json, like this::
+        
+            import json
+            import geomodelr
+            mfile = open('/path/to/your/version.json')
+            geomodel = geomodelr.GeologicalModel(json.loads(mfile.read()))
+        Args:
+            (dict) geolojson: The Geological JSON.
+            delete: Delete the geojson after creating the cpp model to free memory.
+            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover',
+                                                           'map': 'disabled'|'soils' }
         """
         
         self.geojson = geolojson
@@ -97,11 +152,11 @@ class GeologicalModel(cpp.Model):
         for feature in self.geojson['features']:
             if feature['geology_type'] == 'map':
                 gm = shared.points_index_repr(feature)
-                geomap = [gm['points'], gm['polygons'], gm['units'], gm['lines'], gm['lnames']]
+                geomap = [gm['points'], gm['polygons'], gm['units'], gm['lines'], gm['lnames'], gm['anchored_lines']]
                 topography = feature['transform']
                 break
         else:
-            self.geomap = None
+            geomap = []
         
         # First get the base section, which will locate all other sections.
         base_section = None
@@ -160,13 +215,12 @@ class GeologicalModel(cpp.Model):
         else:
             abbox[1] = bbox[2]
             abbox[4] = bbox[5]
-            
-
+        
         lines = self.geojson['properties']['lines']
         if orientation == 'horizontal':
-            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines)
+            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params)
         else:
-            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines)
+            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines, params)
         
         self.make_matches()
         

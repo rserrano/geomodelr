@@ -17,11 +17,17 @@
 */
 #ifndef GEOMODELR_SECTION_HPP
 #define GEOMODELR_SECTION_HPP
+
+#include "speed_up.hpp"
 #include "basic.hpp"
-#include<set>
+#include "polygon.hpp"
+#include <stdlib.h>
+#include <math.h> 
+#include <set>
 
 class Model;
 class Match;
+class Polygon;
 class ModelPython;
 class MatchPython;
 
@@ -32,17 +38,21 @@ class Section {
 	friend Model;
 	friend ModelPython;
 	friend MatchPython;
+	friend Polygon;
 
 protected:
 	wstring name;
 	double cut;
 	bbox2 bbox;
-	vector<polygon> polygons;
 	vector<wstring> units;
 	vector<line> lines;
+	vector<std::pair<point2, point2>> line_ends;
 	std::set<line_anchor> anchored_lines;
 	vector<wstring> lnames;
 	rtree_f * polidx; // To be initialized after polygons and lines.
+	rtree_l * fault_lines;
+	vector<Polygon *> poly_trees;
+	const map<wstring, wstring> * params;
 	
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
@@ -55,7 +65,8 @@ protected:
 				it != this->polidx->qend(); it++ ) {
 				// Check the actual distance to a polygon.
 				int idx = g2(*it);
-				double poldist = geometry::distance(this->polygons[idx], pt);
+				// double poldist = geometry::distance(poly_trees[idx]->boost_poly, pt);
+				double poldist = poly_trees[idx]->distance_point(pt);
 				if ( poldist <= distance ) {
 					ret.push_back(std::make_pair(idx, poldist));
 				}
@@ -64,6 +75,7 @@ protected:
 		return ret;
 	}
 public:
+
 	template<typename Predicates>
 	std::pair<int, double> closest( const point2& p, const Predicates& predicates ) const {
 		if ( this->polidx == nullptr )
@@ -77,6 +89,7 @@ public:
 		
 		bool new_to_check;
 		std::set<int> checked;
+
 		
 		do {
 			new_to_check = false;
@@ -98,9 +111,10 @@ public:
 				maxboxdist = std::max(boxdist, maxboxdist);
 				
 				// Then check the minimum actual distance to a polygon.
-				double dist = geometry::distance(p, this->polygons[idx]);
-				if ( dist < mindist ) {
-					mindist = dist;
+				// double poldist = geometry::distance(poly_trees[idx]->boost_poly, pt);
+				double poldist = poly_trees[idx]->distance_point(p);
+				if ( poldist < mindist ) {
+					mindist = poldist;
 					minidx = idx;
 				}
 			}
@@ -109,24 +123,35 @@ public:
 			// Do it until none was checked or we have checked boxes beyond the closest polygon.
 		} while ( new_to_check && maxboxdist < mindist );
 		
+		//if (minidx==-1){std::cerr << "No hay poligono cerca" << std::endl;}
+
 		return std::make_pair(minidx, mindist); 
 	}
 	std::pair<int, double> closest( const point2& ) const;
-
+	void set_params( const map<wstring, wstring> * params );
 	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> last_lines(bool is_back, double end);
 	Section( const wstring& name, double cut, const bbox2& bbox );
 	virtual ~Section();
 };
 
 class SectionPython : public Section {
+	map<wstring, wstring> local_params; // For single section use only.
 public:
-	SectionPython(const wstring& name, double cut, const pyobject& bbox, const pylist& points, 
-		      const pylist& polygons, const pylist& units, 
-		      const pylist& lines, const pylist& lnames, const pylist& anchored_lines );
-	
+	SectionPython( const wstring& name, double cut, const pyobject& bbox, const pylist& points, 
+		       const pylist& polygons, const pylist& units, const pylist& lines,
+		       const pylist& lnames, const pylist& anchored_lines );
 	pydict info() const;
 	pytuple closest( const pyobject& pypt ) const;
+	void set_params( const pydict& params );
+	pydict get_params( ) const;
+	double distance_poly(const pylist& pypt, int poly_idx) const;
+};
 
+class GeologicalMapPython: public SectionPython {
+public:
+	GeologicalMapPython( const pyobject& bbox, const pylist& points, 
+			     const pylist& polygons, const pylist& units, const pylist& lines,
+			     const pylist& lnames, const pylist& anchored_lines );
 };
 
 void extend_line( bool beg, const bbox2& bbox, line& l );

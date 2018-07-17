@@ -18,6 +18,7 @@
 # make calculations of their models.
 
 import numpy as np
+from numpy import linalg as la
 import flopy as fp
 from math import ceil,floor
 import meshio
@@ -44,6 +45,79 @@ class TIME_UNIT:
 class ALGORITHM:
     REGULAR = u'regular'
     ADAPTIVE = u'adaptive'
+
+def get_fd_mesh(model, units_data, length_units, rows, cols, layers, bbox, angle, dz_min, time_units, algorithm, faults_data, faults_method, soil=None, soil_depts={} ):
+    if (bbox is None):
+        bbox = model.bbox
+    
+    X_inf = bbox[0]
+    X_sup = bbox[3]
+    
+    Y_inf = bbox[1]
+    Y_sup = bbox[4]
+
+    dX = (X_sup - X_inf)/cols
+    dY = (Y_sup - Y_inf)/rows
+
+    #X_vec = np.linspace(X_inf + dX/2., X_sup - dX/2.,cols)
+    #Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,rows)
+ 
+    Z_top = np.zeros((rows,cols))
+
+    bottom_min = bbox[2] + 1E-5
+
+    if (len(faults_data))>0 and (faults_method!=u'regular'):
+        faults_keys = faults_data.keys()
+        faults_v = faults_data.values()
+        faults_data_aux = { faults_keys[k]: (faults_v[k][0],np.random.rand(),faults_v[k][1],faults_v[k][2]) for k in range(len(faults_data)) }
+        faults_data = deepcopy(faults_data_aux)
+        del(faults_data_aux)
+
+    # Define Z-top
+    for i in np.arange(rows):
+        yp = Y_sup - (2*i+1)*dY/2.0
+        for j in np.arange(cols):
+            xp = X_inf + (2*j+1)*dX/2.0
+            Z_top[i,j] = model.height((xp, yp))
+    
+    Z_top_min = np.min(Z_top)
+
+    if ((Z_top_min-bottom_min)/layers < dz_min):
+        layers = int((Z_top_min-bottom_min)/dz_min)
+
+    print "Crando Malla rectangular"
+
+    if (algorithm == 'regular'):
+
+        Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
+            bottom_min,units_data)
+    
+    elif (algorithm == 'adaptive'):
+
+        Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
+            bottom_min,units_data,angle,dz_min)
+
+<<<<<<< HEAD
+    # K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
+    #     units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
+
+    # if len(faults_data)>0:
+    #     faults_intersections(model.faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
+    #         dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method)
+=======
+    K_hor, K_anisotropy_hor, K_ver, I_bound, chani_var=set_unit_properties(model,
+        units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
+>>>>>>> openvdb
+
+    # if not(np.isscalar(I_bound)):
+    #     cells_checker(I_bound,rows,cols,layers)
+
+<<<<<<< HEAD
+=======
+    if not(np.isscalar(I_bound)):
+        cells_checker(I_bound,rows,cols,layers)
+    return (layers,  Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox)
+
 
 def create_modflow_inputs(name, model, units_data,
     length_units=LENGTH_UNIT.METERS, rows=100, cols=100, layers=100,
@@ -93,72 +167,17 @@ def create_modflow_inputs(name, model, units_data,
         the fault are aligned with the fault plane.
 
     """
-
-    if (bbox is None):
-        bbox = model.bbox
-
-    X_inf = bbox[0]
-    X_sup = bbox[3]
-
-    Y_inf = bbox[1]
-    Y_sup = bbox[4]
-
-    dX = (X_sup - X_inf)/cols
-    dY = (Y_sup - Y_inf)/rows
-
-    #X_vec = np.linspace(X_inf + dX/2., X_sup - dX/2.,cols)
-    #Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,rows)
- 
-    Z_top = np.zeros((rows,cols))
-
-    bottom_min = bbox[2] + 1E-5
-
-    if (len(faults_data))>0 and (faults_method!=u'regular'):
-        faults_keys = faults_data.keys()
-        faults_v = faults_data.values()
-        faults_data_aux = { faults_keys[k]: (faults_v[k][0],np.random.rand(),faults_v[k][1],faults_v[k][2]) for k in range(len(faults_data)) }
-        faults_data = deepcopy(faults_data_aux)
-        del(faults_data_aux)
-
-    # Define Z-top
-    for i in np.arange(rows):
-        yp = Y_sup - (2*i+1)*dY/2.0
-        for j in np.arange(cols):
-            xp = X_inf + (2*j+1)*dX/2.0
-            Z_top[i,j] = model.height((xp, yp))
-
-
-    Z_top_min = np.min(Z_top)
-
-    if ((Z_top_min-bottom_min)/layers < dz_min):
-        layers = int((Z_top_min-bottom_min)/dz_min)
-
-    print "Crando Malla rectangular"
-
-    if (algorithm == 'regular'):
-
-        Z_bottoms=regular_grid(model, rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
-            bottom_min,units_data)
     
-    elif (algorithm == 'adaptive'):
-
-        Z_bottoms,layers=adaptive_grid(model,rows,cols,layers,Z_top,X_inf,Y_sup,dX,dY,
-            bottom_min,units_data,angle,dz_min)
-
-    # K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var=set_unit_properties(model,
-    #     units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,Y_sup,dX,dY,faults_data)
-
-    # if len(faults_data)>0:
-    #     faults_intersections(model.faults,faults_data,rows,cols,layers,Z_top,Z_bottoms,X_inf,Y_inf,
-    #         dX,dY,K_hor,K_ver,K_anisotropy_hor,I_bound,faults_method)
-
-    # if not(np.isscalar(I_bound)):
-    #     cells_checker(I_bound,rows,cols,layers)
-
+    layers,  Z_top, Z_bottoms, dY, dX, X_inf, Y_sup, I_bound, chani_var, K_hor, K_ver, K_anisotropy_hor, bbox = get_fd_mesh(model, units_data, length_units, 
+                                                                                                                            rows, cols, layers, bbox, angle, 
+                                                                                                                            dz_min, time_units, algorithm, 
+                                                                                                                            faults_data, faults_method)
+>>>>>>> openvdb
 
     #  ------- Flowpy Packages ----
     # Grid
 
+<<<<<<< HEAD
     # #geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
     #     #lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
 
@@ -182,6 +201,17 @@ def create_modflow_inputs(name, model, units_data,
     output = get_VTU_hexamesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers)
     #output = {'num_layers': layers}
     return(output)
+=======
+    # geo=fp.utils.reference.SpatialReference(delr=dX*np.ones(cols),delc=dY*np.ones(rows),
+    # lenuni=length_units, xll=X_inf, yll=Y_inf,units='meters',epsg=3116)
+
+    mf_handle = fp.modflow.mf.Modflow(modelname=name, namefile_ext='nam')
+    
+    # Variables for the Dis package
+    dis = fp.modflow.ModflowDis(mf_handle,nlay=layers, nrow=rows, ncol=cols,
+                                top=Z_top, botm=Z_bottoms, delc=dY, delr=dX, xul=X_inf, yul=Y_sup,
+                                itmuni=time_units, lenuni=length_units, proj4_str='EPSG:3116')
+>>>>>>> openvdb
 
 def get_VTU_mesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup,rows,cols,layers):
 
@@ -194,6 +224,7 @@ def get_VTU_mesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y_sup
     X_vec = np.linspace(X_inf + dX/2., X_sup - dX/2.,cols)
     Y_vec = np.linspace(Y_inf + dY/2., Y_sup - dY/2.,rows)
 
+<<<<<<< HEAD
     C = 0
 
     # Bottom
@@ -299,6 +330,12 @@ def get_VTU_hexamesh(model,units_data,Z_top,Z_bottoms,dX, dY,X_inf,Y_inf,X_sup,Y
     hyd_pr = {'Kx':Kx_vec,'Ky':Ky_vec,'Kz':Kz_vec}
     return (points, cells, hyd_pr)
 
+=======
+    mf_handle.write_input()
+    
+    output = {'num_layers': layers}
+    return(output)
+>>>>>>> openvdb
 
 # ===================== AUXILIAR FUNCTIONS ========================
 
@@ -790,15 +827,20 @@ def set_unit_properties(model,units_data,Z_top,Z_bottoms,rows,cols,layers,X_inf,
     
                 xp = X_inf + (2*j+1)*dX/2.0
 
+                
                 Unit = model.closest([xp,yp,mid_points[i,j]])[0]
-                Data = units_data[Unit]
+                try: 
+                    Data = units_data[Unit]
+                except KeyError:
+                    raise TaskException("This model contains a None unit.")
+
                 K_hor[L,i,j] = Data[0];
                 if anisotropy_bool:
                     K_anisotropy_hor[L,i,j] = Data[1]
                 K_ver[L,i,j] = Data[2]
                 if ibound_bool:
                     I_bound[L,i,j] = Data[3]
-
+    
     return((K_hor, K_anisotropy_hor, K_ver, I_bound,chani_var))
     
 def find_unit_limits_CPP(model, xp, yp, z_max, z_min, eps):
