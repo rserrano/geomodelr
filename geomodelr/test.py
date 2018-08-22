@@ -1173,14 +1173,14 @@ class Tests(unittest.TestCase):
                            ["s2", 2, points_2, pols_2, units, faults_2, fname, [[0, False], [0, True]]]], { "F1": "FAULT" }, {})
         model.make_matches()
         self.assertEqual(len(model.not_extended_faults["F1"]), 36)
-        self.assertEqual(len(model.faults["F1"]), 48)
+        self.assertEqual(len(model.faults["F1"]), 42)
         
         model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], [], {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, [[0, False], [0, True]]], 
                                                                     ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" }, {})
         model.make_matches()
         
-        self.assertEqual(len(model.not_extended_faults["F1"]), 35)
-        self.assertEqual(len(model.faults["F1"]), 42)
+        self.assertEqual(len(model.not_extended_faults["F1"]), 36)
+        self.assertEqual(len(model.faults["F1"]), 39)
         
         model = cpp.Model([-1,-1,-1,4,4,4],[-1,-1,-1,4,4,4],[0, 0], [1, 0], [], {}, [["s1", 1, points_1, pols_1, units, faults_1, fname, []], ["s2", 2, points_2, pols_2, units, faults_2, fname, []]], { "F1": "FAULT" }, {})
         model.make_matches()

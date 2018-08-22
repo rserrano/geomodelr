@@ -18,6 +18,7 @@
 
 #include "section.hpp"
 #include <cmath>
+#include <iostream>
 
 Section::~Section()
 {
@@ -151,10 +152,19 @@ SectionPython::SectionPython(const wstring& name, double cut,
 			
 			pylist pypt = pylist(points[lines[i][j]]);
 			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
+			if ( lin.size() ) {
+				if ( geometry::distance(lin.back(), aux) < boost_tol ) {
+					continue;
+				}
+			}
 			lin.push_back(aux);
 		}
-		
 		if ( not geometry::is_valid(lin) or not geometry::is_simple(lin) ) {
+			if ( geomodelr_verbose ) {
+				wstring name = python::extract<wstring>( lnames[i] );
+				std::wcerr << L"ignoring line " << name << L" is valid: " 
+					   << geometry::is_valid(lin) << L" is simple "<< geometry::is_simple(lin) << L"\n" ;
+			}
 			continue; // This should guarantee that the line has at least 2 points.
 		}
 		

@@ -449,7 +449,7 @@ map<wstring, vector<line>> find_faults_multiple_planes_intersection(const map<ws
     map<wstring, vector<line>> faults_intersection;
     double start_x = 0.0;
     for (size_t k=0; k<planes_cpp.size(); k++){
-        find_faults_plane_intersection(faults_cpp,planes_cpp[k],faults_intersection, k, start_x);
+        find_faults_plane_intersection(faults_cpp, planes_cpp[k], faults_intersection, k, start_x);
     }
 
     return faults_intersection;
