@@ -15,16 +15,18 @@
 	You should have received a copy of the GNU Affero General Public License
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef GEOMODELR_GEOMODEL_HPP
-#define GEOMODELR_GEOMODEL_HPP
+#ifndef GEOMODELR_FEFLOW
+#define GEOMODELR_FEFLOW
 
 #include "basic.hpp"
-#include "section.hpp"
-#include "match.hpp"
-#include "model.hpp"
-#include "faults.hpp"
-#include "speed_up.hpp"
-#include "isosurfaces_vdb.hpp"
-#include "feflow.hpp"
+#include <boost/dynamic_bitset.hpp>
+#include <iostream>
 
-#endif
+class Model;
+
+std::pair<triangMesh2D, vectorLayers > prismaticMesh(const Model* geo_model, const polygon& domain,
+    map<wstring, std::pair<point2, double> >& points, const map<wstring, multi_line>& constraints,
+    const vector<point2>& riverCorners, double triSize, double edgeSize, int num_layers, double rate,
+    bool optimization, bool dist_alg);
+
+#endif //GEOMODELR_FEFLOW

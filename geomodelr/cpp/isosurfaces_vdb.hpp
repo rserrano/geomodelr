@@ -30,7 +30,7 @@ typedef openvdb::v3_1::Int32 Int32;
 
 class Model;
 
-unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions,
+triangMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions,
     bool activeResampler);
 
 #endif //GEOMODELR_ISOSURFACES_VDB

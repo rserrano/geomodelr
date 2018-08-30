@@ -24,6 +24,7 @@
 #include "faults.hpp"
 #include "speed_up.hpp"
 #include "isosurfaces_vdb.hpp"
+#include "feflow.hpp"
 
 class Topography {
 protected:
@@ -296,8 +297,12 @@ public:
 		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
 	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
-	unitMesh calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+	triangMesh calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
 		bool activeResampler);
+
+	std::pair<triangMesh2D, vectorLayers > prismatic_mesh(const polygon& domain, map<wstring,
+	std::pair<point2, double> >& points, const map<wstring, multi_line>& constraints, const vector<point2>& riverCorners,
+	double triSize, double edgeSize, int num_layers,  double rate, bool optimization, bool dist_alg);
 
 	bbox3 get_bbox() const;
 	bbox3 get_abbox() const;
@@ -430,6 +435,9 @@ public:
 	pytuple find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
 	pytuple calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
 		bool activeResampler = false);
+	
+	pytuple prismatic_mesh(const pylist& py_domain, const pydict& py_points, const pydict& py_constraints,
+	const pylist& parameters);
 	
 	pydict info() const;
 	double height(const pyobject& pt) const;

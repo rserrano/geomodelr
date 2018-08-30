@@ -800,7 +800,16 @@ bbox3 Model::get_abbox() const{
 	return this->abbox;
 }
 
-unitMesh Model::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
+std::pair<triangMesh2D, vectorLayers > Model::prismatic_mesh(const polygon& domain, map<wstring,
+	std::pair<point2, double> >& points, const map<wstring, multi_line>& constraints, const vector<point2>& riverCorners,
+	double triSize, double edgeSize, int num_layers, double rate, bool optimization, bool dist_alg){
+
+	return prismaticMesh(this, domain, points, constraints, riverCorners ,triSize, edgeSize, num_layers,
+		 rate, optimization, dist_alg);
+}
+
+
+triangMesh Model::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
 	bool activeResampler){
 	return getIsosurface(this, unit, bounded, aligned, grid_divisions, activeResampler);
 }
@@ -974,10 +983,119 @@ pytuple ModelPython::find_unit_limits(double xp, double yp, double z_max, double
 	return python::make_tuple(output.first,output.second);
 }
 
+
+pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_points, const pydict& py_constraints,
+	const pylist& py_parameters){
+
+	// Extract parameters
+	double triSize = python::extract<double>(py_parameters[0]);
+	double pointSize = python::extract<double>(py_parameters[1]);
+	double edgeSize = python::extract<double>(py_parameters[2]);
+	int num_layers = python::extract<int>(py_parameters[3]);
+	double rate = python::extract<double>(py_parameters[4]);
+	bool optimization = python::extract<bool>(py_parameters[5]);
+	bool dist_alg = python::extract<bool>(py_parameters[6]);
+
+	int num = python::len(py_domain);
+	polygon domain;
+	ring& outer = domain.outer();
+
+	// Domain
+	for (int k = 0; k < num; k++){
+		double x = python::extract<double>(py_domain[k][0]);
+		double y = python::extract<double>(py_domain[k][1]);
+		outer.push_back(point2(x, y));
+	}
+
+	if ( not geometry::is_valid(domain) or not geometry::is_simple(domain) ) {
+		throw GeomodelrException("The polygon of the domain is not valid. Please check it.");
+	}
+
+	// Points: wells
+	pylist dict_keys = py_points.keys();
+    map<wstring, std::pair<point2, double> > points;
+	num = python::len(dict_keys);
+	for (int k = 0; k < num; k++){
+		wstring pkey = python::extract<wstring>(dict_keys[k]);
+		double x = python::extract<double>(py_points[pkey][0]);
+		double y = python::extract<double>(py_points[pkey][1]);
+		if (geometry::within(point2(x,y), domain)){
+			points[pkey] = std::make_pair(point2(x, y), pointSize);
+		}
+	}
+
+	// Multilines: rivers
+	dict_keys = py_constraints.keys();
+    map<wstring, multi_line> constraints;
+	num = python::len(dict_keys);
+	vector<point2> riverCorners;
+
+	for (int k = 0; k < num; k++){
+		wstring lkey = python::extract<wstring>(dict_keys[k]);
+		int numLines = python::len(py_constraints[lkey]);
+		multi_line constraintLines;
+		// constraintLines.resize(numLines);
+		
+		for (int i = 0; i < numLines; i++){
+			int numline = python::len(py_constraints[lkey][i]);
+
+			line river;
+			river.resize(numline);
+			for (int j = 0; j < numline; j++){
+				double x = python::extract<double>(py_constraints[lkey][i][j][0]);
+				double y = python::extract<double>(py_constraints[lkey][i][j][1]);
+				river[j] = point2(x,y);
+			}
+			vector<line> output;
+			geometry::intersection(domain, river, output);
+			for (auto& river: output){
+				if ( not geometry::is_valid(river) or not geometry::is_simple(river) ) {
+					std::wcerr << L"Multiline " << lkey << L" is not simple\n";
+				}
+				constraintLines.push_back(river);
+				riverCorners.push_back(river.front());
+				riverCorners.push_back(river.back());
+			}
+		}
+		if (boost::size(constraintLines) > 0){
+			constraints[lkey] = constraintLines;	
+		}		
+	}
+
+	auto output = ((Model *)this)->prismatic_mesh(domain, points, constraints, riverCorners, triSize, edgeSize,
+		num_layers, rate ,optimization, dist_alg);
+
+	triangMesh2D& mesh = output.first;
+	if (mesh.second.size() > 10000000){
+		throw GeomodelrException("Mesh has more than 1'000.000 elements.");
+	}
+
+	pylist vertices;
+	for (auto& pt: mesh.first){
+		vertices.append(python::make_tuple(pt.x(),pt.y()));
+	}
+
+	pylist triangles;
+	for (auto& tri: mesh.second){
+		triangles.append(python::make_tuple(tri.x(),tri.y(),tri.z()));
+	}
+
+	pylist layers;
+	for (auto& layer: output.second) {
+		pylist py_layer;
+		for (auto& val: layer){
+			py_layer.append(val);
+		}
+		layers.append(py_layer);
+	}
+
+	return python::make_tuple(vertices, triangles, layers);
+}
+
 pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
 	bool activeResampler){
 	
-	unitMesh output = ((Model *)this)->calculate_isosurface(unit, bounded, aligned, grid_divisions, activeResampler);
+	triangMesh output = ((Model *)this)->calculate_isosurface(unit, bounded, aligned, grid_divisions, activeResampler);
 	pylist points;
 	if (aligned){
 		for (auto& pt: output.first){

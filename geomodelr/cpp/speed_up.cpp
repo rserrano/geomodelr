@@ -41,3 +41,17 @@ std::pair<double, bool> find_unit_limits_cpp(const Model* model, double xp, doub
 
     return std::make_pair( z_min, true );
 }
+
+
+double Newton_Raphson(std::function< double (double) >& fx, std::function< double (double) >& diff_fx, double x0){
+    double xf;
+    for (size_t iter = 0; iter <= 10000; iter++){
+        xf = x0 - fx(x0)/diff_fx(x0);
+        if (std::abs(xf-x0) < epsilon){
+            return xf;
+        }
+        x0 = xf;
+    }
+    return xf;
+
+}

@@ -628,7 +628,7 @@ GridType::Ptr resample_unitSurface(const GridType::Ptr& sourceGrid, std::functio
    -------------------------------------------------- */   
 
 
-unitMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions,
+triangMesh getIsosurface(const Model* geo_model, const wstring& unit, bool bounded, bool aligned, int grid_divisions,
     bool activeResampler){
     /*Calculates an isosurface of a unit. It uses a signed distance and an isosurface algorithm present in openvdb.
     
