@@ -136,7 +136,7 @@ void remeshPoint(CDT& cdt, const point2& pt, double radio){
 }
 
 void remeshCorrector(map<wstring, std::pair<point2, double> >& points, const polygon& domain,
- const map<wstring, multi_line>& constraints){
+ const vector<value_s>& constraints){
 
 
     if (points.empty()){
@@ -161,8 +161,8 @@ void remeshCorrector(map<wstring, std::pair<point2, double> >& points, const pol
         point2 pt = i->second.first;
 
         // Iterates over multiline constraints.
-        for (auto it = constraints.begin(); it != constraints.end(); it++){
-            dis =  std::min(dis, geometry::distance(pt, it->second));
+        for (auto& it : constraints){
+            dis =  std::min(dis, geometry::distance(pt, g0(it)));
         }
 
         // Iterates over segments of the polygon.
@@ -190,9 +190,10 @@ void remeshEdge(CDT& cdt, const line& polyLine, double edgeSize){
     int numPts = polyLine.size();
     point2 source = polyLine[0];
     double x0 = gx(source), y0 = gy(source);
-    for (int k = 1; k < numPts; k++){
 
-        point2 target = polyLine[k];        
+    for (int j = 1; j < numPts; j++){
+
+        point2 target = polyLine[j];        
         double xf = gx(target), yf = gy(target);
         double dx = xf-x0, dy =  yf-y0;
         double norm = std::sqrt(dx*dx + dy*dy);
@@ -201,12 +202,135 @@ void remeshEdge(CDT& cdt, const line& polyLine, double edgeSize){
         polygonCGAL edge;
         edge.push_back(CDT::Point(x0,y0));
         for (int k=1; k < div; k++){
-            edge.push_back(CDT::Point(x0 + (dx*k)/div, y0 + (dy*k)/div) );
+            edge.push_back( CDT::Point(x0 + (dx*k)/div, y0 + (dy*k)/div) );
         }
         edge.push_back(CDT::Point(xf,yf));
         cdt.insert_constraint(edge.vertices_begin(), edge.vertices_end(), false);
         x0 = xf; y0 = yf;
     }
+}
+void remeshEdge2(CDT& cdt, const segment& edge, double edgeSize){
+
+    double x0 = gx(edge.first), y0 = gy(edge.first);
+    double xf = gx(edge.second), yf = gy(edge.second);
+    double dx = xf-x0, dy =  yf-y0;
+    double norm = std::sqrt(dx*dx + dy*dy);
+    int div = std::ceil(norm/edgeSize);
+    // std::cerr << geometry::wkt(edge.first) << "\n";
+    // std::cerr << geometry::wkt(edge.second) << "\n\n";
+    polygonCGAL polyEdge;
+    polyEdge.push_back(CDT::Point(x0,y0));
+    for (int k=1; k < div; k++){
+        polyEdge.push_back( CDT::Point(x0 + (dx*k)/div, y0 + (dy*k)/div) );
+    }
+    polyEdge.push_back(CDT::Point(xf,yf));
+    cdt.insert_constraint(polyEdge.vertices_begin(), polyEdge.vertices_end(), false);    
+}
+
+void segmentConstraint(const CDT& cdt, vector<size_t>& line_handle, const CDT::Vertex_handle v0,
+    const CDT::Vertex_handle vf){
+
+    
+    double x0 = v0->point().x(), y0 = v0->point().y();
+    double xf = vf->point().x(), yf = vf->point().y();
+    double dx = xf - x0, dy = yf - y0;
+
+    std::cerr << "\n\n" << v0->point() << " : " << v0->info() << " =========== ";
+    std::cerr << vf->point() << " : " << vf->info() << "\n";
+    vector<CDT::Vertex_handle> segment_handle;
+    segment_handle.push_back(v0);
+    size_t sizeSegment = 1;
+    int C = 1;
+    while (segment_handle.back()->info() != vf->info()){
+
+        CDT::Edge_circulator incidents = cdt.incident_edges(segment_handle.back()), done(incidents);
+        std::cerr << "COUN: " << C << "\n";
+
+        if (incidents != 0) {
+            do {
+                if (cdt.is_constrained(*incidents)){
+                    auto& f = *(incidents->first);
+                    // CDT::Vertex_handle aa = f.vertex(f.cw(incidents->second));
+                    CDT::Vertex_handle vt_h = f.vertex(f.ccw(incidents->second));
+                    // std::cerr << aa->point() << " : " << aa->info() << "--\t--";
+                    std::cerr << vt_h->point() << " : " << vt_h->info() << "\n";
+
+                    if (vt_h->info() == vf->info()){
+                        segment_handle.push_back(vt_h);
+                        std::cerr << "final\n";
+                        break;
+                        // return;
+                    }
+
+                    if (vt_h->info() != line_handle.back()){
+                        double xh = vt_h->point().x(), yh = vt_h->point().y();
+                        double area = std::abs(0.5*(dx*(yh-y0) - dy*(xh-x0)));
+                        std::cerr << "Area: " << area << "\n";
+                        std::cerr << line_handle.back();
+                        if (area < epsilon){
+                            segment_handle.push_back(vt_h);
+                            break;
+                        }
+                    }
+
+                }
+            } while(++incidents != done);
+        }
+        C++;
+        if (sizeSegment == segment_handle.size() || C>100){
+            throw GeomodelrException("PROBLEMSS...");
+        }
+        sizeSegment = segment_handle.size();
+    }
+
+    for (size_t k=1; k<segment_handle.size(); k++){
+        line_handle.push_back(segment_handle[k]->info());
+    }
+   
+}
+
+std::map<wstring, vector<std::pair<size_t, size_t>>> getConstrainsEdges(const CDT& cdt,
+    const rtree_s* constraints_tree){
+
+    std::map<wstring, vector<std::pair<size_t, size_t>>> output;
+    // Constraints
+    for (auto eit = cdt.edges_begin(); eit != cdt.edges_end(); ++eit){
+        if (cdt.is_constrained(*eit)){
+            auto& f = *(eit->first);
+            CDT::Vertex_handle pt_0 = f.vertex(f.cw(eit->second));
+            CDT::Vertex_handle pt_f = f.vertex(f.ccw(eit->second));
+            double x_min = std::min(pt_0->point().x(), pt_f->point().x());
+            double x_max = std::max(pt_0->point().x(), pt_f->point().x());
+            double y_min = std::min(pt_0->point().y(), pt_f->point().y());
+            double y_max = std::max(pt_0->point().y(), pt_f->point().y());
+
+            auto Bbox = box(point2(x_min - epsilon, y_min - epsilon), point2(x_max + epsilon, y_max + epsilon));
+            auto X0 = point2(pt_0->point().x(), pt_0->point().y());
+            auto Xf = point2(pt_f->point().x(), pt_f->point().y());
+
+            auto test_segment = [&X0, &Xf](const value_s& v){
+                return geometry::distance(X0,g0(v))<epsilon && geometry::distance(Xf,g0(v))<epsilon;
+            };
+
+            for (auto it = constraints_tree->qbegin( geometry::index::intersects(Bbox)&&
+                geometry::index::satisfies(test_segment) ); it != constraints_tree->qend(); ++it){
+
+                // size_t idx_0 = pt_0->info();
+                // size_t idx_f = pt_f->info();
+                output[g1(*it)].push_back( std::make_pair(pt_0->info(),pt_f->info()) );
+                // if (idx_0 < idx_f){
+                //     output[g1(*it)].push_back( std::make_pair(idx_0, idx_f) );
+                // } else{
+                //     output[g1(*it)].push_back( std::make_pair(idx_f, idx_0) );
+                // }
+                break;
+            }
+        }
+    }
+    // for (auto it = constraints_tree.)
+
+
+    return output;
 }
 
 vectorLayers regularGrid_distance(const Model* geo_model, const CDT& cdt, int num_layers, double d){
@@ -239,16 +363,15 @@ vectorLayers regularGrid_distance(const Model* geo_model, const CDT& cdt, int nu
     return layers;
 }
 
-vectorLayers regularGrid_root(const Model* geo_model, const CDT& cdt, int num_layers, double thickness){
+vectorLayers regularGrid(const Model* geo_model, const CDT& cdt, int num_layers, double thickness){
 
     vectorLayers layers(num_layers + 1);
     size_t num_points = cdt.number_of_vertices();
     double bottom = g2(g0(geo_model->get_bbox())) + epsilon;
-    // thickness = std::exp(rate/2.0);
 
+    // Define function fx and its derivative to use in the regular algorithm
     double a = 1.0 - 1.0/num_layers, log_a = std::log(a);
     double b = thickness/( g2(g1(geo_model->get_bbox())) - bottom), log_b = std::log(b);
-
     auto fx = [&a,&b](double p){
         return std::pow(a,p) + std::pow(b,p) - 1.0;
     };
@@ -256,14 +379,9 @@ vectorLayers regularGrid_root(const Model* geo_model, const CDT& cdt, int num_la
         return  log_a*std::pow(a,p) + log_b*std::pow(b,p);
     };
 
-    // double p = Newton_Raphson(fx, diff_fx, 2.0);
-    std::cerr << "a: " << a << "\n";
-    std::cerr << "b: " << b << "\n";
-    std::cerr << "Root: " << p << "\n";
-
-    auto power = [&thickness](const double& t){
-        // return std::pow(t, rate);
-        return std::pow(1.0 - std::pow(1.0 - t, 1.0/2.1), 2.1);
+    double p = Newton_Raphson(fx, diff_fx, 2.0);
+    auto power = [&p](const double& t){
+        return std::pow(1.0 - std::pow(1.0 - t, p), 1.0/p);
     };
     vector<double> vals_t = linspace(0.0, 1.0 , num_layers + 1);
     std::transform(vals_t.begin(), vals_t.end(), vals_t.begin(), power);
@@ -336,22 +454,53 @@ vectorLayers adaptiveGrid(const Model* geo_model, const CDT& cdt, int num_layers
     return layers;
 }
 
-vectorLayers adaptiveGrid2(const Model* geo_model, const CDT& cdt, int num_layers){
+bool angle(double dx, double dy, double& dz, double Max_Tan){
 
-    // std::map<CDT::Vertex_handle, Int32> vertex_index;
+    double norm = std::sqrt(dx*dx + dy*dy);
+    double Tan_O = dz/norm;
+    if (Tan_O>Max_Tan){
+        dz = Max_Tan*norm;
+        return true;
+    }
+    return false;
+
+}
+
+void layer_correction(const CDT& cdt, const vector<double>& prev_layer, vector<double>& layer, vector<bool>& fixed,
+    vertexSet& fixed_vertex, double Max_Tan){
+
+    for (auto it = fixed_vertex.begin(); it != fixed_vertex.end(); ++ it){
+
+        CDT::Vertex_handle vertexH = it->second;
+        CDT::Vertex_circulator incidents = cdt.incident_vertices(vertexH), done(incidents);
+        double xp = vertexH->point().x(), yp = vertexH->point().y(), zp = -(it->first);
+
+        if (incidents != 0) {
+            do {
+                if (not(cdt.is_infinite(incidents)) && not(fixed[incidents->info()])){
+                    
+                    double dx = xp - incidents->point().x();
+                    double dy = yp - incidents->point().y();
+                    size_t idx = incidents->info();
+                    double dz = zp - layer[idx];
+                    if (angle(dx, dy, dz, Max_Tan)){
+                        layer[idx] = std::min(zp - dz, prev_layer[idx] -1.0 );
+                        fixed[idx] = true;
+                        fixed_vertex.insert( std::make_pair(-layer[idx], incidents ) );
+                    }
+                }
+            } while(++incidents != done);
+        }
+
+    }
+
+
+}
+
+
+vectorLayers adaptiveGrid2(const Model* geo_model, const CDT& cdt, int num_layers, double Max_Tan){
+
     size_t idx = 0;
-
-    // for(CDT::Finite_vertices_iterator vit = cdt.vertices_begin(); vit != cdt.vertices_end(); ++vit){
-
-    //     CDT::Vertex_circulator incidents = cdt.incident_vertices(vit), done(incidents);
-    //     std::cerr << "\nPoint " << vit->info() << ": " << vit->point() << "\n";
-    //     if (incidents != 0) {
-    //         do {
-    //             std::cerr << incidents->info() << " -> " << incidents->point() << std::endl;
-    //         } while(++incidents != done);
-    //     }
-    // }
-
     vectorLayers Layers;
     size_t num_points = cdt.number_of_vertices();
     double bottom = g2(g0(geo_model->get_bbox())) + epsilon;
@@ -359,15 +508,18 @@ vectorLayers adaptiveGrid2(const Model* geo_model, const CDT& cdt, int num_layer
     // Topography    
     vector<double> topography;
     topography.reserve(num_points);
-    for(CDT::Finite_vertices_iterator vit = cdt.vertices_begin(); vit != cdt.vertices_end(); ++vit)    {
+    for(CDT::Finite_vertices_iterator vit = cdt.vertices_begin(); vit != cdt.vertices_end(); ++vit){
         topography.push_back (  geo_model->height(point2(vit->point().x(), vit->point().y())) );
     }
     Layers.push_back(topography);
 
     // Layer 1
     idx = 0;
-    boost::dynamic_bitset<> fixed(num_points);
+    vector<bool> fixed(num_points);
     vector<double> layer(num_points);
+
+    vertexSet fixed_vertex;
+    vertexSet fixed_vertex_auxiliar;
 
     if (num_layers > 1){
         for(CDT::Vertex_iterator vit = cdt.vertices_begin(); vit != cdt.vertices_end(); ++vit){
@@ -377,34 +529,69 @@ vectorLayers adaptiveGrid2(const Model* geo_model, const CDT& cdt, int num_layer
             auto pair = find_unit_limits_cpp(geo_model, xp, yp, topography[idx], z_min, epsilon);
             layer[idx] = pair.first;
             fixed[idx] = pair.second;
+            if (pair.second){
+                fixed_vertex.insert( std::make_pair(-pair.first, vit) );
+            }
             idx++;
         }
         Layers.push_back(layer);
     }
-    boost::dynamic_bitset<> fixed_test(num_points);
 
-    for (int L = 2; L < num_layers; L++){
+    layer_correction(cdt, Layers[0], Layers[1], fixed, fixed_vertex, Max_Tan);
+
+    // Other layers
+    vector<bool> fixed_test(num_points);
+    for (int L = 2; L <= num_layers; L++){
         idx = 0;
         for(CDT::Vertex_iterator vit = cdt.vertices_begin(); vit != cdt.vertices_end(); ++vit){
             double xp = vit->point().x();
             double yp = vit->point().y();
             double z_max = (topography[idx]*(num_layers - L + 1) + (L- 1)*bottom)/num_layers;
             double z_min = (topography[idx]*(num_layers - L) + L*bottom)/num_layers;
+            if (L==num_layers){
+                z_min = 0.5*(z_min + z_max);
+            }
             auto pair = find_unit_limits_cpp(geo_model, xp, yp, z_max, z_min, epsilon);
 
             layer[idx] = pair.first;
             fixed_test[idx] = pair.second;
-            if (not(fixed.test(idx))){
-                Layers.back()[idx] = layer[idx];
+
+            if (not(fixed[idx])) {
+                Layers.back()[idx] = pair.first;
+                if (pair.second){
+                    fixed_vertex.insert( std::make_pair(-pair.first, vit) );
+                }
+            } else{
+                if (pair.second){
+                    fixed_vertex_auxiliar.insert( std::make_pair(-pair.first, vit) );
+                }
             }
             idx++;
         }
 
-        if ((fixed & fixed_test).any()){
-            fixed = fixed & fixed_test;
+        layer_correction(cdt, Layers[Layers.size() - 2], Layers.back(), fixed, fixed_vertex, Max_Tan);
+        vector<bool> result(num_points);
+        std::transform(fixed.cbegin(),fixed.cend(),fixed_test.cbegin(),result.begin(), std::logical_and<bool>());
+
+        if (std::any_of(result.cbegin(), result.cend(), [](bool elem){return elem;})){
+            fixed = result;
             Layers.push_back(layer);
+            fixed_vertex = fixed_vertex_auxiliar;
+            fixed_vertex_auxiliar.clear();
         } else{
-            fixed = fixed | fixed_test;
+
+            // idx = -1;
+            // auto change_values = [&layer, &idx](double val, bool elem){
+            //     idx++;
+            //     if (elem){
+            //         return val;
+            //     }
+            //     return layer[idx];
+            // };
+
+            // std::transform(Layers.back().cbegin(),Layers.back().cend(),
+            //     fixed.cbegin(),Layers.back().begin(), change_values);
+            std::transform(fixed.cbegin(),fixed.cend(),fixed_test.cbegin(),fixed.begin(), std::logical_or<bool>());
         }
     }
 
@@ -414,20 +601,18 @@ vectorLayers adaptiveGrid2(const Model* geo_model, const CDT& cdt, int num_layer
 }
 
 
-std::pair<triangMesh2D, vectorLayers > prismaticMesh(const Model* geo_model, const polygon& domain,
-    map<wstring, std::pair<point2, double> >& points, const map<wstring, multi_line>& constraints,
-    const vector<point2>& riverCorners, double triSize, double edgeSize, int num_layers, double rate,
-    bool optimization, bool dist_alg){
+feflowInfo prismaticMesh(const Model* geo_model, const polygon& domain,
+    map<wstring, std::pair<point2, double> >& points, const vector<value_s>& constraints,
+    const vector<point2>& riverCorners, double triSize, double edgeSize, int num_layers,
+    double thickness, bool optimization, wstring algorithm, double Max_Tan){
 
     CDT cdt;
     // Domain
     setDomain(cdt, domain, riverCorners);
 
     // Constraints (rivers)
-    for (auto it = constraints.begin(); it != constraints.end(); it++){
-        for (auto& polyLine: it->second){
-            remeshEdge(cdt, polyLine, edgeSize);
-        }
+    for (auto& it: constraints){
+        remeshEdge2(cdt, g0(it), edgeSize);
     }
 
     // Points (wells);
@@ -479,11 +664,24 @@ std::pair<triangMesh2D, vectorLayers > prismaticMesh(const Model* geo_model, con
         idx++;
     }
 
-    if (dist_alg){
-        // return std::make_pair(cdtToMesh(cdt), regularGrid_distance(geo_model, cdt, num_layers, rate) );
-        return std::make_pair(cdtToMesh(cdt), adaptiveGrid2(geo_model, cdt, num_layers) );
+
+    // for (auto it = output.begin(); it != output.end(); ++it){
+    //     std::wcerr << it->first << "\n";
+    //     for (auto& val: it->second){
+    //         std::cerr << val.first << "\t " << val.second << "\n";
+    //     }
+    //     std::cerr << std::endl;
+    // }
+
+    rtree_s constraints_tree( constraints.begin(), constraints.end() );
+    if (algorithm == L"adaptive"){
+        return std::make_tuple(cdtToMesh(cdt), adaptiveGrid2(geo_model, cdt, num_layers, Max_Tan),
+               getConstrainsEdges(cdt, &constraints_tree) );
+    } else if (algorithm == L"regular"){
+        return std::make_tuple(cdtToMesh(cdt), regularGrid(geo_model, cdt, num_layers, thickness),
+               getConstrainsEdges(cdt, &constraints_tree) );
     } else{
-        return std::make_pair(cdtToMesh(cdt), regularGrid_root(geo_model, cdt, num_layers, rate) );
+        throw GeomodelrException("Algorithm must be equal to 'regular' or 'adaptive'.");
     }
 }
 

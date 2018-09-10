@@ -75,6 +75,9 @@ typedef CGAL::Polygon_2<Kernel> polygonCGAL;
 typedef std::pair<vector<openvdb::Vec3f>,vector<openvdb::Vec3I>>   triangMesh;
 typedef std::pair<vector<CDT::Point>,vector<openvdb::Vec3I>> 	   triangMesh2D;
 typedef std::vector< std::vector< double > >					   vectorLayers;
+typedef std::map<wstring, vector<std::pair<size_t, size_t>>>	   pairConstraints;
+typedef std::tuple<triangMesh2D, vectorLayers, pairConstraints >   feflowInfo;
+
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;
 typedef geometry::model::point<double, 3, geometry::cs::cartesian> point3;
 typedef geometry::model::segment<point2> line_segment;
@@ -99,10 +102,11 @@ typedef std::pair<int, bool> line_anchor;
 //typedef std::pair<box, int> value;
 typedef std::tuple<box, wstring, int> value_f;
 typedef std::tuple<line_segment, int> value_l; // Value to search for surface lines, fault intersection.
-//typedef std::tuple<line_segment> value_seg;
-//typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
+typedef std::tuple<segment, wstring> value_s;
+
 typedef geometry::index::rtree<value_f, geometry::index::quadratic<16>> rtree_f;
 typedef geometry::index::rtree<value_l, geometry::index::quadratic<16>> rtree_l; // Tree to search for surface line.
+typedef geometry::index::rtree<value_s, geometry::index::quadratic<16>> rtree_s;
 typedef geometry::index::rtree<line_segment, geometry::index::quadratic<16>> rtree_seg;
 
 typedef std::tuple<int, int, int> triangle;

@@ -800,12 +800,12 @@ bbox3 Model::get_abbox() const{
 	return this->abbox;
 }
 
-std::pair<triangMesh2D, vectorLayers > Model::prismatic_mesh(const polygon& domain, map<wstring,
-	std::pair<point2, double> >& points, const map<wstring, multi_line>& constraints, const vector<point2>& riverCorners,
-	double triSize, double edgeSize, int num_layers, double rate, bool optimization, bool dist_alg){
+feflowInfo Model::prismatic_mesh(const polygon& domain,	map<wstring,std::pair<point2, double> >& points,
+	const vector<value_s>& constraints, const vector<point2>& riverCorners,	double triSize, double edgeSize,
+	int num_layers, double thickness, bool optimization, wstring algorithm, double Max_Tan){
 
 	return prismaticMesh(this, domain, points, constraints, riverCorners ,triSize, edgeSize, num_layers,
-		 rate, optimization, dist_alg);
+		 thickness, optimization, algorithm, Max_Tan);
 }
 
 
@@ -992,9 +992,11 @@ pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_po
 	double pointSize = python::extract<double>(py_parameters[1]);
 	double edgeSize = python::extract<double>(py_parameters[2]);
 	int num_layers = python::extract<int>(py_parameters[3]);
-	double rate = python::extract<double>(py_parameters[4]);
+	double thickness = python::extract<double>(py_parameters[4]);
 	bool optimization = python::extract<bool>(py_parameters[5]);
-	bool dist_alg = python::extract<bool>(py_parameters[6]);
+	wstring algorithm = python::extract<wstring>(py_parameters[6]);
+	double Max_Tan = python::extract<double>(py_parameters[7]);
+	Max_Tan = std::tan(Max_Tan*0.017453292519943295);
 
 	int num = python::len(py_domain);
 	polygon domain;
@@ -1026,19 +1028,16 @@ pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_po
 
 	// Multilines: rivers
 	dict_keys = py_constraints.keys();
-    map<wstring, multi_line> constraints;
 	num = python::len(dict_keys);
 	vector<point2> riverCorners;
+	vector<value_s> constraints;
 
 	for (int k = 0; k < num; k++){
 		wstring lkey = python::extract<wstring>(dict_keys[k]);
 		int numLines = python::len(py_constraints[lkey]);
-		multi_line constraintLines;
-		// constraintLines.resize(numLines);
 		
 		for (int i = 0; i < numLines; i++){
 			int numline = python::len(py_constraints[lkey][i]);
-
 			line river;
 			river.resize(numline);
 			for (int j = 0; j < numline; j++){
@@ -1052,20 +1051,20 @@ pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_po
 				if ( not geometry::is_valid(river) or not geometry::is_simple(river) ) {
 					std::wcerr << L"Multiline " << lkey << L" is not simple\n";
 				}
-				constraintLines.push_back(river);
+
+				for (size_t j = 0; j < river.size()-1; j++){
+					constraints.push_back( std::make_tuple(segment(river[j], river[j+1]), lkey));
+				}
 				riverCorners.push_back(river.front());
 				riverCorners.push_back(river.back());
 			}
-		}
-		if (boost::size(constraintLines) > 0){
-			constraints[lkey] = constraintLines;	
-		}		
+		}	
 	}
 
-	auto output = ((Model *)this)->prismatic_mesh(domain, points, constraints, riverCorners, triSize, edgeSize,
-		num_layers, rate ,optimization, dist_alg);
+	feflowInfo output = ((Model *)this)->prismatic_mesh(domain, points, constraints, riverCorners,
+		triSize, edgeSize, num_layers, thickness, optimization, algorithm, Max_Tan);
 
-	triangMesh2D& mesh = output.first;
+	triangMesh2D& mesh = g0(output);
 	if (mesh.second.size() > 10000000){
 		throw GeomodelrException("Mesh has more than 1'000.000 elements.");
 	}
@@ -1081,7 +1080,7 @@ pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_po
 	}
 
 	pylist layers;
-	for (auto& layer: output.second) {
+	for (auto& layer: g1(output)) {
 		pylist py_layer;
 		for (auto& val: layer){
 			py_layer.append(val);
@@ -1089,7 +1088,16 @@ pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_po
 		layers.append(py_layer);
 	}
 
-	return python::make_tuple(vertices, triangles, layers);
+	pydict constraints_segments;
+	for (auto it = g2(output).begin(); it != g2(output).end(); ++it){
+		pylist segments;
+		for (auto& p: it->second){
+			segments.append( python::make_tuple(p.first, p.second) );
+		}
+		constraints_segments[it->first] = segments;
+	}
+
+	return python::make_tuple(vertices, triangles, layers, constraints_segments);
 }
 
 pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,

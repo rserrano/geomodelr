@@ -300,9 +300,8 @@ public:
 	triangMesh calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
 		bool activeResampler);
 
-	std::pair<triangMesh2D, vectorLayers > prismatic_mesh(const polygon& domain, map<wstring,
-	std::pair<point2, double> >& points, const map<wstring, multi_line>& constraints, const vector<point2>& riverCorners,
-	double triSize, double edgeSize, int num_layers,  double rate, bool optimization, bool dist_alg);
+	feflowInfo prismatic_mesh(const polygon& domain, map<wstring, std::pair<point2, double> >& points, const vector<value_s>& constraints, const vector<point2>& riverCorners,
+	double triSize, double edgeSize, int num_layers, double thickness, bool optimization, wstring algorithm, double Max_Tan);
 
 	bbox3 get_bbox() const;
 	bbox3 get_abbox() const;

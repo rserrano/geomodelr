@@ -30,6 +30,17 @@ class Model;
 std::pair<double, bool> find_unit_limits_cpp(const Model* model,double xp, double yp,
 	double z_max, double z_min, double eps);
 
-double Newton_Raphson(std::function< double (double) >& fx, std::function< double (double) >& diff_fx, double x0);
+template <typename Function, typename Derivative>
+double Newton_Raphson(const Function& fx, const Derivative& diff_fx, double x0){
+    double xf;
+    for (size_t iter = 1; iter <= 10000; iter++){
+        xf = x0 - fx(x0)/diff_fx(x0);
+        if (std::abs(xf-x0) < tolerance){
+            return xf;
+        }
+        x0 = xf;
+    }
+    return xf;
+}
 
 #endif //GEOMODELR_SPEED_UP_HPP
