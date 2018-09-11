@@ -521,7 +521,7 @@ def create_feflow_input(name, model, units_data,
 def create_feflow_prismatic(name, geo_model, units_data, points_dom, points, constraints,
     parameters):
 
-    vertices, triangles, bottoms = geo_model.prismatic_mesh(points_dom, points, constraints, parameters)
+    vertices, triangles, bottoms, segments = geo_model.prismatic_mesh(points_dom, points, constraints, parameters)
     vertices = np.array(vertices)
     triangles = np.array(triangles, dtype='int32')
     bottoms = np.array(bottoms)

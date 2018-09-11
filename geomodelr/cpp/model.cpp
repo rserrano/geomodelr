@@ -1090,11 +1090,11 @@ pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_po
 
 	pydict constraints_segments;
 	for (auto it = g2(output).begin(); it != g2(output).end(); ++it){
-		pylist segments;
-		for (auto& p: it->second){
-			segments.append( python::make_tuple(p.first, p.second) );
+		pylist segments_idx;
+		for (auto& idx: it->second){
+			segments_idx.append( idx );
 		}
-		constraints_segments[it->first] = segments;
+		constraints_segments[it->first] = segments_idx;
 	}
 
 	return python::make_tuple(vertices, triangles, layers, constraints_segments);

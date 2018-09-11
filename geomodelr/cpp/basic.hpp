@@ -75,7 +75,7 @@ typedef CGAL::Polygon_2<Kernel> polygonCGAL;
 typedef std::pair<vector<openvdb::Vec3f>,vector<openvdb::Vec3I>>   triangMesh;
 typedef std::pair<vector<CDT::Point>,vector<openvdb::Vec3I>> 	   triangMesh2D;
 typedef std::vector< std::vector< double > >					   vectorLayers;
-typedef std::map<wstring, vector<std::pair<size_t, size_t>>>	   pairConstraints;
+typedef std::map<wstring, vector< size_t >>						   pairConstraints;
 typedef std::tuple<triangMesh2D, vectorLayers, pairConstraints >   feflowInfo;
 
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;

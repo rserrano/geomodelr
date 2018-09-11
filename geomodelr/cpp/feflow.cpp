@@ -29,7 +29,7 @@ std::vector<double> linspace(double a, double b, size_t N) {
     return xs;
 }
 
-triangMesh2D cdtToMesh(const CDT& cdt){
+triangMesh2D cdtToMesh(const CDT& cdt, std::map<std::pair<size_t, size_t>, size_t>& edges_map){
 
     vector<CDT::Point> points;
     points.reserve(cdt.number_of_vertices());
@@ -41,10 +41,32 @@ triangMesh2D cdtToMesh(const CDT& cdt){
     }
 
     vector<openvdb::Vec3I> triangles;
+    size_t C = 0;
+    size_t E = 0;
     for (CDT::Finite_faces_iterator fit = cdt.finite_faces_begin(); fit != cdt.finite_faces_end(); fit++){
 
         if (fit->is_in_domain()){
             triangles.push_back(openvdb::Vec3I(fit->vertex(0)->info(), fit->vertex(1)->info(), fit->vertex(2)->info()));
+            E++;
+            for (size_t k=0; k<=2; k++){
+                size_t idx_min = fit->vertex(k)->info();
+                size_t idx_max = fit->vertex( (k+1)%3 )->info();
+                if (idx_min > idx_max){
+                    std::swap(idx_min, idx_max);
+                }
+                auto edge_key = std::make_pair(idx_min, idx_max);
+                if (edges_map.find( edge_key ) == edges_map.end() ){
+                    edges_map[edge_key] = C;
+                    bool aux_1 = (idx_min != triangles.back().x() and idx_min != triangles.back().y() and idx_min != triangles.back().z());
+                    bool aux_2 = (idx_max != triangles.back().x() and idx_max != triangles.back().y() and idx_max != triangles.back().z());
+                    if (aux_1 or aux_2){
+                        std::cerr << "Element: " << E << "\t" << triangles.back() << "\n";
+                        std::cerr << "edge: " << C+1 << ". " << edge_key.first+1 << " - " << edge_key.second+1 << "\t";
+                        std::cerr << idx_min+1 << "-" << idx_max+1 << "\n\n";
+                    }
+                    C++;
+                }
+            }
         }
     }
     return std::make_pair(points, triangles);
@@ -289,10 +311,10 @@ void segmentConstraint(const CDT& cdt, vector<size_t>& line_handle, const CDT::V
    
 }
 
-std::map<wstring, vector<std::pair<size_t, size_t>>> getConstrainsEdges(const CDT& cdt,
-    const rtree_s* constraints_tree){
+std::map<wstring, vector<size_t>> getConstrainsEdges(const CDT& cdt, const rtree_s* constraints_tree,
+    std::map<std::pair<size_t, size_t>, size_t>& edges_map){
 
-    std::map<wstring, vector<std::pair<size_t, size_t>>> output;
+    std::map<wstring, vector<size_t>> output;
     // Constraints
     for (auto eit = cdt.edges_begin(); eit != cdt.edges_end(); ++eit){
         if (cdt.is_constrained(*eit)){
@@ -315,14 +337,13 @@ std::map<wstring, vector<std::pair<size_t, size_t>>> getConstrainsEdges(const CD
             for (auto it = constraints_tree->qbegin( geometry::index::intersects(Bbox)&&
                 geometry::index::satisfies(test_segment) ); it != constraints_tree->qend(); ++it){
 
-                // size_t idx_0 = pt_0->info();
-                // size_t idx_f = pt_f->info();
-                output[g1(*it)].push_back( std::make_pair(pt_0->info(),pt_f->info()) );
-                // if (idx_0 < idx_f){
-                //     output[g1(*it)].push_back( std::make_pair(idx_0, idx_f) );
-                // } else{
-                //     output[g1(*it)].push_back( std::make_pair(idx_f, idx_0) );
-                // }
+                size_t idx_min = pt_0->info();
+                size_t idx_max = pt_f->info();
+                // output[g1(*it)].push_back( std::make_pair(pt_0->info(),pt_f->info()) );
+                if (idx_min > idx_max){
+                    std::swap(idx_min, idx_max);
+                }
+                output[g1(*it)].push_back(edges_map[std::make_pair(idx_min, idx_max)]);
                 break;
             }
         }
@@ -674,12 +695,15 @@ feflowInfo prismaticMesh(const Model* geo_model, const polygon& domain,
     // }
 
     rtree_s constraints_tree( constraints.begin(), constraints.end() );
+    std::map<std::pair<size_t, size_t>, size_t> edges_map;
+    triangMesh2D mesh_2D = cdtToMesh(cdt, edges_map);
+
     if (algorithm == L"adaptive"){
-        return std::make_tuple(cdtToMesh(cdt), adaptiveGrid2(geo_model, cdt, num_layers, Max_Tan),
-               getConstrainsEdges(cdt, &constraints_tree) );
+        return std::make_tuple(mesh_2D, adaptiveGrid2(geo_model, cdt, num_layers, Max_Tan),
+               getConstrainsEdges(cdt, &constraints_tree, edges_map) );
     } else if (algorithm == L"regular"){
-        return std::make_tuple(cdtToMesh(cdt), regularGrid(geo_model, cdt, num_layers, thickness),
-               getConstrainsEdges(cdt, &constraints_tree) );
+        return std::make_tuple(mesh_2D, regularGrid(geo_model, cdt, num_layers, thickness),
+               getConstrainsEdges(cdt, &constraints_tree, edges_map) );
     } else{
         throw GeomodelrException("Algorithm must be equal to 'regular' or 'adaptive'.");
     }
