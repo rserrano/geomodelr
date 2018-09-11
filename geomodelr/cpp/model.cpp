@@ -788,30 +788,12 @@ map<wstring,vector<line>> Model::intersect_plane(const line_3d& plane) const{
 	return find_faults_multiple_planes_intersection(this->global_faults, vector<line_3d>(1, plane));
 }
 
-std::pair<double, bool> Model::find_unit_limits(double xp, double yp,double z_max, double z_min, double eps) const{
-	return  find_unit_limits_cpp(this, xp, yp, z_max, z_min, eps);
-}
-
 bbox3 Model::get_bbox() const{
 	return this->bbox;
 }
 
 bbox3 Model::get_abbox() const{
 	return this->abbox;
-}
-
-feflowInfo Model::prismatic_mesh(const polygon& domain,	map<wstring,std::pair<point2, double> >& points,
-	const vector<value_s>& constraints, const vector<point2>& riverCorners,	double triSize, double edgeSize,
-	int num_layers, double thickness, bool optimization, wstring algorithm, double Max_Tan){
-
-	return prismaticMesh(this, domain, points, constraints, riverCorners ,triSize, edgeSize, num_layers,
-		 thickness, optimization, algorithm, Max_Tan);
-}
-
-
-triangMesh Model::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
-	bool activeResampler){
-	return getIsosurface(this, unit, bounded, aligned, grid_divisions, activeResampler);
 }
 
 std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
@@ -976,153 +958,6 @@ pydict ModelPython::intersect_plane(const pylist& plane) const{
 	// Now convert intersections to python and return.
 	return (map_to_pydict(((Model *)this)->intersect_plane(plane_cpp)));
 }
-
-pytuple ModelPython::find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const{
-
-	std::pair<double, bool> output = ((Model *)this)->find_unit_limits(xp, yp, z_max, z_min, eps);
-	return python::make_tuple(output.first,output.second);
-}
-
-
-pytuple ModelPython::prismatic_mesh(const pylist& py_domain, const pydict& py_points, const pydict& py_constraints,
-	const pylist& py_parameters){
-
-	// Extract parameters
-	double triSize = python::extract<double>(py_parameters[0]);
-	double pointSize = python::extract<double>(py_parameters[1]);
-	double edgeSize = python::extract<double>(py_parameters[2]);
-	int num_layers = python::extract<int>(py_parameters[3]);
-	double thickness = python::extract<double>(py_parameters[4]);
-	bool optimization = python::extract<bool>(py_parameters[5]);
-	wstring algorithm = python::extract<wstring>(py_parameters[6]);
-	double Max_Tan = python::extract<double>(py_parameters[7]);
-	Max_Tan = std::tan(Max_Tan*0.017453292519943295);
-
-	int num = python::len(py_domain);
-	polygon domain;
-	ring& outer = domain.outer();
-
-	// Domain
-	for (int k = 0; k < num; k++){
-		double x = python::extract<double>(py_domain[k][0]);
-		double y = python::extract<double>(py_domain[k][1]);
-		outer.push_back(point2(x, y));
-	}
-
-	if ( not geometry::is_valid(domain) or not geometry::is_simple(domain) ) {
-		throw GeomodelrException("The polygon of the domain is not valid. Please check it.");
-	}
-
-	// Points: wells
-	pylist dict_keys = py_points.keys();
-    map<wstring, std::pair<point2, double> > points;
-	num = python::len(dict_keys);
-	for (int k = 0; k < num; k++){
-		wstring pkey = python::extract<wstring>(dict_keys[k]);
-		double x = python::extract<double>(py_points[pkey][0]);
-		double y = python::extract<double>(py_points[pkey][1]);
-		if (geometry::within(point2(x,y), domain)){
-			points[pkey] = std::make_pair(point2(x, y), pointSize);
-		}
-	}
-
-	// Multilines: rivers
-	dict_keys = py_constraints.keys();
-	num = python::len(dict_keys);
-	vector<point2> riverCorners;
-	vector<value_s> constraints;
-
-	for (int k = 0; k < num; k++){
-		wstring lkey = python::extract<wstring>(dict_keys[k]);
-		int numLines = python::len(py_constraints[lkey]);
-		
-		for (int i = 0; i < numLines; i++){
-			int numline = python::len(py_constraints[lkey][i]);
-			line river;
-			river.resize(numline);
-			for (int j = 0; j < numline; j++){
-				double x = python::extract<double>(py_constraints[lkey][i][j][0]);
-				double y = python::extract<double>(py_constraints[lkey][i][j][1]);
-				river[j] = point2(x,y);
-			}
-			vector<line> output;
-			geometry::intersection(domain, river, output);
-			for (auto& river: output){
-				if ( not geometry::is_valid(river) or not geometry::is_simple(river) ) {
-					std::wcerr << L"Multiline " << lkey << L" is not simple\n";
-				}
-
-				for (size_t j = 0; j < river.size()-1; j++){
-					constraints.push_back( std::make_tuple(segment(river[j], river[j+1]), lkey));
-				}
-				riverCorners.push_back(river.front());
-				riverCorners.push_back(river.back());
-			}
-		}	
-	}
-
-	feflowInfo output = ((Model *)this)->prismatic_mesh(domain, points, constraints, riverCorners,
-		triSize, edgeSize, num_layers, thickness, optimization, algorithm, Max_Tan);
-
-	triangMesh2D& mesh = g0(output);
-	if (mesh.second.size() > 10000000){
-		throw GeomodelrException("Mesh has more than 1'000.000 elements.");
-	}
-
-	pylist vertices;
-	for (auto& pt: mesh.first){
-		vertices.append(python::make_tuple(pt.x(),pt.y()));
-	}
-
-	pylist triangles;
-	for (auto& tri: mesh.second){
-		triangles.append(python::make_tuple(tri.x(),tri.y(),tri.z()));
-	}
-
-	pylist layers;
-	for (auto& layer: g1(output)) {
-		pylist py_layer;
-		for (auto& val: layer){
-			py_layer.append(val);
-		}
-		layers.append(py_layer);
-	}
-
-	pydict constraints_segments;
-	for (auto it = g2(output).begin(); it != g2(output).end(); ++it){
-		pylist segments_idx;
-		for (auto& idx: it->second){
-			segments_idx.append( idx );
-		}
-		constraints_segments[it->first] = segments_idx;
-	}
-
-	return python::make_tuple(vertices, triangles, layers, constraints_segments);
-}
-
-pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
-	bool activeResampler){
-	
-	triangMesh output = ((Model *)this)->calculate_isosurface(unit, bounded, aligned, grid_divisions, activeResampler);
-	pylist points;
-	if (aligned){
-		for (auto& pt: output.first){
-			point3 realPt = ((Model *)this)->inverse_point(point2(pt.x(),pt.y()),pt.z());
-			points.append(python::make_tuple(gx(realPt),gy(realPt),gz(realPt)));
-		}
-	} else{
-		for (auto& pt: output.first){
-			points.append(python::make_tuple(pt.x(),pt.y(),pt.z()));
-		}
-	}
-
-	pylist triangles;
-	for (auto& tri: output.second){
-		triangles.append(python::make_tuple(tri.x(),tri.z(),tri.y()));
-	}
-	return python::make_tuple(points,triangles);
-}
-
 
 double ModelPython::height( const pyobject& pt ) const {
 	double d0 = python::extract<double>(pt[0]);

@@ -16,7 +16,13 @@
 	along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 from setuptools import setup, Extension
+from setuptools.command.develop import develop
+from setuptools.command.install import install
 import os
+import subprocess
+import distutils
+
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
 def if_env(**kwargs):
     varname, default = kwargs.popitem()
@@ -28,18 +34,42 @@ def if_env(**kwargs):
     except KeyError:
         return default
 
-def_libraries    = ['boost_python', 'openvdb', 'gmp', 'mpfr', 'CGAL' ]
+def generate_link(self):
+    link_file = os.path.join(dir_path, "geomodelr", "libgeomodelr.so")
+    if os.path.exists(link_file):
+        command = ['rm', link_file ]
+        self.announce(
+            'Running command: %s' % str(command),
+            level=distutils.log.INFO)
+        subprocess.check_call(command)
+    command = ['ln', "-s", os.path.join(dir_path, "geomodelr", "cpp.so"), link_file ]
+    self.announce(
+        'Running command: %s' % str(command),
+        level=distutils.log.INFO)
+    subprocess.check_call(command)
+
+class PostDevelopCommand(develop):
+    """Post-installation for development mode."""
+    def run(self):
+        """Run command."""
+        generate_link(self)
+
+class PostInstallCommand(install):
+    """Post-installation for installation mode."""
+    def run(self):
+        """Run command."""
+        generate_link(self)
+
+def_libraries    = ['boost_python']
 def_library_dirs = ['/usr/local/lib', '/usr/lib/x86_64-linux-gnu/']
 def_include_dirs = ['/usr/local/include']
 
 cppextension = Extension("geomodelr.cpp", ['geomodelr/cpp/basic.cpp', 'geomodelr/cpp/section.cpp', 'geomodelr/cpp/match.cpp', 
                                            'geomodelr/cpp/model.cpp', 'geomodelr/cpp/geomodel.cpp', 'geomodelr/cpp/faults.cpp',
-                                           'geomodelr/cpp/speed_up.cpp','geomodelr/cpp/polygon.cpp',
-                                           'geomodelr/cpp/isosurfaces_vdb.cpp','geomodelr/cpp/feflow.cpp'],
+                                           'geomodelr/cpp/polygon.cpp'],
                          depends=['geomodelr/cpp/basic.hpp', 'geomodelr/cpp/section.hpp', 'geomodelr/cpp/match.hpp', 
                                   'geomodelr/cpp/model.hpp', 'geomodelr/cpp/geomodel.hpp', 'geomodelr/cpp/faults.hpp',
-                                  'geomodelr/cpp/speed_up.hpp','geomodelr/cpp/polygon.hpp','geomodelr/cpp/isosurfaces_vdb.hpp',
-                                  'geomodelr/cpp/feflow.hpp'],
+                                  'geomodelr/cpp/polygon.hpp'],
                          include_dirs=if_env(INCLUDE_DIRS=def_include_dirs),
                          library_dirs=if_env(LIBRARY_DIRS=def_library_dirs), 
                          libraries=if_env(LIBRARIES=def_libraries),
@@ -54,12 +84,16 @@ setup(name='geomodelr',
     license='AGPL',
     packages=['geomodelr'],
     ext_modules=[cppextension],
-    install_requires=['numpy', 'scipy'],# 'scikit-image', 'numpy-stl'],
+    install_requires=['numpy', 'scipy'],
     keywords=['geology', 'geological modelling', 'cross sections', 'geomodelr'],
     entry_points = {
         'console_scripts': [
             'geomodelr=geomodelr.__main__:main'
         ]
+    },
+    cmdclass={
+        'develop': PostDevelopCommand,
+        'install': PostInstallCommand,
     },
     zip_safe=False)
 

@@ -25,7 +25,7 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/geometries.hpp>
 #include <boost/lambda/lambda.hpp>
-#include <openvdb/openvdb.h>
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -39,16 +39,6 @@
 #include <assert.h>
 #include <cmath>
 
-#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Constrained_Delaunay_triangulation_2.h>
-#include <CGAL/Triangulation_vertex_base_with_info_2.h>
-#include <CGAL/Delaunay_mesher_2.h>
-#include <CGAL/Delaunay_mesh_face_base_2.h>
-#include <CGAL/Delaunay_mesh_vertex_base_2.h>
-#include <CGAL/Delaunay_mesh_size_criteria_2.h>
-#include <CGAL/Polygon_2.h>
-#include <CGAL/lloyd_optimize_mesh_2.h>
-
 using namespace boost;
 using std::vector;
 using std::string;
@@ -60,24 +50,6 @@ wstring human_failure_type( const geometry::validity_failure_type& fail );
 static const double tolerance = 1e-15;
 static const double epsilon = 1e-5;
 static const double boost_tol = std::numeric_limits<double>::epsilon();
-
-typedef CGAL::Exact_predicates_inexact_constructions_kernel 	 Kernel;
-typedef CGAL::Triangulation_vertex_base_with_info_2<size_t, Kernel>    Vb;
-typedef CGAL::Delaunay_mesh_vertex_base_2<Kernel, Vb>           	 Vbi;
-typedef CGAL::Delaunay_mesh_face_base_2<Kernel>             	 Fb;
-typedef CGAL::Triangulation_data_structure_2<Vbi, Fb>        	 Tds;
-typedef CGAL::Exact_predicates_tag 							 Itag;
-typedef CGAL::Constrained_Delaunay_triangulation_2<Kernel, Tds, Itag>  CDT;
-typedef CGAL::Delaunay_mesh_size_criteria_2<CDT>            	 Criteria;
-typedef CGAL::Delaunay_mesher_2<CDT, Criteria>              	 Mesher;
-typedef CGAL::Polygon_2<Kernel> polygonCGAL;
-
-typedef std::pair<vector<openvdb::Vec3f>,vector<openvdb::Vec3I>>   triangMesh;
-typedef std::pair<vector<CDT::Point>,vector<openvdb::Vec3I>> 	   triangMesh2D;
-typedef std::vector< std::vector< double > >					   vectorLayers;
-typedef std::map<wstring, vector< size_t >>						   pairConstraints;
-typedef std::tuple<triangMesh2D, vectorLayers, pairConstraints >   feflowInfo;
-
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;
 typedef geometry::model::point<double, 3, geometry::cs::cartesian> point3;
 typedef geometry::model::segment<point2> line_segment;

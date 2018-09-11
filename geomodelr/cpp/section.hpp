@@ -18,7 +18,6 @@
 #ifndef GEOMODELR_SECTION_HPP
 #define GEOMODELR_SECTION_HPP
 
-#include "speed_up.hpp"
 #include "basic.hpp"
 #include "polygon.hpp"
 #include <stdlib.h>
