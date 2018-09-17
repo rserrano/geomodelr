@@ -13,6 +13,7 @@ cp source/conf.py.orig source/conf.py
 
 # RTD can't install geomodelr, so have to do use rst builder.
 cp source/geomodelr.rst.orig source/geomodelr.rst
+pwd
 make rst
 cp build/rst/geomodelr.rst source/geomodelr.rst
 

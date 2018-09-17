@@ -17,7 +17,6 @@
 
 import numpy as np
 from numpy import linalg as la
-from scipy.spatial import Delaunay
 import itertools
 import math
 
@@ -84,35 +83,6 @@ def over_point( points ):
     sqd = math.sqrt((mxx-mnx)*(mxx-mnx)+(mxy-mny)*(mxy-mny)+(mxz-mnz)*(mxz-mnz))
     
     return p0 + n*sqd
-    
-# Triangulates a set of points and returns the triangles filtered by the given filter.
-def triangulate(points, fltr=lambda x: True):
-
-    tetras = Delaunay(points)
-    tris = set()
-    for tet in tetras.simplices.copy():
-        for tri in itertools.combinations(tet,3):
-            srt = tuple(sorted(tri))
-            if fltr(srt):
-                tris.add(srt)
-    return list(tris)
-
-# Triangulates a set of points filtering them because they are on both sides of the line.
-def opposite_triangles(points, na):
-    n = len(points)
-    pt = over_point(points)
-    def is_opposite(tri):
-        if n in tri:
-            return False
-        if not tri[0] < na or not tri[2] >= na:
-            return False
-        if tri[0]+1 == tri[1] and tri[1] < na:
-            return True
-        if tri[1]+1 == tri[2] and tri[1] >= na:
-            return True
-        return False
-
-    return map( lambda tri: map(int, tri), triangulate(points+[pt], is_opposite) )
 
 # Calculates the distance between two parallel lines.
 def line_side(surface_line, cs_line):

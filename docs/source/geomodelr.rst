@@ -10,7 +10,8 @@ Submodules
 geomodelr.model module
 ======================
 
-**class geomodelr.model.GeologicalModel(geolojson, delete=True)**
+**class geomodelr.model.GeologicalModel(geolojson, delete=True,
+params={'faults': 'basic', 'map': 'disabled'})**
 
    Bases: ``geomodelr.cpp.Model``
 
@@ -41,6 +42,30 @@ geomodelr.model module
          boost::python::tuple closest(ModelPython
          {lvalue},boost::python::api::object)
 
+   **closest_aligned((Model)arg1, (object)point) -> tuple :**
+
+      Same as closest but in the coordinate system of the parallel
+      cross sections model.
+
+      The basic definition of the algorithm is that, given a match
+      between geological units, the distance from the point to the
+      unit is the sum of the in-section distance to the point averaged
+      by the distance to the cross section.
+
+      This algorithm returns the lowest value of the defined distance.
+
+      Args:
+         (tuple) point: The three coordinates of the point in the
+         parallel sections coordinate system.
+
+      Returns:
+         (tuple): A tuple with the geological unit and the defined
+         distance to that unit.
+
+      C++ signature :
+         boost::python::tuple closest_aligned(ModelPython
+         {lvalue},boost::python::api::object)
+
    **closest_topo((Model)arg1, (object)point) -> tuple :**
 
       Same as closest but it returns (AIR, inf) if the point is above
@@ -62,12 +87,31 @@ geomodelr.model module
          boost::python::tuple closest_topo(ModelPython
          {lvalue},boost::python::api::object)
 
-   **find_unit_limits((Model)arg1, (float)arg2, (float)arg3,
-   (float)arg4, (float)arg5, (float)arg6) -> tuple :**
+   **closest_topo_aligned((Model)arg1, (object)point) -> tuple :**
+
+      Same as closest_topo, but in the coordinate system of the cross
+      sections.
+
+      Args:
+         (tuple) point: The three coordinates (easting, northing,
+         altitude a.s.l) of the point in the given coordinate system.
+
+      Returns:
+         (tuple): A tuple with the geological unit and the defined
+         distance to that unit or AIR if it’s above the topography.
 
       C++ signature :
-         boost::python::tuple find_unit_limits(ModelPython
-         {lvalue},double,double,double,double,double)
+         boost::python::tuple closest_topo_aligned(ModelPython
+         {lvalue},boost::python::api::object)
+
+   **geomodelr_distance((Model)arg1, (unicode)unit, (list)point) ->
+   float :**
+
+      C++ signature :
+         double geomodelr_distance(ModelPython
+         {lvalue},std::__cxx11::basic_string<wchar_t,
+         std::char_traits<wchar_t>, std::allocator<wchar_t>
+         >,boost::python::list)
 
    **height((Model)arg1, (object)point) -> float :**
 
@@ -185,27 +229,6 @@ geomodelr.model module
          boost::python::tuple model_point(ModelPython
          {lvalue},boost::python::api::object)
 
-   **possible_closest((Model)arg1, (object)point) -> list :**
-
-      Given a point, it finds all the possible geological units in the
-      given line for the adjacent cross sections.
-
-      It can be used to query a grid aligned with the model faster,
-      for purposes of generating a triangulated mesh or a grid.
-
-      Args:
-         (tuple) point: The three coordinates of the point in the
-         given coordinate system.
-
-      Returns:
-         (list(tuple(), …)): a list with all the possible units, each
-         unit with the distance to the previous and next cross
-         sections.
-
-      C++ signature :
-         boost::python::list possible_closest(ModelPython
-         {lvalue},boost::python::api::object)
-
    **print_information(verbose=False)**
 
       Prints the information of the geological model just loaded.
@@ -241,6 +264,27 @@ geomodelr.model module
          std::char_traits<wchar_t>, std::allocator<wchar_t>
          >,boost::python::api::object)
 
+   **signed_distance_aligned((Model)arg1, (unicode)unit,
+   (object)point) -> float :**
+
+      Same as signed_distance but in the coordinate system of the
+      cross sections.
+
+      Args:
+         (string) unit: The unit to measure the signed distance to
+
+         (tuple) point: The three coordinates (esting, norting,
+         altitute a.s.l) of the point in the given coordinate system.
+
+      Returns:
+         (double) The signed distance from the unit to the point.
+
+      C++ signature :
+         double signed_distance_aligned(ModelPython
+         {lvalue},std::__cxx11::basic_string<wchar_t,
+         std::char_traits<wchar_t>, std::allocator<wchar_t>
+         >,boost::python::api::object)
+
    **signed_distance_bounded((Model)arg1, (unicode)unit,
    (object)point) -> float :**
 
@@ -265,6 +309,27 @@ geomodelr.model module
 
       C++ signature :
          double signed_distance_bounded(ModelPython
+         {lvalue},std::__cxx11::basic_string<wchar_t,
+         std::char_traits<wchar_t>, std::allocator<wchar_t>
+         >,boost::python::api::object)
+
+   **signed_distance_bounded_aligned((Model)arg1, (unicode)unit,
+   (object)point) -> float :**
+
+      Same as signed_distance_bounded but in the coordinate system of
+      the cross sections.
+
+      Args:
+         (string) unit: The unit to measure the signed distance to
+
+         (tuple) point: The three coordinates (esting, norting,
+         altitute a.s.l) of the point in the given coordinate system.
+
+      Returns:
+         (double) The signed distance from the unit to the point.
+
+      C++ signature :
+         double signed_distance_bounded_aligned(ModelPython
          {lvalue},std::__cxx11::basic_string<wchar_t,
          std::char_traits<wchar_t>, std::allocator<wchar_t>
          >,boost::python::api::object)
@@ -297,9 +362,73 @@ geomodelr.model module
          std::char_traits<wchar_t>, std::allocator<wchar_t>
          >,boost::python::api::object)
 
+   **signed_distance_unbounded_aligned((Model)arg1, (unicode)unit,
+   (object)point) -> float :**
+
+      Same as signed_distance_unbounded but in the coordinate system
+      aligned with the cross sections.
+
+      Args:
+         (string) unit: The unit to measure the signed distance to
+
+         (tuple) point: The three coordinates (esting, norting,
+         altitute a.s.l) of the point in the given coordinate system.
+
+      Returns:
+         (double) The signed distance from the unit to the point.
+
+      C++ signature :
+         double signed_distance_unbounded_aligned(ModelPython
+         {lvalue},std::__cxx11::basic_string<wchar_t,
+         std::char_traits<wchar_t>, std::allocator<wchar_t>
+         >,boost::python::api::object)
+
+   **signed_distance_unbounded_aligned_restricted((Model)arg1,
+   (unicode)arg2, (object)arg3, (object)arg4) -> float :**
+
+      C++ signature :
+         double
+         signed_distance_unbounded_aligned_restricted(ModelPython
+         {lvalue},std::__cxx11::basic_string<wchar_t,
+         std::char_traits<wchar_t>, std::allocator<wchar_t>
+         >,boost::python::api::object,boost::python::api::object)
+
+   **signed_distance_unbounded_restricted((Model)arg1, (unicode)arg2,
+   (object)arg3, (object)arg4) -> float :**
+
+      C++ signature :
+         double signed_distance_unbounded_restricted(ModelPython
+         {lvalue},std::__cxx11::basic_string<wchar_t,
+         std::char_traits<wchar_t>, std::allocator<wchar_t>
+         >,boost::python::api::object,boost::python::api::object)
+
    **validate()**
 
       Validates that the Geological JSON has correct information.
+
+**class geomodelr.model.GeologicalSection(geolojson, delete=True,
+params={'faults': 'basic'})**
+
+   Bases: ``geomodelr.cpp.Section``
+
+   Interface to query a single Geological Cross Section or Map.
+
+   **closest((Section)arg1, (object)arg2) -> tuple :**
+
+      C++ signature :
+         boost::python::tuple closest(SectionPython
+         {lvalue},boost::python::api::object)
+
+   **distance((Section)arg1, (list)arg2, (int)arg3) -> float :**
+
+      C++ signature :
+         double distance(SectionPython
+         {lvalue},boost::python::list,int)
+
+   **info((Section)arg1) -> dict :**
+
+      C++ signature :
+         boost::python::dict info(SectionPython {lvalue})
 
 **geomodelr.model.model_from_file(filename)**
 
@@ -346,6 +475,13 @@ dict :**
    C++ signature :
       boost::python::dict
       find_faults_intersection(boost::python::dict,boost::python::list)
+
+**geomodelr.cpp.find_mesh_plane_intersection((list)arg1, (list)arg2)
+-> list :**
+
+   C++ signature :
+      boost::python::list
+      find_mesh_plane_intersection(boost::python::list,boost::python::list)
 
 **geomodelr.cpp.join_lines_tree_test((list)arg1) -> list :**
 
@@ -447,174 +583,6 @@ grid_divisions, oct_refine)**
 
       (int) oct_refine: the number of refinements for the octree
       scheme
-
-
-geomodelr.isosurfaces module
-============================
-
-**geomodelr.isosurfaces.calculate_isosurface(model, unit,
-grid_divisions, bounded=True, filter_by_normal=False,
-normal_upwards=True)**
-
-   Calculates an isosurface of a unit. It uses a signed distance and
-   an isosurface algorithm present in skimage.measure.
-
-   Args:
-      (geomodelr.model.GeologicalModel) model: The geomodelr
-      geological model.
-
-      (unicode) unit: The unit to calculate the isosurface for.
-
-      (int) grid_divisions: The number of divisions for all the axes.
-
-      (bool) bounded: calculates the surface using the bounding box.
-      This will result in a solid.
-
-      (bool) filter_by_normal: filters by the normal of each triangle,
-      depending on the normal_upwards argument.
-
-      (bool) normal_upwards: if filter_by_normal is True, filters the
-      triangles depending on its normal. It returns only the triangles
-      pointing upwards if it’s True, otherwise it returns the
-      triangles pointing downwards.
-
-   Returns:
-      (list) vertices: The list of vertices.
-
-      (list) triangles: The list of triangles indexes to vertexes.
-
-**geomodelr.isosurfaces.calculate_isovalues(model, unit,
-grid_divisions, bbox, bounded=True)**
-
-   Calculates a grid of isovalues in a bounding box to be used by
-   method  skimage.measure to create a triangulation of the unit.
-
-   Args:
-      (geomodelr.model.GeologicalModel) geolojson: The Geological
-      model created form a Geological JSON object.
-
-      (int) grid_divisions: The divisions of the grid in the X, Y and
-      Z directions.
-
-      (list) bbox: the values of [minx, miny, minz, maxx, maxy, maxz].
-
-      (bool) bounded: whether the object will be a solid, (the bounded
-      signed distance will be used), or it will be an open surface.
-
-**geomodelr.isosurfaces.calculate_normals(vertices, simplices)**
-
-   Calculates the normals for all the simplices, (skimage returns
-   normals per vertex).
-
-   Args:
-      (numpy.array) vertices: The vertices returned by the marching
-      cubes algorithm.
-
-      (numpy.array) simplices: The simplices (triangles) returned by
-      the marching cubes algorithm.
-
-**geomodelr.isosurfaces.check_bbox_surface(sd)**
-
-   Checks if the bounding box of the object modeled is very small.
-   When a geological unit covers a very small part of the model, it
-   needs to be refined. The new bbox of the unit is returned to check
-   that case.
-
-   Args:
-      (numpy.array) sd: The grid of signed distances.
-
-**geomodelr.isosurfaces.plot_unit(model, unit, grid_divisions,
-bounded=True, filter_by_normal=False, normal_upwards=False)**
-
-   Plots a unit previously modeled with calculate_isosurface.
-
-   Args:
-      (geomodelr.model.GeologicalModel) model: The geomodelr
-      geological model.
-
-      (unicode) unit: The unit to calculate the isosurface for.
-
-      (int) grid_divisions: The number of divisions for all the axes.
-
-      (bool) bounded: calculates the surface using the bounding box.
-      This will result in a solid.
-
-      (bool) filter_by_normal: filters by the normal of each triangle,
-      depending on the normal_upwards argument.
-
-      (bool) normal_upwards: if filter_by_normal is True, filters the
-      triangles depending on its normal. It returns only
-
-      the triangles pointing upwards if it’s True, otherwise it
-      returns the triangles pointing downwards.
-
-**geomodelr.isosurfaces.save_unit(name, model, unit, grid_divisions,
-bounded=True, filter_by_normal=False, normal_upwards=False)**
-
-   Saves the wireframe of a geological unit to the disk. It uses a
-   marching cubes and a signed distance from the model.
-
-   Args:
-      (str) name: the name to save the STL file.
-
-      (geomodelr.model.GeologicalModel) model: the model to be
-      queried.
-
-      (unicode) unit: the unit to be meshed.
-
-      (int) grid_divisions: the number of divisions of the grid to
-      mesh the object.
-
-      (bool) bounded: whether this surface is bounded by the bbox or
-      only by the topography.
-
-      (bool) filter_by_normal: whether to filter this mesh by normal
-      to the surface. Useful  if you want to see the top or bottom of
-      your formation.
-
-      (bool) normal_upwards: if filter_by_normal is True, whether you
-      want the triangles that look up or the triangles that look down.
-
-**geomodelr.isosurfaces.stl_mesh(vertices, simplices)**
-
-   Creates a numpy-stl mesh from a sets of vertices and triangles.
-
-   Args:
-      (list) vertices: vertices of the mesh.
-
-      (list) simplices: triangles of the mesh.
-
-   Returns:
-      (stl.mesh.Mesh): a numpy-stl mesh.
-
-**geomodelr.isosurfaces.triangulate_unit(model, unit, grid_divisions,
-bounded=True, filter_by_normal=False, normal_upwards=False)**
-
-   Triangulates a geological unit and returns it for further
-   processing, (or saving it to the database). It uses a marching
-   cubes and a signed distance from the model.
-
-   Args:
-      (geomodelr.model.GeologicalModel) model: the model to be
-      queried.
-
-      (unicode) unit: the unit to be meshed.
-
-      (int) grid_divisions: the number of divisions of the grid to
-      mesh the object.
-
-      (bool) bounded: whether this surface is bounded by the bbox or
-      only by the topography.
-
-      (bool) filter_by_normal: whether to filter this mesh by normal
-      to the surface. Useful  if you want to see the top or bottom of
-      your formation.
-
-      (bool) normal_upwards: if filter_by_normal is True, whether you
-      want the triangles that look up or the triangles that look down.
-
-   Returns:
-      (dict): the triangulated unit with a few useful properties.
 
 
 Module contents

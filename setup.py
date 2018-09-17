@@ -76,7 +76,7 @@ cppextension = Extension("geomodelr.cpp", ['geomodelr/cpp/basic.cpp', 'geomodelr
                          extra_compile_args=['-std=c++11'])
 
 setup(name='geomodelr',
-    version='0.1.7',
+    version='0.1.8',
     description='Geomodelr is the open source query tool for geomodelr.com models.',
     url='http://github.com/rserrano/geomodelr',
     author='Ricardo Serrano',
@@ -84,7 +84,7 @@ setup(name='geomodelr',
     license='AGPL',
     packages=['geomodelr'],
     ext_modules=[cppextension],
-    install_requires=['numpy', 'scipy'],
+    install_requires=['numpy'],
     keywords=['geology', 'geological modelling', 'cross sections', 'geomodelr'],
     entry_points = {
         'console_scripts': [

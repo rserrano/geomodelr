@@ -28,14 +28,6 @@ geomodelr.utils module
     :inherited-members:
     :show-inheritance:
 
-geomodelr.isosurfaces module
-----------------------------
-
-.. automodule:: geomodelr.isosurfaces
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
 Module contents
 ---------------
 
