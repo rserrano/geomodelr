@@ -19,11 +19,13 @@
 #ifndef GEOMODELR_BASIC_HPP
 #define GEOMODELR_BASIC_HPP
 
+#define CGAL_MESH_2_OPTIMIZER_VERBOSE
+
 #include <boost/python.hpp>
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/geometries.hpp>
 #include <boost/lambda/lambda.hpp>
-#include <openvdb/openvdb.h>
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -48,9 +50,6 @@ wstring human_failure_type( const geometry::validity_failure_type& fail );
 static const double tolerance = 1e-15;
 static const double epsilon = 1e-5;
 static const double boost_tol = std::numeric_limits<double>::epsilon();
-
-
-typedef std::pair<vector<openvdb::Vec3f>,vector<openvdb::Vec3I>> unitMesh;
 typedef geometry::model::point<double, 2, geometry::cs::cartesian> point2;
 typedef geometry::model::point<double, 3, geometry::cs::cartesian> point3;
 typedef geometry::model::segment<point2> line_segment;
@@ -62,6 +61,8 @@ typedef geometry::model::segment<point2> segment;
 typedef polygon::ring_type ring;
 typedef geometry::model::linestring<point2> line;
 typedef geometry::model::linestring<point3> line_3d;
+typedef geometry::model::multi_linestring<line> multi_line;
+
 typedef std::tuple<std::tuple<double, double, double>, 
 		   std::tuple<double, double, double>> bbox3;
 
@@ -73,10 +74,11 @@ typedef std::pair<int, bool> line_anchor;
 //typedef std::pair<box, int> value;
 typedef std::tuple<box, wstring, int> value_f;
 typedef std::tuple<line_segment, int> value_l; // Value to search for surface lines, fault intersection.
-//typedef std::tuple<line_segment> value_seg;
-//typedef geometry::index::rtree<value, geometry::index::quadratic<16>> rtree;
+typedef std::tuple<segment, wstring> value_s;
+
 typedef geometry::index::rtree<value_f, geometry::index::quadratic<16>> rtree_f;
 typedef geometry::index::rtree<value_l, geometry::index::quadratic<16>> rtree_l; // Tree to search for surface line.
+typedef geometry::index::rtree<value_s, geometry::index::quadratic<16>> rtree_s;
 typedef geometry::index::rtree<line_segment, geometry::index::quadratic<16>> rtree_seg;
 
 typedef std::tuple<int, int, int> triangle;
@@ -135,7 +137,9 @@ struct GeomodelrException : std::runtime_error
 	GeomodelrException(const string&);
 };
 
-bool always_true( const value_f& v ); 
+bool always_true( const value_f& v );
+
+vector<size_t> sort_indexes(const vector<double> &v);
 
 std::tuple<point2, double> point_line_projection( const point2& p, const line& l );
 
@@ -156,5 +160,19 @@ public:
 
 };
 
+// Computes the cross product between two point3.
+//	  v1: first vector.
+//	  v2: second vector.
+point3 cross_product(const point3& v1,const point3& v2);
+
+vector<line_segment> find_mesh_plane_intersection(const vector<triangle_pt>& mesh, const point3& x0, const point3& v1, const point3& v2, const point3& nv, const polygon& plane_poly);
+vector<line_segment> find_triangle_topography_intersection( const triangle_pt& tri_fault, 
+							    const vector<vector<double>>& topography_array, 
+							    double z_max, double z_min,double x_inf, double y_inf,
+							    double dx, double dy, int rows, int cols );
+pylist join_lines_tree_test( const pylist& segments );
+pylist find_mesh_plane_intersection_python( const pylist& mesh, const pylist& plane_poly );
+vector<line> join_lines_tree(const vector<line_segment>& lines, double start_x);
+pylist vector_to_pylist(const vector<line>& input);
 #endif
 

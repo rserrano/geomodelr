@@ -788,21 +788,12 @@ map<wstring,vector<line>> Model::intersect_plane(const line_3d& plane) const{
 	return find_faults_multiple_planes_intersection(this->global_faults, vector<line_3d>(1, plane));
 }
 
-std::pair<double, bool> Model::find_unit_limits(double xp, double yp,double z_max, double z_min, double eps) const{
-	return  find_unit_limits_cpp(this, xp, yp, z_max, z_min, eps);
-}
-
 bbox3 Model::get_bbox() const{
 	return this->bbox;
 }
 
 bbox3 Model::get_abbox() const{
 	return this->abbox;
-}
-
-unitMesh Model::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
-	bool activeResampler){
-	return getIsosurface(this, unit, bounded, aligned, grid_divisions, activeResampler);
 }
 
 std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
@@ -967,36 +958,6 @@ pydict ModelPython::intersect_plane(const pylist& plane) const{
 	// Now convert intersections to python and return.
 	return (map_to_pydict(((Model *)this)->intersect_plane(plane_cpp)));
 }
-
-pytuple ModelPython::find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const{
-
-	std::pair<double, bool> output = ((Model *)this)->find_unit_limits(xp, yp, z_max, z_min, eps);
-	return python::make_tuple(output.first,output.second);
-}
-
-pytuple ModelPython::calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
-	bool activeResampler){
-	
-	unitMesh output = ((Model *)this)->calculate_isosurface(unit, bounded, aligned, grid_divisions, activeResampler);
-	pylist points;
-	if (aligned){
-		for (auto& pt: output.first){
-			point3 realPt = ((Model *)this)->inverse_point(point2(pt.x(),pt.y()),pt.z());
-			points.append(python::make_tuple(gx(realPt),gy(realPt),gz(realPt)));
-		}
-	} else{
-		for (auto& pt: output.first){
-			points.append(python::make_tuple(pt.x(),pt.y(),pt.z()));
-		}
-	}
-
-	pylist triangles;
-	for (auto& tri: output.second){
-		triangles.append(python::make_tuple(tri.x(),tri.y(),tri.z()));
-	}
-	return python::make_tuple(points,triangles);
-}
-
 
 double ModelPython::height( const pyobject& pt ) const {
 	double d0 = python::extract<double>(pt[0]);

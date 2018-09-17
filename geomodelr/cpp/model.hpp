@@ -22,8 +22,6 @@
 #include "section.hpp"
 #include "match.hpp"
 #include "faults.hpp"
-#include "speed_up.hpp"
-#include "isosurfaces_vdb.hpp"
 
 class Topography {
 protected:
@@ -296,9 +294,6 @@ public:
 		double x_inf, double y_inf, double dx, double dy, int rows, int cols) const;
 
 	std::pair<double, bool> find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
-	unitMesh calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
-		bool activeResampler);
-
 	bbox3 get_bbox() const;
 	bbox3 get_abbox() const;
 
@@ -427,10 +422,6 @@ public:
 	pydict intersect_plane(const pylist& plane) const;
 	pydict intersect_planes(const pylist& planes) const;
 	pydict intersect_topography(const pydict& topography_info) const;
-	pytuple find_unit_limits(double xp, double yp, double z_max, double z_min, double eps) const;
-	pytuple calculate_isosurface(wstring unit, bool bounded, bool aligned, int grid_divisions,
-		bool activeResampler = false);
-	
 	pydict info() const;
 	double height(const pyobject& pt) const;
 };

@@ -40,6 +40,5 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 vector<vector<double>> topography_to_vector(const pylist& topography, int rows, int cols, double& z_max,double& z_min);
 
 pydict find_faults_topography_intersection_python(const pydict& fplanes, const pydict& topography_info);
-pylist join_lines_tree_test(const pylist& segments);
-vector<line> join_lines_tree(const vector<line_segment>& lines,const double start_x);
+
 #endif // GEOMODELR_FAULTS_HPP

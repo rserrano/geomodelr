@@ -19,10 +19,6 @@
 import model
 import shared
 import cpp
-import utils
-import isosurfaces
-import modflow
-import feflow
 import __main__
 from model import model_from_file
 from cpp import set_verbose
