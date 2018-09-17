@@ -237,8 +237,8 @@ BOOST_PYTHON_MODULE(cpp)
 	python::def("faultplane_for_lines", test_faultplane_for_lines);
 	
 	// Register triangle-plane intersection. 
-	//python::def("find_faults_plane_intersection", find_faults_plane_intersection);
 	python::def("find_faults_intersection", find_faults_multiple_planes_intersection_python);
+	python::def("find_mesh_plane_intersection", find_mesh_plane_intersection_python);
 	python::def("topography_intersection", find_faults_topography_intersection_python);
 	python::def("join_lines_tree_test",join_lines_tree_test);
 	

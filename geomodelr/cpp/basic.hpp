@@ -160,5 +160,19 @@ public:
 
 };
 
+// Computes the cross product between two point3.
+//	  v1: first vector.
+//	  v2: second vector.
+point3 cross_product(const point3& v1,const point3& v2);
+
+vector<line_segment> find_mesh_plane_intersection(const vector<triangle_pt>& mesh, const point3& x0, const point3& v1, const point3& v2, const point3& nv, const polygon& plane_poly);
+vector<line_segment> find_triangle_topography_intersection( const triangle_pt& tri_fault, 
+							    const vector<vector<double>>& topography_array, 
+							    double z_max, double z_min,double x_inf, double y_inf,
+							    double dx, double dy, int rows, int cols );
+pylist join_lines_tree_test( const pylist& segments );
+pylist find_mesh_plane_intersection_python( const pylist& mesh, const pylist& plane_poly );
+vector<line> join_lines_tree(const vector<line_segment>& lines, double start_x);
+pylist vector_to_pylist(const vector<line>& input);
 #endif
 
