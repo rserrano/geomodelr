@@ -17,6 +17,8 @@
 */
 #include "basic.hpp"
 #include <cmath>
+#include <algorithm>
+#include <iomanip>
 
 // Is geomodelr verbose.
 bool geomodelr_verbose = false;

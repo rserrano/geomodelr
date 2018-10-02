@@ -52,12 +52,14 @@ class PostDevelopCommand(develop):
     """Post-installation for development mode."""
     def run(self):
         """Run command."""
+        develop.run(self)
         generate_link(self)
 
 class PostInstallCommand(install):
     """Post-installation for installation mode."""
     def run(self):
         """Run command."""
+        install.run(self)
         generate_link(self)
 
 def_libraries    = ['boost_python']
