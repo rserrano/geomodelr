@@ -75,7 +75,7 @@ cppextension = Extension("geomodelr.cpp", ['geomodelr/cpp/basic.cpp', 'geomodelr
                          include_dirs=if_env(INCLUDE_DIRS=def_include_dirs),
                          library_dirs=if_env(LIBRARY_DIRS=def_library_dirs), 
                          libraries=if_env(LIBRARIES=def_libraries),
-                         extra_compile_args=['-std=c++11'])
+                         extra_compile_args=['-std=c++14'])
 
 setup(name='geomodelr',
     version='0.1.8',
