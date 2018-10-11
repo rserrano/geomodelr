@@ -88,7 +88,7 @@ bool always_true( const value_f& v )
 }
 
 // Sorts the indexes of a vector<double> based on its values.
-//      v: vector.
+//	  v: vector.
 vector<size_t> sort_indexes(const vector<double> &v) {
 
   // initialize original index locations
@@ -97,18 +97,18 @@ vector<size_t> sort_indexes(const vector<double> &v) {
 
   // sort indexes based on comparing values in v
   std::sort(idx.begin(), idx.end(),
-       [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
+	   [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
 
   return idx;
 }
 
 // Finds the lines that intersect a plane with a set of triangles.
-//      triangles: triangles list.
-//      x0: point of the plane.
-//      v1: first direction vector of the plane.
-//      v2: second direction vector of the plane.
-//      nv: normal vector of the plane.
-//      plane_poly: polygonal representation of the plane using the four points of its corners.
+//	  triangles: triangles list.
+//	  x0: point of the plane.
+//	  v1: first direction vector of the plane.
+//	  v2: second direction vector of the plane.
+//	  nv: normal vector of the plane.
+//	  plane_poly: polygonal representation of the plane using the four points of its corners.
 vector<line_segment> find_mesh_plane_intersection(const vector<triangle_pt>& fplane, const point3& x0, const point3& v1, const point3& v2,
 	const point3& nv, const polygon& plane_poly) {
 
@@ -123,82 +123,82 @@ vector<line_segment> find_mesh_plane_intersection(const vector<triangle_pt>& fpl
 		eval_a = geometry::dot_product(node_a,nv) - D; // evals the first point of the triangle in the plane equation.
 		eval_b = geometry::dot_product(node_b,nv) - D; // evals the second point of the triangle in the plane equation.
 		eval_c = geometry::dot_product(node_c,nv) - D; // evals the third point of the triangle in the plane equation.
-        line straight_segment;
-        point2 aux_point;
+		line straight_segment;
+		point2 aux_point;
 
-        // determines if the straight segment given by the first and second point intersects the fault plane.
+		// determines if the straight segment given by the first and second point intersects the fault plane.
 		if (eval_a*eval_b <= 0.0){
 
 			dir = node_b;
 			geometry::subtract_point(dir,node_a);
-            dot_val = geometry::dot_product(nv,dir);
-            if (std::abs(dot_val)>tolerance){
-                T = -eval_a/dot_val;
-                geometry::multiply_value(dir,T); geometry::add_point(dir,node_a);
-                
-                geometry::subtract_point(dir,x0);
-                // saves the point coordinates in the coordinate system of the plane.
-                geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
-            }
+			dot_val = geometry::dot_product(nv,dir);
+			if (std::abs(dot_val)>tolerance){
+				T = -eval_a/dot_val;
+				geometry::multiply_value(dir,T); geometry::add_point(dir,node_a);
+				
+				geometry::subtract_point(dir,x0);
+				// saves the point coordinates in the coordinate system of the plane.
+				geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));
+			}
 		}
 
-        // determines if the straight segment given by the second and third point intersects the fault plane.
+		// determines if the straight segment given by the second and third point intersects the fault plane.
 		if (eval_b*eval_c <= 0.0){
 
 			dir = node_c;
 			geometry::subtract_point(dir,node_b);
 			dot_val = geometry::dot_product(nv,dir);
-            if (std::abs(dot_val)>tolerance){
+			if (std::abs(dot_val)>tolerance){
 
-                T = -eval_b/dot_val;
-                geometry::multiply_value(dir,T); geometry::add_point(dir,node_b);
-                geometry::subtract_point(dir,x0);
-                if (straight_segment.size()==1){
+				T = -eval_b/dot_val;
+				geometry::multiply_value(dir,T); geometry::add_point(dir,node_b);
+				geometry::subtract_point(dir,x0);
+				if (straight_segment.size()==1){
 
-                    // Find if the point is already in the list.
-                    aux_point = point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2));
-                    if (geometry::distance(aux_point,straight_segment[0])>=2*epsilon){
-                        geometry::append(straight_segment,aux_point); // saves the point coordinates in the coordinate system of the plane.
-                    }
-                }
-                else{
-                    // saves the point coordinates in the coordinate system of the plane.
-                    geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));    
-                }
-                
-            }
+					// Find if the point is already in the list.
+					aux_point = point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2));
+					if (geometry::distance(aux_point,straight_segment[0])>=2*epsilon){
+						geometry::append(straight_segment,aux_point); // saves the point coordinates in the coordinate system of the plane.
+					}
+				}
+				else{
+					// saves the point coordinates in the coordinate system of the plane.
+					geometry::append(straight_segment,point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2)));	
+				}
+				
+			}
 		}
 
-        /* determines if the straight segment given by the third and first point intersects the fault plane as long as the
-           straight segment has not yet been defined.*/
+		/* determines if the straight segment given by the third and first point intersects the fault plane as long as the
+		   straight segment has not yet been defined.*/
 		if ((eval_c*eval_a <= 0.0) && (straight_segment.size()==1)) {
 
 			dir = node_a;
 			geometry::subtract_point(dir,node_c);
 			dot_val = geometry::dot_product(nv,dir);
 
-            if (std::abs(dot_val)>tolerance){
+			if (std::abs(dot_val)>tolerance){
 
-                T = -eval_c/dot_val;
-                geometry::multiply_value(dir,T); geometry::add_point(dir,node_c);
-                geometry::subtract_point(dir,x0);
-                aux_point = point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2));
-                
-                // Find if the point is already in the list.
-                if (geometry::distance(aux_point,straight_segment[0])>=2*epsilon){
-                    geometry::append(straight_segment,aux_point); // saves the point coordinates in the coordinate system of the plane.
-                }
-            }
+				T = -eval_c/dot_val;
+				geometry::multiply_value(dir,T); geometry::add_point(dir,node_c);
+				geometry::subtract_point(dir,x0);
+				aux_point = point2(geometry::dot_product(dir,v1),geometry::dot_product(dir,v2));
+				
+				// Find if the point is already in the list.
+				if (geometry::distance(aux_point,straight_segment[0])>=2*epsilon){
+					geometry::append(straight_segment,aux_point); // saves the point coordinates in the coordinate system of the plane.
+				}
+			}
 		}
 
 		if (straight_segment.size()==2){
-            vector<line> intersect_line;
-            geometry::intersection(plane_poly,straight_segment,intersect_line);
+			vector<line> intersect_line;
+			geometry::intersection(plane_poly,straight_segment,intersect_line);
 
-            // ensures that the straight segment is greater than 2*epsilon and, in addition, it must intersects the polygon of the plane.
-            if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=2*epsilon) ){
-                output.push_back(line_segment(intersect_line[0][0],intersect_line[0][1]));
-            }
+			// ensures that the straight segment is greater than 2*epsilon and, in addition, it must intersects the polygon of the plane.
+			if ((intersect_line.size()==1) && (geometry::length(intersect_line[0])>=2*epsilon) ){
+				output.push_back(line_segment(intersect_line[0][0],intersect_line[0][1]));
+			}
 		}
 
 	}
@@ -206,97 +206,99 @@ vector<line_segment> find_mesh_plane_intersection(const vector<triangle_pt>& fpl
 }
 
 pylist join_lines_tree_test(const pylist& segments){
-    
-    vector<line_segment> lines_cpp;
-    for (int k=0; k<python::len(segments);k++){
-        point2 a(python::extract<double>(segments[k][0][0]),python::extract<double>(segments[k][0][1]));
-        point2 b(python::extract<double>(segments[k][1][0]),python::extract<double>(segments[k][1][1]));
-        lines_cpp.push_back(line_segment(a,b));
-    }
-    return (vector_to_pylist(join_lines_tree(lines_cpp,0.0)));
+	
+	vector<line_segment> lines_cpp;
+	for (int k=0; k<python::len(segments);k++){
+		point2 a(python::extract<double>(segments[k][0][0]),python::extract<double>(segments[k][0][1]));
+		point2 b(python::extract<double>(segments[k][1][0]),python::extract<double>(segments[k][1][1]));
+		lines_cpp.push_back(line_segment(a,b));
+	}
+	return (vector_to_pylist(join_lines_tree(lines_cpp,0.0,true)));
 }
 
-vector<line> join_lines_tree(const vector<line_segment>& lines, double start_x){
+vector<line> join_lines_tree(const vector<line_segment>& lines, double start_x, bool check_loop){
 
-    vector<value_l> intersections(lines.size());
-    int C=0;
-    for (auto& iter_segment: lines){
-        intersections.push_back(std::make_tuple(iter_segment,C));
-        C++;
-    }
+	vector<value_l> intersections(lines.size());
+	int C=0;
+	for (auto& iter_segment: lines){
+		intersections.push_back(std::make_tuple(iter_segment,C));
+		C++;
+	}
 
-    rtree_l segments_tree(intersections);
-    vector<bool> check_lines(lines.size(), true);
-    //vector<size_t> positions(lines.size()); iota(positions.begin(), positions.end(), 0);
+	rtree_l segments_tree(intersections);
+	vector<bool> check_lines(lines.size(), true);
+	//vector<size_t> positions(lines.size()); iota(positions.begin(), positions.end(), 0);
 
-    vector<line> output;
-    point2 p0, pf, pa, pb, pt;
-    point2 aux_pt(start_x,0.0);
-    int pos;
+	vector<line> output;
+	point2 p0, pf, pa, pb, pt;
+	point2 aux_pt(start_x,0.0);
+	int pos;
 
-    auto bool_it = std::find (check_lines.begin(), check_lines.end(), true);
-    while (bool_it != check_lines.end()){
+	auto bool_it = std::find (check_lines.begin(), check_lines.end(), true);
+	while (bool_it != check_lines.end()){
 
-        size_t bool_pos = bool_it - check_lines.begin();
-        // Takes the first straight segment.
-        p0 = lines[bool_pos].first;
-        pf = lines[bool_pos].second; 
-        line line_p;
-        line_p.push_back(point2(gx(p0)+start_x,gy(p0)));
-        line_p.push_back(point2(gx(pf)+start_x,gy(pf)));
-        check_lines[bool_pos] = false;
+		size_t bool_pos = bool_it - check_lines.begin();
+		// Takes the first straight segment.
+		p0 = lines[bool_pos].first;
+		pf = lines[bool_pos].second; 
+		line line_p;
+		line_p.push_back(point2(gx(p0)+start_x,gy(p0)));
+		line_p.push_back(point2(gx(pf)+start_x,gy(pf)));
+		check_lines[bool_pos] = false;
 
-        for (int k=0; k<2; k++){
-            if (k==0){
-                pt=pf;
-            } else {
-                pt=p0;
-            }
-            bool check = true;
-            while (check){
+		for (int k=0; k<2; k++){
+			if (k==0){
+				pt=pf;
+			} else {
+				pt=p0;
+			}
+			bool check = true;
+			while (check){
 
-                box bx(point2(gx(pt) - epsilon, gy(pt) - epsilon), point2(gx(pt) + epsilon, gy(pt) + epsilon));
-                check = false;
-                for ( auto it = segments_tree.qbegin(geometry::index::intersects(bx));it != segments_tree.qend(); it++ ) {
-                    pos = g1(*it);
-                    if (check_lines[pos]){
-                        pa = g0(*it).first;
-                        pb = g0(*it).second;
+				box bx(point2(gx(pt) - epsilon, gy(pt) - epsilon), point2(gx(pt) + epsilon, gy(pt) + epsilon));
+				check = false;
+				for ( auto it = segments_tree.qbegin(geometry::index::intersects(bx));it != segments_tree.qend(); it++ ) {
+					pos = g1(*it);
+					if (check_lines[pos]){
+						pa = g0(*it).first;
+						pb = g0(*it).second;
 
-                        if (geometry::distance(pa,pt)<epsilon){
-                            pt = pb; geometry::add_point(pb,aux_pt);
-                            if (k==0) {
-                                line_p.push_back(pb);
-                            }else {
-                                line_p.insert(line_p.begin(),pb);
-                            }
-                            check_lines[pos] = false; check = true; break;
+						if (geometry::distance(pa,pt)<epsilon){
+							pt = pb; geometry::add_point(pb,aux_pt);
+							if (k==0) {
+								line_p.push_back(pb);
+							}else {
+								line_p.insert(line_p.begin(),pb);
+							}
+							check_lines[pos] = false; check = true; break;
 
-                        } else if (geometry::distance(pb,pt)<epsilon){
-                            pt = pa; geometry::add_point(pa,aux_pt);
-                            if (k==0){
-                                line_p.push_back(pa);
-                            }else {
-                                line_p.insert(line_p.begin(),pa);
-                            }
+						} else if (geometry::distance(pb,pt)<epsilon){
+							pt = pa; geometry::add_point(pa,aux_pt);
+							if (k==0){
+								line_p.push_back(pa);
+							}else {
+								line_p.insert(line_p.begin(),pa);
+							}
 
-                            check_lines[pos] = false; check = true; break;
-                        }
-                    }
-                }
-            }
+							check_lines[pos] = false; check = true; break;
+						}
+					}
+				}
+			}
 
-        }
-
-        p0 = line_p[0];
-        geometry::subtract_point(p0,line_p.back());
-        if (std::sqrt(geometry::dot_product(p0,p0))<epsilon){
-            line_p.pop_back();
-        }
-        output.push_back(line_p);
-        bool_it = std::find (check_lines.begin(), check_lines.end(), true);
-    }
-    return output;
+		}
+	if ( check_loop ) {
+			p0 = line_p[0];
+			geometry::subtract_point(p0,line_p.back());
+	
+			if (std::sqrt(geometry::dot_product(p0,p0))<epsilon){
+			line_p.pop_back();
+			}
+	}
+		output.push_back(line_p);
+		bool_it = std::find (check_lines.begin(), check_lines.end(), true);
+	}
+	return output;
 }
 
 pylist find_mesh_plane_intersection_python(const pylist& triangles, const pylist& plane_poly) {
@@ -304,26 +306,26 @@ pylist find_mesh_plane_intersection_python(const pylist& triangles, const pylist
 	int n = python::len(triangles);
 	for ( int i = 0; i < n; i++ ) {
 		point3 node_a(python::extract<double>(triangles[i][0][0]),
-			      python::extract<double>(triangles[i][0][1]), 
-			      python::extract<double>(triangles[i][0][2]));
+				  python::extract<double>(triangles[i][0][1]), 
+				  python::extract<double>(triangles[i][0][2]));
 		
 		point3 node_b(python::extract<double>(triangles[i][1][0]),
-			      python::extract<double>(triangles[i][1][1]),
-			      python::extract<double>(triangles[i][1][2]));
+				  python::extract<double>(triangles[i][1][1]),
+				  python::extract<double>(triangles[i][1][2]));
 		
 		point3 node_c(python::extract<double>(triangles[i][2][0]),
-			      python::extract<double>(triangles[i][2][1]),
-			      python::extract<double>(triangles[i][2][2]));
+				  python::extract<double>(triangles[i][2][1]),
+				  python::extract<double>(triangles[i][2][2]));
 		
 		mesh.push_back(triangle_pt(node_a, node_b, node_c));
 	}
 	n = python::len(plane_poly);
-        line_3d plane;
-        for (int j=0; j<n; j++){
+		line_3d plane;
+		for (int j=0; j<n; j++){
 		plane.push_back(point3(python::extract<double>(plane_poly[j][0]),
-				       python::extract<double>(plane_poly[j][1]), 
-				       python::extract<double>(plane_poly[j][2])) );
-        }
+					   python::extract<double>(plane_poly[j][1]), 
+					   python::extract<double>(plane_poly[j][2])) );
+		}
 	// Find the vectors v1 and v2 in the plane that generate the space.
 	point3 x0 = plane[0];
 	point3 v1 = plane[1]; 
@@ -357,7 +359,7 @@ pylist find_mesh_plane_intersection_python(const pylist& triangles, const pylist
 	
 	vector<line_segment> out_lines = find_mesh_plane_intersection(mesh, x0, v1, v2, nv, projected_poly);
 	
-	vector<line> aux_vector = join_lines_tree(out_lines, 0.0);
+	vector<line> aux_vector = join_lines_tree(out_lines, 0.0, false);
 	pylist out;
 	for ( const line& l: aux_vector ) {
 		pylist ln;
@@ -489,9 +491,9 @@ void find_triangle_plane_intersection(const triangle_pt& tri, const point3& x0, 
 
 
 vector<line_segment> find_triangle_topography_intersection( const triangle_pt& tri_fault, 
-							    const vector<vector<double>>& topography_array, 
-							    double z_max, double z_min,double x_inf, double y_inf,
-							    double dx, double dy, int rows, int cols ) {
+								const vector<vector<double>>& topography_array, 
+								double z_max, double z_min,double x_inf, double y_inf,
+								double dx, double dy, int rows, int cols ) {
 	
 	
 	point3 xy_0(x_inf,y_inf,0.0);

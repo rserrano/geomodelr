@@ -172,7 +172,7 @@ vector<line_segment> find_triangle_topography_intersection( const triangle_pt& t
 							    double dx, double dy, int rows, int cols );
 pylist join_lines_tree_test( const pylist& segments );
 pylist find_mesh_plane_intersection_python( const pylist& mesh, const pylist& plane_poly );
-vector<line> join_lines_tree(const vector<line_segment>& lines, double start_x);
+vector<line> join_lines_tree(const vector<line_segment>& lines, double start_x, bool check_loop);
 pylist vector_to_pylist(const vector<line>& input);
 #endif
 

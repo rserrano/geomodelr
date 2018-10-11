@@ -205,7 +205,7 @@ void find_faults_plane_intersection(const map<wstring, vector<triangle_pt> >& fa
 		// finds the lines that intersect a plane with the fault planes.
 		vector<line_segment> fault_lines = find_mesh_plane_intersection(iter->second, x0, v1, v2, nv, plane_poly);
 	
-		vector<line> aux_vector = join_lines_tree(fault_lines,start_x);
+		vector<line> aux_vector = join_lines_tree(fault_lines,start_x,true);
 		
 	if (f_index==0){
 			output.insert(map<wstring, vector<line>>::value_type(iter->first,aux_vector));
@@ -288,7 +288,7 @@ map<wstring, vector<line>> find_faults_topography_intersection(const map<wstring
 			faults_intersection.insert(faults_intersection.end(), tmp_intersection.begin(), tmp_intersection.end());
 		}
 		
-		output[iter->first] = join_lines_tree(faults_intersection,0.0);
+		output[iter->first] = join_lines_tree(faults_intersection,0.0,true);
 		//output[iter->first] = join_lines(faults_intersection,0.0);
 	}
 	return output;
