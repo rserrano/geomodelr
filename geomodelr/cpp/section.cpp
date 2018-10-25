@@ -76,22 +76,43 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		size_t nrings = python::len(polygons[i]);
 		ring& outer = pol.outer();
 		
+		
 		// Start filling the first ring.
 		size_t nnodes = python::len(polygons[i][0]);
 		for ( size_t k = 0; k < nnodes; k++ ) {
 			pylist pypt = pylist(points[polygons[i][0][k]]);
-			outer.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
+			point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
+			if ( outer.size() ) {
+				if ( geometry::distance(outer.back(), aux) < boost_tol ) {
+					continue;
+				}
+			}
+			outer.push_back(aux);
 		}
-		
+		if ( outer.size() < 3 ) {
+			if ( geomodelr_verbose ) {
+				std::wcerr << L"non valid polygon in section " << name << L" from with unit " << unit << " has too few points\n";
+				continue;
+			}
+		}
 		// Then fill the rest of the rings.
 		if ( nrings > 1 ) { 
-			pol.inners().resize(nrings-1);
+			vector<ring>& inners = pol.inners();
 			for ( size_t j = 1; j < nrings; j++ ) {
-				ring& inner = pol.inners()[j-1];// jth ring.
+				ring inner;
 				size_t nnodes = python::len(polygons[i][j]);
 				for ( size_t k = 0; k < nnodes; k++ ) {
 					pylist pypt = pylist(points[polygons[i][j][k]]);
-					inner.push_back(point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])));
+					point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
+					if ( outer.size() ) {
+						if ( geometry::distance(outer.back(), aux) < boost_tol ) {
+							continue;
+						}
+					}
+					inner.push_back(aux);
+				}
+				if ( inner.size() > 2 ) {
+					inners.push_back(inner);
 				}
 			}
 		}
@@ -102,16 +123,20 @@ SectionPython::SectionPython(const wstring& name, double cut,
 			string reason;
 			if ( not geometry::is_valid(pol, reason) ) {
 				if ( geomodelr_verbose ) {
-					std::wcerr << L"non valid polygon in section " << name << L" from with unit " << unit << L" valid: " << (geometry::is_valid(pol)?L"true":L"false")
-						   << L" simple: " << (geometry::is_simple(pol)?L"true":L"false") << "\n";
+					std::wstring wide(reason.size(), L' ');
+					std::copy(reason.begin(), reason.end(), wide.begin());
+					std::wcerr << L"non valid polygon in section " << name << L" from with unit " << unit << "\nreason is: " << wide << "\n";
 				}
-				// continue; not avoiding non valid polygons, as they have been validated by shapely. Somehow these polygons get wronget.
+				// continue; not avoiding non valid polygons, as they have been validated by shapely. Somehow these polygons get wronged.
 			}
 		}
 		if ( not geometry::is_simple(pol) ) {
+			if ( geomodelr_verbose ) {
+				std::wcerr << L"ignored non simple polygon in section " << name << L" from with unit " << unit << "\n";
+			}
 			continue;
 		}
-
+		
 		// Calculate the envelope and add it to build the rtree layer.
 		box env;
 		geometry::envelope(pol, env);
@@ -128,7 +153,7 @@ SectionPython::SectionPython(const wstring& name, double cut,
 	}
 	// Add the lines.
 	size_t nlines = python::len(lines);
-	map<int, bool> ancl;
+	map<size_t, bool> ancl;
 	// Add which are the anchors, (for signaling later), but also extend the previously added lines.
 	size_t nanchs = python::len(anchored_lines);
 	for ( size_t i = 0; i < nanchs; i++ ) {
@@ -332,13 +357,13 @@ void extend_line( bool beg, const bbox2& bbox, line& l ) {
 	
 	if ( not std::isfinite( minx ) ) {
 		if ( not ( std::fabs( gy( vct ) ) > tolerance or std::fabs( gx( vct ) ) > tolerance ) ) {
-			throw GeomodelrException("Could not determine direction of line.");
+			throw GeomodelrException("fault not extended: could not determine direction of line.");
 		}
-		throw GeomodelrException("Could not extend line.");
+		throw GeomodelrException("fault not extended: could not extend line.");
 	}
 	
 	if ( std::fabs( minx ) < tolerance ) {
-		throw GeomodelrException("The line actually goes to the bounds and does not need modification.");
+		throw GeomodelrException("fault not extended: the line actually goes to the bounds and does not need modification.");
 	}
 	
 	geometry::multiply_value(vct, minx);
@@ -347,7 +372,7 @@ void extend_line( bool beg, const bbox2& bbox, line& l ) {
 	// Check that the point falls inside (or very close to) the bounding box.
 	if ( not ( gx( pt )-g0(g0(bbox)) >= -tolerance and gx(pt)-g0(g1(bbox)) <= tolerance and
 	     gy(pt)-g1(g0(bbox)) >= -tolerance and gy(pt)-g1(g1(bbox)) <= tolerance ) ) {
-		throw GeomodelrException("The point is not inside the bounding box.");
+		throw GeomodelrException("fault not extended: the point is not inside the bounding box.");
 	}
 	if ( beg ) {
 		l.insert( l.begin(), pt );

@@ -614,20 +614,20 @@ class Tests(unittest.TestCase):
         line=[(0, 0), (.1, .1), (.5, .5), (1., 1.)] 
         with self.assertRaises( cpp.GeomodelrException ) as cm:
             cpp.extend_line( True, [0, 0, 1, 1], line )
-        self.assertEqual( str( cm.exception ), "Could not extend line." )
+        self.assertEqual( str( cm.exception ), "fault not extended: could not extend line." )
         
         with self.assertRaises( cpp.GeomodelrException ) as cm:
             cpp.extend_line( False, [0, 0, 1, 1], line )
-        self.assertEqual( str( cm.exception ), "Could not extend line." )
+        self.assertEqual( str( cm.exception ), "fault not extended: could not extend line." )
         
         with self.assertRaises( cpp.GeomodelrException ) as cm:
             cpp.extend_line( True, [-1e-20, -1e-20, 1, 1], line )
-        self.assertEqual( str( cm.exception ), "The line actually goes to the bounds and does not need modification." )
+        self.assertEqual( str( cm.exception ), "fault not extended: the line actually goes to the bounds and does not need modification." )
         
         line=[(0, 0), (-1e-20, -1e-20), (.5, .5), (1., 1.)] 
         with self.assertRaises( cpp.GeomodelrException ) as cm:
             cpp.extend_line( True, [-1e-40, -1e-40, 1, 1], line )
-        self.assertEqual( str( cm.exception ), "Could not determine direction of line." )
+        self.assertEqual( str( cm.exception ), "fault not extended: could not determine direction of line." )
         
         line=[(0, 0), (.3, .3), (.5, .5), (1., 1.)] 
         # Test ok extension.

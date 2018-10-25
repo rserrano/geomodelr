@@ -109,15 +109,22 @@ void Match::match_polygons() {
 									       this->b->poly_trees[pols_b[j]]->boost_poly, 
 									       output);
 							if ( geometry::area( output ) > boost_tol ) {
-								if ( not covered_by_fault( output ) ) {;
+								if ( not covered_by_fault( output ) ) {
 									m.push_back(std::make_pair(pols_a[i], pols_b[j]));
 								}
 							}
 						} catch ( geometry::exception& e ) {
-							// std::cerr << "error intersecting\n"; 
+							if ( geomodelr_verbose ) {
+								std::wcerr << L"error in intersection between polygons but checking without faults in sections "
+									   << this->a->name << " and " << this->b->name << " with unit "
+									   << this->a->units[pols_a[i]] <<  "\n";
+							}
 							if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
 										   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
 							{
+								if ( geomodelr_verbose ) {
+									std::wcerr << L"intersected anyway.\n";
+								}
 								m.push_back(std::make_pair(pols_a[i], pols_b[j]));
 							}
 						}
