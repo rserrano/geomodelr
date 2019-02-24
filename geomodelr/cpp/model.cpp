@@ -424,39 +424,9 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 	return std::max(sdist, idist);
 }
 
-double Model::signed_distance_unbounded_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const {
+double Model::signed_distance_unbounded_restricted( const wstring& unit, const Limiter * limit, const point3& pt ) const {
 	double sdist = this->signed_distance( unit, pt );
-	bool outside = false;
-	double odist = 0.0;
-	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
-	
-	double x = gx(pt);
-	double y = gy(pt);
-	double z = gz(pt);
-	
-	double minx = g0(g0(bbox));
-	double miny = g1(g0(bbox));
-	double minz = g2(g0(bbox));
-	
-	double maxx = g0(g1(bbox));
-	double maxy = g1(g1(bbox));
-	double maxz = this->height( point2( x, y ) );
-	
-	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
-	
-	for ( size_t i = 0; i < 6; i++ ) {
-		if ( dists[i] >= 0 ) {
-			outside = true;
-			odist += dists[i]*dists[i];
-		} else {
-			idist = std::max(idist, dists[i]);
-		}
-	}
-	
-	if ( outside ) {
-		return std::max(sdist, std::sqrt(odist));
-	}
-	return std::max(sdist, idist);
+  return limit->limit_signed_distance(pt, sdist);
 }
 
 double Model::signed_distance_unbounded( const wstring& unit, const point3& pt ) const {
@@ -556,48 +526,9 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	return std::max(sdist, idist);
 }
 
-double Model::signed_distance_unbounded_aligned_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const {
+double Model::signed_distance_unbounded_aligned_restricted( const wstring& unit, const AlignedLimiter * limit, const point3& pt ) const {
 	double sdist = this->signed_distance_aligned( unit, pt );
-	bool outside = false;
-	double odist = 0.0;
-	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
-	
-	
-	double minu = g0(g0(bbox));
-	double minv = g1(g0(bbox));
-	double minw = g2(g0(bbox));
-	
-	double maxu = g0(g1(bbox));
-	double maxv = g1(g1(bbox));
-	double maxw = g2(g1(bbox));
-	
-	double u = gx(pt);
-	double v = gy(pt);
-	double w = gz(pt);
-	
-	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
-	double maxh = this->height( point2( gx(in), gy(in) ) );
-	if ( this->horizontal ) {
-		maxw = maxh;
-	} else {
-		maxv = maxh;
-	}
-	
-	double dists[6] = { minu - u, minv - v, minw - w, u - maxu, v - maxv, w - maxw };
-	for ( size_t i = 0; i < 6; i++ ) {
-		if ( dists[i] >= 0 ) {
-			outside = true;
-			odist += dists[i]*dists[i];
-		} else {
-			idist = std::max(idist, dists[i]);
-		}
-	}
-	
-	if ( outside ) {
-		return std::max(sdist, std::sqrt(odist));
-	}
-	
-	return std::max(sdist, idist);
+	return limit->limit_signed_distance(pt, sdist);
 }
 
 double Model::signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const {
@@ -965,81 +896,6 @@ double ModelPython::height( const pyobject& pt ) const {
 	return ((Model *)this)->height( point2( d0, d1 ) );
 }
 
-Topography::Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims ):
-point(point), sample(sample), heights(dims[0]*dims[1])
-{
-	this->dims[0] = dims[0];
-	this->dims[1] = dims[1];
-}
-
-
-Topography::Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims, const vector<double>& heights ):
-Topography( point, sample, dims ) {
-	int rows = dims[0];
-	int cols = dims[1];
-	for ( int i = 0; i < rows; i++ ) {
-		for ( int j = 0; j < cols; j++ ) {
-			this->heights[i*this->dims[1]+j] = heights[i*this->dims[1]+j];
-		}
-	}
-}
-
-double Topography::height(const point2& pt) const {
-	point2 pos(gx(pt), gy(pt));
-	geometry::subtract_point(pos, this->point);
-	geometry::divide_point(pos, this->sample);
-
-	int i = std::floor(gx(pos));
-	int j = std::floor(gy(pos));
-
-	if (i < 0){i = 0;}
-	if (j < 0){j = 0;}
-	if (i >= this->dims[0]-1){i = this->dims[0]-2;}
-	if (j >= this->dims[1]-1){j = this->dims[1]-2;}
-	
-	double A = this->heights[i*dims[1] + j];
-	double B = this->heights[(i+1)*dims[1] + j];
-	double C = this->heights[(i+1)*dims[1] + j+1];
-	double D = this->heights[i*dims[1] + j+1];
-	
-	double x = 2.0*(gx(pos)- double(i)) - 1.0;
-	double y = 2.0*(gy(pos)- double(j)) - 1.0;
-	
-	x = std::max( std::min( x, 1.0), -1.0 );
-	y = std::max( std::min( y, 1.0), -1.0 );
-
-	double v1 = B + A + x*(B - A);
-	double v2 = C + D + x*(C - D);
-	
-	return 0.25*(v2 + v1 + y*(v2 - v1));
-}
-
-
-
-TopographyPython::TopographyPython( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights ):
-Topography(point2(python::extract<double>(point[0]), python::extract<double>(point[1])),
-	   point2(python::extract<double>(sample[0]), python::extract<double>(sample[1])),
-		   {python::extract<int>(dims[0]), python::extract<int>(dims[1])})
-{
-	int rows = python::len(heights);
-	if ( rows != this->dims[0] ) {
-		throw GeomodelrException("topography rows does not correspond with dims.");
-	}
-	for ( int i = 0; i < rows; i++ ) {
-		int cols = python::len(heights[i]);
-		if ( cols != this->dims[1] ) {
-			throw GeomodelrException("topography columns does not correspond with dims.");
-		}
-		for ( int j = 0; j < cols; j++ ) {
-			this->heights[i*this->dims[1]+j] = python::extract<double>(heights[i][j]);
-		}
-	}
-}
-
-double TopographyPython::height( const pyobject& pypt ) const {
-	return ((Topography *)this)->height( point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])) );
-}
-
 void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params ) {
 	this->set_params( params );
 	
@@ -1318,9 +1174,10 @@ double ModelPython::signed_distance_unbounded_restricted( const wstring& unit, c
 	double yf = python::extract<double>(bb[4]);
 	double zf = python::extract<double>(bb[5]);
 	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
-
-	return ((Model *)this)->signed_distance_unbounded_restricted(unit, Bbox,
+  Limiter * limit = new BBoxLimiter( Bbox, this );
+	return ((Model *)this)->signed_distance_unbounded_restricted(unit, limit,
 		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+  delete limit;
 }
 
 double ModelPython::signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb,const pyobject& pt ) const {
@@ -1332,9 +1189,11 @@ double ModelPython::signed_distance_unbounded_aligned_restricted( const wstring&
 	double yf = python::extract<double>(bb[4]);
 	double zf = python::extract<double>(bb[5]);
 	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
-
-	return ((Model *)this)->signed_distance_unbounded_aligned_restricted(unit, Bbox,
+  AlignedLimiter * limit = new BBoxAlignedLimiter( Bbox, this );
+	double res = ((Model *)this)->signed_distance_unbounded_aligned_restricted(unit, limit,
 		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+  delete limit;
+  return res;
 }
 
 double ModelPython::geomodelr_distance( const wstring& unit, const pylist& point ) const{

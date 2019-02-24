@@ -22,29 +22,14 @@
 #include "section.hpp"
 #include "match.hpp"
 #include "faults.hpp"
-
-class Topography {
-protected:
-	point2 point;
-	point2 sample;
-	int dims[2];
-	vector<double> heights;
-public:
-	double height(const point2&) const;
-	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims );
-	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims, const vector<double>& heights );
-};
-
-class TopographyPython : public Topography {
-public:
-	double height(const pyobject&) const;
-	TopographyPython( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights );
-};
+#include "limiter.hpp"
 
 class Model {
 
 protected:
-	
+	friend BBoxAlignedLimiter;
+  friend BBoxLimiter;
+
 	std::pair<double, double> cuts_range;
 	bbox3 bbox;
 	bbox3 abbox;
@@ -328,7 +313,7 @@ public:
 	// In this case the solids are not bounded by the bounding box, only by the topography.
 	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
 
-	double signed_distance_unbounded_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const ;
+	double signed_distance_unbounded_restricted( const wstring& unit, const Limiter * limit, const point3& pt ) const ;
 	
 	// In this case the signed distance is not bounded by anything. cs of cross sections.
 	double signed_distance_aligned( const wstring& unit, const point3& pt ) const;
@@ -337,7 +322,7 @@ public:
 	// In this case the solids are not bounded by the bounding box, only by the topography. cs of cross sections.
 	double signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const;
 
-	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const bbox3& bbox, const point3& pt ) const ;
+	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const AlignedLimiter * limit, const point3& pt ) const ;
 	
 	double height(const point2& pt) const;
 };
