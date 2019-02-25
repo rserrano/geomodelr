@@ -424,7 +424,7 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 	return std::max(sdist, idist);
 }
 
-double Model::signed_distance_unbounded_restricted( const wstring& unit, const Limiter * limit, const point3& pt ) const {
+double Model::signed_distance_unbounded_restricted( const wstring& unit, const std::shared_ptr<Limiter> limit, const point3& pt ) const {
 	double sdist = this->signed_distance( unit, pt );
   return limit->limit_signed_distance(pt, sdist);
 }
@@ -526,7 +526,7 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	return std::max(sdist, idist);
 }
 
-double Model::signed_distance_unbounded_aligned_restricted( const wstring& unit, const AlignedLimiter * limit, const point3& pt ) const {
+double Model::signed_distance_unbounded_aligned_restricted( const wstring& unit, const std::shared_ptr<AlignedLimiter> limit, const point3& pt ) const {
 	double sdist = this->signed_distance_aligned( unit, pt );
 	return limit->limit_signed_distance(pt, sdist);
 }
@@ -1174,10 +1174,9 @@ double ModelPython::signed_distance_unbounded_restricted( const wstring& unit, c
 	double yf = python::extract<double>(bb[4]);
 	double zf = python::extract<double>(bb[5]);
 	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
-  Limiter * limit = new BBoxLimiter( Bbox, this );
+  std::shared_ptr<Limiter> limit = std::make_shared<BBoxLimiter>( Bbox, this );
 	return ((Model *)this)->signed_distance_unbounded_restricted(unit, limit,
 		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
-  delete limit;
 }
 
 double ModelPython::signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb,const pyobject& pt ) const {
@@ -1189,11 +1188,9 @@ double ModelPython::signed_distance_unbounded_aligned_restricted( const wstring&
 	double yf = python::extract<double>(bb[4]);
 	double zf = python::extract<double>(bb[5]);
 	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
-  AlignedLimiter * limit = new BBoxAlignedLimiter( Bbox, this );
-	double res = ((Model *)this)->signed_distance_unbounded_aligned_restricted(unit, limit,
+  std::shared_ptr<AlignedLimiter> limit = std::make_shared<BBoxAlignedLimiter>( Bbox, this );
+	return ((Model *)this)->signed_distance_unbounded_aligned_restricted(unit, limit,
 		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
-  delete limit;
-  return res;
 }
 
 double ModelPython::geomodelr_distance( const wstring& unit, const pylist& point ) const{

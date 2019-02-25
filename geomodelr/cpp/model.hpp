@@ -23,7 +23,7 @@
 #include "match.hpp"
 #include "faults.hpp"
 #include "limiter.hpp"
-
+#include <memory>
 class Model {
 
 protected:
@@ -313,7 +313,7 @@ public:
 	// In this case the solids are not bounded by the bounding box, only by the topography.
 	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
 
-	double signed_distance_unbounded_restricted( const wstring& unit, const Limiter * limit, const point3& pt ) const ;
+	double signed_distance_unbounded_restricted( const wstring& unit, const std::shared_ptr<Limiter> limit, const point3& pt ) const ;
 	
 	// In this case the signed distance is not bounded by anything. cs of cross sections.
 	double signed_distance_aligned( const wstring& unit, const point3& pt ) const;
@@ -322,7 +322,7 @@ public:
 	// In this case the solids are not bounded by the bounding box, only by the topography. cs of cross sections.
 	double signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const;
 
-	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const AlignedLimiter * limit, const point3& pt ) const ;
+	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const std::shared_ptr<AlignedLimiter> limit, const point3& pt ) const ;
 	
 	double height(const point2& pt) const;
 };
