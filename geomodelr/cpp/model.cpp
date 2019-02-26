@@ -468,6 +468,15 @@ double Model::signed_distance_aligned( const wstring& unit, const point3& pt ) c
 	} else {
 		d = g1(inside) - g1(outside);
 	}
+	
+	// Check if d is +-infinity.
+	if (std::isinf(d)){
+		if (d > 0){
+			d = bbox_diag;
+		} else{
+			d = -bbox_diag;
+		}
+	}
 	if ( this->check_soils ) {
 		std::tuple<wstring, double> sl = this->soil( this->inverse_point(point2(gx(pt), gy(pt)), gz(pt)) );
 		if ( g0(sl) == unit ) {

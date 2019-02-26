@@ -20,7 +20,6 @@
 #define GEOMODELR_BASIC_HPP
 
 #define CGAL_MESH_2_OPTIMIZER_VERBOSE
-
 #include <boost/python.hpp>
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/geometries.hpp>
