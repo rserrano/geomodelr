@@ -58,6 +58,7 @@ public:
 // Polygon limiters, the main reason I do this.
 class PolygonLimiter: public Limiter {
 polygon limit;
+line lpoly;
 const Model * model;
 
 public:
@@ -65,18 +66,6 @@ public:
   virtual double limit_signed_distance(const point3& pt, double sds) const;
   virtual ~PolygonLimiter();
 };
-
-// Specific class to pass to signed distance aligned.
-class PolygonAlignedLimiter: public AlignedLimiter {
-polygon alimit;
-const Model * model;
-
-public:
-  PolygonAlignedLimiter(const polygon& poly, const Model * model);
-  virtual ~PolygonAlignedLimiter();
-  virtual double limit_signed_distance(const point3& pt, double sds) const;
-};
-
 // BBox limiter, it limits to a given bbox. (it can be different from the bbox of the model).
 class BBoxLimiter: public Limiter {
 bbox3 bbox;

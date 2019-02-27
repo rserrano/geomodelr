@@ -29,6 +29,8 @@ class Model {
 protected:
 	friend BBoxAlignedLimiter;
   friend BBoxLimiter;
+  friend PolygonLimiter;
+
 
 	std::pair<double, double> cuts_range;
 	bbox3 bbox;
@@ -313,7 +315,7 @@ public:
 	// In this case the solids are not bounded by the bounding box, only by the topography.
 	double signed_distance_unbounded( const wstring& unit, const point3& pt ) const;
 
-	double signed_distance_unbounded_restricted( const wstring& unit, const std::shared_ptr<Limiter> limit, const point3& pt ) const ;
+	double signed_distance_bounded_restricted( const wstring& unit, const std::shared_ptr<Limiter> limit, const point3& pt ) const ;
 	
 	// In this case the signed distance is not bounded by anything. cs of cross sections.
 	double signed_distance_aligned( const wstring& unit, const point3& pt ) const;
@@ -322,7 +324,7 @@ public:
 	// In this case the solids are not bounded by the bounding box, only by the topography. cs of cross sections.
 	double signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const;
 
-	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const std::shared_ptr<AlignedLimiter> limit, const point3& pt ) const ;
+	double signed_distance_bounded_aligned_restricted( const wstring& unit, const std::shared_ptr<AlignedLimiter> limit, const point3& pt ) const ;
 	
 	double height(const point2& pt) const;
 };
@@ -397,8 +399,8 @@ public:
 	double signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const;
 	double signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const;
 
-	double signed_distance_unbounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
-	double signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+	double signed_distance_bounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
+	double signed_distance_bounded_aligned_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const;
 
 	double geomodelr_distance( const wstring& unit, const pylist& point ) const;
 	pylist get_polygon(const wstring sec, int pol_idx);

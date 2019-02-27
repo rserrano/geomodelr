@@ -424,7 +424,7 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 	return std::max(sdist, idist);
 }
 
-double Model::signed_distance_unbounded_restricted( const wstring& unit, const std::shared_ptr<Limiter> limit, const point3& pt ) const {
+double Model::signed_distance_bounded_restricted( const wstring& unit, const std::shared_ptr<Limiter> limit, const point3& pt ) const {
 	double sdist = this->signed_distance( unit, pt );
   return limit->limit_signed_distance(pt, sdist);
 }
@@ -535,7 +535,7 @@ double Model::signed_distance_bounded_aligned( const wstring& unit, const point3
 	return std::max(sdist, idist);
 }
 
-double Model::signed_distance_unbounded_aligned_restricted( const wstring& unit, const std::shared_ptr<AlignedLimiter> limit, const point3& pt ) const {
+double Model::signed_distance_bounded_aligned_restricted( const wstring& unit, const std::shared_ptr<AlignedLimiter> limit, const point3& pt ) const {
 	double sdist = this->signed_distance_aligned( unit, pt );
 	return limit->limit_signed_distance(pt, sdist);
 }
@@ -811,9 +811,9 @@ pytuple ModelPython::model_point( const pyobject& pypt ) const {
 }
 
 pytuple ModelPython::inverse_point( const pyobject& pypt ) const {
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& cut = python::extract<double>(pypt[2]);
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double cut = python::extract<double>(pypt[2]);
 	point2 pt(p0, p1);
 	point3 mp = ((Model *)this)->inverse_point( pt, cut );
 	const double& m0 = gx(mp);
@@ -832,9 +832,9 @@ pydict ModelPython::info() const {
 
 pytuple ModelPython::closest(const pyobject& pypt) const {
 	// python exposed functions to search for the closest formation.
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& p2 = python::extract<double>(pypt[2]);
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
 	std::tuple<wstring, double> res = ((Model *)this)->closest( pt );
 	return python::make_tuple(g0(res), g1(res));
@@ -842,9 +842,9 @@ pytuple ModelPython::closest(const pyobject& pypt) const {
 
 pytuple ModelPython::closest_aligned(const pyobject& pypt) const {
 	// python exposed functions to search for the closest formation.
-	const double& p0 = python::extract<double>(pypt[0]);
-	const double& p1 = python::extract<double>(pypt[1]);
-	const double& p2 = python::extract<double>(pypt[2]);
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
 	std::tuple<wstring, double> res = ((Model *)this)->closest_aligned( pt );
 	return python::make_tuple(g0(res), g1(res));
@@ -909,10 +909,10 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 	this->set_params( params );
 	
 	if ( python::len(topography) > 0 ) {// Get all the information sent from python to build the topography.
-		const pyobject& point = python::extract<pyobject>(topography["point"]);
-		const pyobject& sample = python::extract<pyobject>(topography["sample"]);
-		const pyobject& dims = python::extract<pyobject>(topography["dims"]);
-		const pylist& heights = python::extract<pylist>(topography["heights"]);
+		pyobject point = python::extract<pyobject>(topography["point"]);
+		pyobject sample = python::extract<pyobject>(topography["sample"]);
+		pyobject dims = python::extract<pyobject>(topography["dims"]);
+		pylist heights = python::extract<pylist>(topography["heights"]);
 		this->topography = new TopographyPython(point, sample, dims, heights);
 	}
 	
@@ -925,13 +925,13 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 		if ( lgeomap != 7 ) {
 			throw GeomodelrException("Every map needs 6 parameters.");
 		}
-		const pyobject& sbbox   = python::extract<pyobject>(geomap[0]);
-		const pylist& points   = python::extract<pylist>(geomap[1]);
-		const pylist& polygons = python::extract<pylist>(geomap[2]);
-		const pylist& units	= python::extract<pylist>(geomap[3]); 
-		const pylist& lines	= python::extract<pylist>(geomap[4]);
-		const pylist& lnames   = python::extract<pylist>(geomap[5]);
-		const pylist& anchored_lines = python::extract<pylist>(geomap[6]);
+		pyobject sbbox   = python::extract<pyobject>(geomap[0]);
+		pylist points   = python::extract<pylist>(geomap[1]);
+		pylist polygons = python::extract<pylist>(geomap[2]);
+		pylist units	= python::extract<pylist>(geomap[3]); 
+		pylist lines	= python::extract<pylist>(geomap[4]);
+		pylist lnames   = python::extract<pylist>(geomap[5]);
+		pylist anchored_lines = python::extract<pylist>(geomap[6]);
 		
 		// Pass all the information to the cross section, including the bounding box of the given section.
 		this->geomap = (Section *) ( new GeologicalMapPython( sbbox, points, polygons, units, lines, lnames, anchored_lines ) );
@@ -946,13 +946,13 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 		
 		wstring name	= python::extract<wstring>(sections[i][0]);
 		double cut			 = python::extract<double>(sections[i][1]);
-		const pyobject& bbox   = python::extract<pyobject>(sections[i][2]);
-		const pylist& points   = python::extract<pylist>(sections[i][3]);
-		const pylist& polygons = python::extract<pylist>(sections[i][4]);
-		const pylist& units	= python::extract<pylist>(sections[i][5]); 
-		const pylist& lines	= python::extract<pylist>(sections[i][6]);
-		const pylist& lnames   = python::extract<pylist>(sections[i][7]);
-		const pylist& anchored_lines = python::extract<pylist>(sections[i][8]);
+		pyobject bbox   = python::extract<pyobject>(sections[i][2]);
+		pylist points   = python::extract<pylist>(sections[i][3]);
+		pylist polygons = python::extract<pylist>(sections[i][4]);
+		pylist units	= python::extract<pylist>(sections[i][5]); 
+		pylist lines	= python::extract<pylist>(sections[i][6]);
+		pylist lnames   = python::extract<pylist>(sections[i][7]);
+		pylist anchored_lines = python::extract<pylist>(sections[i][8]);
 		
 		// Pass all the information to the cross section, including the bounding box of the given section.
 		this->sections.push_back( new SectionPython( name, cut, bbox, points, polygons, units, lines, lnames, anchored_lines ) );
@@ -1103,8 +1103,8 @@ void ModelPython::set_matches( const pylist& matching ) {
 	size_t nmatch = python::len(matching);
 	vector< std::tuple< std::tuple<wstring, wstring>, vector< std::pair<int, int>>>> cppmatching;
 	for ( size_t i = 0; i < nmatch; i++ ) {
-		const wstring& name1 = python::extract<wstring>(matching[i][0][0]);
-		const wstring& name2 = python::extract<wstring>(matching[i][0][1]);
+		wstring name1 = python::extract<wstring>(matching[i][0][0]);
+		wstring name2 = python::extract<wstring>(matching[i][0][1]);
 		vector<std::pair<int, int>> vmatch;
 		size_t mmatch = python::len(matching[i][1]);
 		for ( size_t j = 0; j < mmatch; j++ ) {
@@ -1174,7 +1174,7 @@ double ModelPython::signed_distance_unbounded_aligned( const wstring& unit, cons
 	return ((Model *)this)->signed_distance_unbounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
-double ModelPython::signed_distance_unbounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const {
+double ModelPython::signed_distance_bounded_restricted( const wstring& unit, const pyobject& bb, const pyobject& pt ) const {
 	
 	double xi = python::extract<double>(bb[0]);
 	double yi = python::extract<double>(bb[1]);
@@ -1184,11 +1184,11 @@ double ModelPython::signed_distance_unbounded_restricted( const wstring& unit, c
 	double zf = python::extract<double>(bb[5]);
 	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
   std::shared_ptr<Limiter> limit = std::make_shared<BBoxLimiter>( Bbox, this );
-	return ((Model *)this)->signed_distance_unbounded_restricted(unit, limit,
+	return ((Model *)this)->signed_distance_bounded_restricted(unit, limit,
 		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
-double ModelPython::signed_distance_unbounded_aligned_restricted( const wstring& unit, const pyobject& bb,const pyobject& pt ) const {
+double ModelPython::signed_distance_bounded_aligned_restricted( const wstring& unit, const pyobject& bb,const pyobject& pt ) const {
 	
 	double xi = python::extract<double>(bb[0]);
 	double yi = python::extract<double>(bb[1]);
@@ -1198,7 +1198,7 @@ double ModelPython::signed_distance_unbounded_aligned_restricted( const wstring&
 	double zf = python::extract<double>(bb[5]);
 	bbox3 Bbox = std::make_tuple(std::make_tuple( xi,yi,zi), std::make_tuple( xf, yf, zf));
   std::shared_ptr<AlignedLimiter> limit = std::make_shared<BBoxAlignedLimiter>( Bbox, this );
-	return ((Model *)this)->signed_distance_unbounded_aligned_restricted(unit, limit,
+	return ((Model *)this)->signed_distance_bounded_aligned_restricted(unit, limit,
 		point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 

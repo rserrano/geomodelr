@@ -1,6 +1,6 @@
-
 #include "limiter.hpp"
 #include "model.hpp"
+#include <iostream>
 // Compulsory destructors.
 Limiter::~Limiter() {
 }
@@ -104,24 +104,63 @@ double BBoxAlignedLimiter::limit_signed_distance(const point3& pt, double sdist)
 // Polygon Limiter
 //   Non Aligned
 PolygonLimiter::PolygonLimiter(const polygon& poly, const Model * model): limit(poly), model(model) {
+  for ( auto pt : limit.outer() ) {
+    geometry::append(lpoly, pt);
+  }
 }
 
 PolygonLimiter::~PolygonLimiter() {
 }
 
-double PolygonLimiter::limit_signed_distance(const point3& pt, double sds) const {
-  return sds;
-}
+double PolygonLimiter::limit_signed_distance(const point3& pt, double sdist) const {
 
-//   Aligned
-PolygonAlignedLimiter::PolygonAlignedLimiter(const polygon& poly, const Model * model): alimit(poly), model(model) {
-}
-
-PolygonAlignedLimiter::~PolygonAlignedLimiter() {
-}
-
-double PolygonAlignedLimiter::limit_signed_distance(const point3& pt, double sds) const {
-  return sds;
+  // Calculate the distance to the boundary.
+  // Horizontal distance to the boundary.
+  point2 pt2( gx(pt), gy(pt) );
+  double dh = geometry::distance(pt2, limit);
+  if ( dh == 0.0 ) {
+    dh = -geometry::distance(pt2, lpoly);
+  }
+  double minz = g2(g0(this->model->bbox));
+	double maxz = this->model->height( point2( gx(pt), gy(pt) ) );
+  double zdists[2] = { gz(pt)-maxz, minz-gz(pt) };
+  // Vertical distance to the boundary.
+  double dv;
+  if ( zdists[0] > 0 ) {
+    dv = zdists[0];
+  } else if ( zdists[1] > 0 ) {
+    dv = zdists[1];
+  } else {
+    dv = std::max(zdists[0], zdists[1]);
+  }
+  // Distance boundary.
+  double db; 
+  if ( dh > 0 ) {
+    if ( dv > 0 ) {
+      db = std::sqrt( dh*dh + dv*dv );
+    } else {
+      db = dh;
+    }
+  } else if ( dv > 0 ) {
+    db = dv;
+  } else {
+    db = std::max( dv, dh );
+  }
+   
+  if ( sdist < 0 ) {
+    if ( db > 0 ) {
+      // Inside boundary.
+      return db;
+    }
+    // Inside object and boundary. (max as in least negative)
+    return std::max( sdist, db );
+  }
+  if ( db > 0 ) {
+    // Outside both.
+    return std::max( db, sdist );
+  }
+  // Outside object but inside boundary.
+  return sdist;
 }
 
 // Topography
