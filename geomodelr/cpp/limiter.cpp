@@ -103,10 +103,34 @@ double BBoxAlignedLimiter::limit_signed_distance(const point3& pt, double sdist)
 
 // Polygon Limiter
 //   Non Aligned
-PolygonLimiter::PolygonLimiter(const polygon& poly, const Model * model): limit(poly), model(model) {
-  for ( auto pt : limit.outer() ) {
-    geometry::append(lpoly, pt);
+PolygonLimiter::PolygonLimiter(const polygon& poly, const Model * model):model(model) {
+
+  ring& outer = this->limit.outer();
+  for ( auto pt: poly.outer() ) {
+
+    if ( this->lpoly.size() && geometry::distance(this->lpoly.back(), pt) < boost_tol ) {
+			continue;
+		}
+    geometry::append(outer, pt);
+    geometry::append(this->lpoly, pt);
   }
+  if ( outer.size() < 3 ) {
+		throw GeomodelrException("Limit polygon has less than 3 points.");
+	}
+  geometry::validity_failure_type failure;
+  if ( not geometry::is_valid(this->limit, failure) ) {
+    geometry::correct(this->limit);
+		string reason;
+		if ( not geometry::is_valid(this->limit, reason) ) {
+      string str = "Limit polygon has less than 3 points.";
+      str += reason;
+		  throw GeomodelrException(str.c_str());
+    }
+	}
+	if ( not geometry::is_simple(this->limit) ) {
+		  throw GeomodelrException("Polygon is not simple");
+	}
+  geometry::append(this->lpoly, poly.outer()[0]);
 }
 
 PolygonLimiter::~PolygonLimiter() {
