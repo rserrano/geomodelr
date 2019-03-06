@@ -1,8 +1,7 @@
-include geomodelr/cpp/geomodel.hpp
 include geomodelr/cpp/basic.hpp 
 include geomodelr/cpp/faults.hpp 
 include geomodelr/cpp/geomodel.hpp
 include geomodelr/cpp/match.hpp 
 include geomodelr/cpp/model.hpp 
 include geomodelr/cpp/section.hpp 
-include geomodelr/cpp/speed_up.hpp
+include geomodelr/cpp/polygon.hpp
