@@ -24,7 +24,6 @@ import sys
 import shared
 import unittest
 import cpp
-# import utils
 from model import GeologicalModel
 
 class ParametersException(Exception):
