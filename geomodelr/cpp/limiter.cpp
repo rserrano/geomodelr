@@ -264,4 +264,67 @@ double TopographyPython::height( const pyobject& pypt ) const {
 	return ((Topography *)this)->height( point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1])) );
 }
 
+RestrictedFunction::RestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data ) {
+  this->model = python::extract<const ModelPython *>(model);
+  if ( restype == L"polygon" ) {
+    polygon pbound;
+    
+    size_t nnodes = python::len(data);
+    ring& outer = pbound.outer();
+    
+    // Start filling the first ring.
+    for ( size_t k = 0; k < nnodes; k++ ) {
+    	pyobject pypt = data[k];
+    	point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
+    	if ( outer.size() ) {
+    		if ( geometry::distance(outer.back(), aux) < boost_tol ) {
+    			continue;
+    		}
+    	}
+    	outer.push_back(aux);
+    }
+    this->limit.reset( new PolygonLimiter(pbound, (Model *)this->model) );
+  } else if ( restype == L"bbox" ) {
+    double a = python::extract<double>(data[0]);
+    double b = python::extract<double>(data[1]);
+    double c = python::extract<double>(data[2]);
+    auto min_bbox = std::make_tuple(a, b, c);
+    a = python::extract<double>(data[3]);
+    b = python::extract<double>(data[4]);
+    c = python::extract<double>(data[5]);
+    auto max_bbox = std::make_tuple(a, b, c);
+    limit.reset( new BBoxLimiter(std::make_tuple(min_bbox, max_bbox), (Model *)this->model) );
+  } else {
+    throw GeomodelrException("Restriction not implemented.");
+  }
+}
+
+double RestrictedFunction::signed_distance( const wstring& unit, const pyobject& point ) const {
+  double a = python::extract<double>(point[0]), b = python::extract<double>(point[1]), c = python::extract<double>(point[2]);
+  point3 pt(a, b, c);
+  return this->model->signed_distance_bounded_restricted( unit, this->limit, pt );
+}
+
+AlignedRestrictedFunction::AlignedRestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data ) {
+  this->model = python::extract<const ModelPython *>(model);
+  if ( restype == L"bbox" ) {
+    double a = python::extract<double>(data[0]);
+    double b = python::extract<double>(data[1]);
+    double c = python::extract<double>(data[2]);
+    auto min_bbox = std::make_tuple(a, b, c);
+    a = python::extract<double>(data[3]);
+    b = python::extract<double>(data[4]);
+    c = python::extract<double>(data[5]);
+    auto max_bbox = std::make_tuple(a, b, c);
+    this->limit.reset( new BBoxAlignedLimiter(std::make_tuple(min_bbox, max_bbox), (Model *)this->model) );
+  } else {
+    throw GeomodelrException("Restriction not implemented.");
+  }
+}
+
+double AlignedRestrictedFunction::signed_distance( const wstring& unit, const pyobject& point ) const {
+  double a = python::extract<double>(point[0]), b = python::extract<double>(point[1]), c = python::extract<double>(point[2]);
+  point3 pt(a, b, c);
+  return this->model->signed_distance_bounded_aligned_restricted( unit, this->limit, pt );
+}
 

@@ -248,7 +248,14 @@ BOOST_PYTHON_MODULE(cpp)
 	
 	// Set verbose shows the errors in stderr.
 	python::def("set_verbose", set_verbose, python::args("verbose"), doc_verb);
+  
+  // Restricted function
+	python::class_<RestrictedFunction>("RestrictedFunction", python::init<const pyobject&, const wstring&, const pyobject&>())
+							                                             .def("signed_distance", &RestrictedFunction::signed_distance);
 
+	python::class_<AlignedRestrictedFunction>("AlignedRestrictedFunction", python::init<const pyobject&, const wstring&, const pyobject&>())
+							                                                           .def("signed_distance", &AlignedRestrictedFunction::signed_distance);
+  
 	// Single section class. Mainly exported for testing purposes.
 	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pytuple&,
 							      const pylist&, const pylist&, const pylist&,

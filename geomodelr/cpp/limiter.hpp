@@ -21,6 +21,7 @@
 
 #include "basic.hpp"
 class Model;
+class ModelPython;
 
 class Topography {
 protected:
@@ -86,6 +87,22 @@ public:
   BBoxAlignedLimiter(const bbox3& abbox, const Model * model);
   virtual ~BBoxAlignedLimiter();
   virtual double limit_signed_distance(const point3& pt, double sds) const;
+};
+
+class RestrictedFunction {
+std::shared_ptr<Limiter> limit;
+const ModelPython * model;
+public:
+  RestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data );
+  double signed_distance( const wstring& unit, const pyobject& point ) const;
+};
+
+class AlignedRestrictedFunction {
+std::shared_ptr<AlignedLimiter> limit;
+const ModelPython * model;
+public:
+  AlignedRestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data );
+  double signed_distance( const wstring& unit, const pyobject& point ) const;
 };
 
 #endif
