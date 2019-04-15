@@ -11,8 +11,7 @@ def get_feature_fault_names( cs ):
 def get_all_fault_names( model ):
     faults = set()
     for idx, feature in enumerate(model['features']):
-        if feature['geology_type'] == 'section' and 'interpolation' in feature['properties'] and feature['properties']['interpolation']:
-            faults |= set(get_feature_fault_names( feature ))
+        faults |= set(get_feature_fault_names( feature ))
     return list(faults)
 
 def to_version_0_1_6( model ):
@@ -22,7 +21,15 @@ def to_version_0_1_6( model ):
     fnames = get_all_fault_names( model )
     model['properties']['lines'] = { n: "FAULT" for n in fnames }
 
-UPGRADES = [ ( (0, 1, 6), to_version_0_1_6 ) ]
+def to_version_0_1_13( model ):
+    """
+    This version changes a units dict from name: color to name: { color: color, pattern: pattern }
+    """
+    units = model['properties']['units']
+    for unit in units:
+        units[unit] = { 'color': units[unit], 'pattern': None }
+
+UPGRADES = [ ( (0, 1, 6), to_version_0_1_6 ), ( ( 0, 1, 13), to_version_0_1_13 ) ]
 
 def upgrade_model( model ):
     if not 'geomodelr' in model['properties']:

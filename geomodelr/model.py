@@ -107,7 +107,6 @@ class GeologicalSection(cpp.Section):
         # Add units to model before deleting geojson.
         units = self.geojson['properties']['units'].keys()
         self.units = units
-        print "all faults", self.faults.keys()
         # Save space.
         if delete:
             del self.geojson

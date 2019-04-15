@@ -78,7 +78,7 @@ cppextension = Extension("geomodelr.cpp", ['geomodelr/cpp/basic.cpp', 'geomodelr
                          extra_compile_args=['-std=c++14'])
 
 setup(name='geomodelr',
-    version='0.1.11',
+    version='0.1.13',
     description='Geomodelr is the open source query tool for geomodelr.com models.',
     url='http://github.com/rserrano/geomodelr',
     author='Ricardo Serrano',
