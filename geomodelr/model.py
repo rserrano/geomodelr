@@ -226,6 +226,9 @@ class GeologicalModel(cpp.Model):
         # Add units to model before deleting geojson.
         units = self.geojson['properties']['units'].keys()
         self.units = units
+
+        colors = {k: v[u'color'] for k,v in self.geojson['properties']['units'].iteritems()}
+        self.colors = colors
         
         # Save space.
         if delete:
