@@ -200,11 +200,14 @@ Topography::Topography( const point2& point, const point2& sample, const std::ar
 Topography( point, sample, dims ) {
 	int rows = dims[0];
 	int cols = dims[1];
+
 	for ( int i = 0; i < rows; i++ ) {
 		for ( int j = 0; j < cols; j++ ) {
-			this->heights[i*this->dims[1]+j] = heights[i*this->dims[1]+j];
+			this->heights[ i*this->dims[1]+j ] = heights[i*this->dims[1]+j];
 		}
 	}
+	this->max = *std::max_element(this->heights.begin(), this->heights.end());
+	this->min = *std::min_element(this->heights.begin(), this->heights.end());
 }
 
 double Topography::height(const point2& pt) const {
@@ -237,6 +240,75 @@ double Topography::height(const point2& pt) const {
 	return 0.25*(v2 + v1 + y*(v2 - v1));
 }
 
+bool check_intersection(const point3& pt, const point3& B, const point3& C){
+	
+	double det = gx(B)*gy(C) - gy(B)*gx(C);
+	double alpha = (gy(C)*gx(pt) - gx(C)*gy(pt))/det;
+	double beta  = (-gy(B)*gx(pt) + gx(B)*gy(pt))/det;
+	double gamma = 1.0 - alpha - beta;
+
+	return (std::abs(alpha-0.5)<=0.5) and (std::abs(beta-0.5)<=0.5) and (std::abs(gamma-0.5)<=0.5);
+
+}
+
+
+std::pair<bool, point3> projector(const point3& pt, const point3& projection, const point3& v1, const point3& v2){
+
+	point3 n = geometry::cross_product(v1,v2);
+	double dot = geometry::dot_product(projection, n);
+	if (std::abs(dot) < epsilon){
+		return std::make_pair(false, point3(0,0,0));
+	}
+	double t = -geometry::dot_product(n,pt)/dot;
+	point3 output = point3( gx(pt) + t*gx(projection) , gy(pt) + t*gy(projection), gz(pt) + t*gz(projection));
+
+	return std::make_pair(check_intersection( output, v1, v2 ), output);
+}
+
+vector<std::pair<point3, double>> Topography::intersection(const point3& pt, const point3& projection,
+	const std::tuple<int, int, int, int>& limits ){
+	
+	int n = this->dims[1];
+	const point2& x0 = this->point;
+	double dx = gx(this->sample);
+	double dy = gy(this->sample);
+
+	vector<std::pair<point3, double>> points;
+	// std::cerr << std::setprecision(10);
+	// std::cerr << "Limits I:" << gx(x0) + dx*std::get<0>(limits) << "\t" << gx(x0) + dx*std::get<2>(limits) << std::endl;
+	// std::cerr << "Limits J:" << gy(x0) + dy*std::get<1>(limits) << "\t" << gy(x0) + dy*std::get<3>(limits) << std::endl;
+
+	for (int i = std::get<0>(limits); i <= std::get<2>(limits); i++){
+		double x = gx(x0) + i*dx;
+		for (int j = std::get<1>(limits); j <= std::get<3>(limits); j++){
+			double y = gy(x0) + j*dy;
+
+			double A =  this->heights[i*n + j];
+			double B =  this->heights[(i+1)*n + j];
+			double C =  this->heights[(i+1)*n + j+1];
+			double D =  this->heights[i*n + j+1];
+
+			point3 ft = point3(gx(pt)-x, gy(pt)-y, gz(pt)-A);
+			auto pair = projector(ft, projection, point3(dx,0,B-A), point3(0,dy,D-A));
+			if (pair.first){
+				geometry::add_point(pair.second, point3(x,y,A));
+				points.push_back( std::make_pair(pair.second, geometry::distance(pt, pair.second)) );
+			}
+
+			ft = point3(gx(pt)-x-dx, gy(pt)-y-dy, gz(pt)-C);
+			pair = projector(ft, projection, point3(-dx,0, D-C), point3(0,-dy,B-C));
+			if (pair.first){
+				geometry::add_point(pair.second, point3(x+dx, y+dy, C));
+				points.push_back( std::make_pair(pair.second, geometry::distance(pt, pair.second)) );
+			}
+
+		}
+	}
+
+	return points;
+}
+
+
 TopographyPython::TopographyPython( const pyobject& point, const pyobject& sample, 
                                     const pyobject& dims, const pylist& heights ):
                                     Topography(point2(python::extract<double>(point[0]),
@@ -254,10 +326,14 @@ TopographyPython::TopographyPython( const pyobject& point, const pyobject& sampl
 		if ( cols != this->dims[1] ) {
 			throw GeomodelrException("topography columns does not correspond with dims.");
 		}
+
 		for ( int j = 0; j < cols; j++ ) {
 			this->heights[i*this->dims[1]+j] = python::extract<double>(heights[i][j]);
 		}
 	}
+
+	this->max = *std::max_element(this->heights.begin(), this->heights.end());
+	this->min = *std::min_element(this->heights.begin(), this->heights.end());
 }
 
 double TopographyPython::height( const pyobject& pypt ) const {

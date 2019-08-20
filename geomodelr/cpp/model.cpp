@@ -25,7 +25,7 @@
 
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox, 
 			  const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& abbox,
-		  const point2& base_point, const point2& direction )
+		  const point2& base_point, const point2& direction, const point3& projection )
 : bbox(bbox), abbox(abbox), base_point(base_point), direction(direction), geomap(nullptr), topography(nullptr), horizontal(false), faults_disabled(false)
 {
 	point2 b0(g0(g0(bbox)), g1(g0(bbox)));
@@ -43,6 +43,9 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 		double s = gx(direction)*gy(v) - gy(direction)*gx(v);
 		return norm*s;
 	};
+
+	this->set_projection(projection);
+
 	vector<double> cuts = { cut(b0), cut(b1), cut(b2), cut(b3) };
 	std::sort(cuts.begin(), cuts.end());
 	this->cuts_range = std::make_pair(cuts[0], cuts[3]);
@@ -93,6 +96,8 @@ void Model::clear_matches() {
 void Model::set_params( const map<wstring, wstring>& params ) {
 	this->params = params;
 	
+	// auto aux = params.find(L"faults");
+	// std::wcerr << L"Faults: " << aux->second << L"\n";
 	for ( Section * s: this->sections ) {
 		s->set_params(&(this->params));
 	}
@@ -124,6 +129,51 @@ void Model::set_params( const map<wstring, wstring>& params ) {
 		this->check_soils = false;
 	}
 }
+
+void Model::set_projection(const point3& pt){
+
+	// Get projection in model coordinates
+	double x = gx(this->direction)*gx(pt) + gy(this->direction)*gy(pt);
+	double y = gz(pt);
+	double z = gx(this->direction)*gy(pt) - gy(this->direction)*gx(pt);
+	if (std::abs(z) < epsilon){
+		throw GeomodelrException("Th projection vector is parallel to the cross sections.");
+	}
+	double norm = std::sqrt(x*x + y*y + z*z);
+	this->projection_aligned = point3(x/norm, y/norm, z/norm);
+	x = gx(pt),y = gy(pt), z = gz(pt);
+	norm = std::sqrt(x*x + y*y + z*z);
+	this->projection = point3(x/norm, y/norm, z/norm);
+}
+
+void Model::set_projection_aligned(const point3& pt){
+	double x = gx(pt);
+	double y = gy(pt);
+	double z = gz(pt);
+	double norm = std::sqrt(x*x + y*y + z*z);
+	this->projection_aligned = point3(x/norm, y/norm, z/norm);
+	point3 aux = this->inverse_point( point2(x, y), z );
+	x = gx(aux) - gx(this->base_point);
+	y = gy(aux) - gy(this->base_point);
+	z = gz(aux);
+	norm = std::sqrt(x*x + y*y + z*z);
+	this->projection = point3(x/norm, y/norm, z/norm);
+}
+
+std::pair<point3, point3> Model::get_projection() const{
+	return std::make_pair(this->projection, this->projection_aligned);
+}
+
+point2 Model::project_point(const Section * sec, const point2& pt, double z) const{
+	
+	double cut = sec->cut;
+	const point3& projection = this->projection_aligned;
+	double t = (cut - z)/gz(projection);
+
+	return point2( gx(pt) + t*gx(projection), gy(pt) + t*gy(projection) );
+}
+
+// Model--------------------------- ModelPthon
 
 pydict ModelPython::get_params() const {
 	pydict ret;
@@ -579,7 +629,7 @@ std::tuple<wstring, double> Model::soil( const point3& pt ) const {
 }
 
 vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
-	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, always_true);
+	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, 5.0, always_true);
 	// First drop the non possible.
 	std::set<double> intersections;
 	vector<bool> drop(possible.size(), false);
@@ -781,6 +831,73 @@ double Model::height( const point2& pt ) const {
 	return std::numeric_limits<double>::infinity();
 }
 
+std::tuple<int, int, int, int> Model::square_limits(const point2& pt, double cut) const{
+	if (std::abs((gy(projection_aligned)))<epsilon){
+		if (gy(projection_aligned)>= this->topography->min  and gy(projection_aligned)<= this->topography->max){
+			return std::make_tuple(0,0, this->topography->dims[0]-2, this->topography->dims[1]-2);
+		} else{
+			return std::make_tuple(-1,-1,-1,-1);
+		}	
+	}
+
+	const Topography* topo = this->topography;
+	double pro_x = gx(this->projection_aligned), pro_y = gy(this->projection_aligned), pro_z = gz(this->projection_aligned);
+	double t_max = (topo->max - gy(pt))/pro_y;
+	double t_min = (topo->min - gy(pt))/pro_y;
+
+	point3 pt_0 = this->inverse_point( point2(gx(pt) + t_min*pro_x, topo->min), cut + t_min*pro_z) ;
+	point3 pt_1 = this->inverse_point( point2(gx(pt) + t_max*pro_x, topo->max), cut + t_max*pro_z) ;
+
+	// Minimum limits
+	point2 ft = point2( std::min(gx(pt_0), gx(pt_1)), std::min(gy(pt_0), gy(pt_1)) );
+	geometry::subtract_point(ft, topo->point);
+	geometry::divide_point(ft, topo->sample);
+
+	int i_min = std::floor(gx(ft)), j_min = std::floor(gy(ft));
+
+	if (i_min < 0){i_min = 0;}
+	if (j_min < 0){j_min = 0;}
+	if (i_min >= topo->dims[0]-1){i_min = topo->dims[0]-2;}
+	if (j_min >= topo->dims[1]-1){j_min = topo->dims[1]-2;}
+
+	// Maximum limits
+	ft = point2( std::max(gx(pt_0), gx(pt_1)), std::max(gy(pt_0), gy(pt_1)) );
+	geometry::subtract_point(ft, topo->point);
+	geometry::divide_point(ft, topo->sample);
+
+	int i_max = std::floor(gx(ft)), j_max = std::floor(gy(ft));
+
+	if (i_max < 0){i_max = 0;}
+	if (j_max < 0){j_max = 0;}
+	if (i_max >= topo->dims[0]-1){i_max = topo->dims[0]-2;}
+	if (j_max >= topo->dims[1]-1){j_max = topo->dims[1]-2;}
+
+	return std::make_tuple(i_min, j_min, i_max, j_max);
+}
+
+void ModelPython::set_projection(const pyobject& pypt){
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
+	((Model *)this)->set_projection(point3(p0, p1, p2));
+}
+
+void ModelPython::set_projection_aligned(const pyobject& pypt){
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
+	((Model *)this)->set_projection_aligned(point3(p0, p1, p2));
+}
+
+
+pylist ModelPython::get_projection() const{
+	const std::pair<point3, point3>& projections = ((Model* )this)->get_projection();
+	const point3& pt = projections.first;
+	const point3& pts = projections.second;
+	return python::list( python::make_tuple( python::make_tuple(gx(pt), gy(pt), gz(pt)),
+	python::make_tuple(gx(pts), gy(pts), gz(pts)) ) );
+}
+
 pytuple ModelPython::closest_topo( const pyobject& pypt ) const {
 	double p0 = python::extract<double>(pypt[0]);
 	double p1 = python::extract<double>(pypt[1]);
@@ -905,7 +1022,8 @@ double ModelPython::height( const pyobject& pt ) const {
 	return ((Model *)this)->height( point2( d0, d1 ) );
 }
 
-void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params ) {
+void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections,
+	const pydict& feature_types, const pydict& params, const pylist& pyunits) {
 	this->set_params( params );
 	
 	if ( python::len(topography) > 0 ) {// Get all the information sent from python to build the topography.
@@ -914,6 +1032,12 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 		pyobject dims = python::extract<pyobject>(topography["dims"]);
 		pylist heights = python::extract<pylist>(topography["heights"]);
 		this->topography = new TopographyPython(point, sample, dims, heights);
+	}
+
+	size_t num = python::len(pyunits);
+	this->units.resize(num);
+	for (size_t k=0; k<num; k++){
+		this->units[k] = python::extract<wstring>(pyunits[k]);
 	}
 	
 	size_t nsects = python::len(sections);
@@ -972,15 +1096,16 @@ void ModelPython::fill_model( const pylist& geomap, const pyobject& topography, 
 
 // Model python for VERTICAL cross sections
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyobject& base_point, 
-				 const pyobject& direction, const pylist& geomap, 
+				 const pyobject& direction, const pylist& projection, const pylist& geomap,
 				 const pyobject& topography, const pylist& sections, 
-			 const pydict& feature_types, const pydict& params ): 
+			 const pydict& feature_types, const pydict& params, const pylist& pyunits): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 		  make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(abbox[3]),python::extract<double>(abbox[4]),python::extract<double>(abbox[5]))),
 		point2( python::extract<double>(base_point[0]), python::extract<double>(base_point[1]) ),
-		point2( python::extract<double>(direction[0]),  python::extract<double>(direction[1])  ))
+		point2( python::extract<double>(direction[0]),  python::extract<double>(direction[1]) ), 
+		point3( python::extract<double>(projection[0]),  python::extract<double>(projection[1]), python::extract<double>(projection[2]) ) )
 {
 	for ( int i = 0; i < python::len( sections ); i++ ) {
 		double cut = python::extract<double>( sections[i][1] );
@@ -993,13 +1118,14 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyo
 		pytuple sbbox = python::make_tuple(bbox[0], bbox[1], bbox[3], bbox[4]);
 		pl.insert( 0, sbbox );
 	}
-	this->fill_model( geomap, topography, sections, feature_types, params );
+
+	this->fill_model( geomap, topography, sections, feature_types, params, pyunits);
 }
 
 // Model python for HORIZONTAL cross sections.
 ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pylist& geomap, 
 			  const pyobject& topography, const pylist& sections,
-			  const pydict& feature_types, const pydict& params ): 
+			  const pydict& feature_types, const pydict& params, const pylist& pyunits): 
 	Model(make_tuple(std::tuple<double, double, double>(python::extract<double>(bbox[0]),python::extract<double>(bbox[1]),python::extract<double>(bbox[2])), 
 			 std::tuple<double, double, double>(python::extract<double>(bbox[3]),python::extract<double>(bbox[4]),python::extract<double>(bbox[5]))),
 		  make_tuple(std::tuple<double, double, double>(python::extract<double>(abbox[0]),python::extract<double>(abbox[1]),python::extract<double>(abbox[2])), 
@@ -1014,7 +1140,7 @@ ModelPython::ModelPython( const pyobject& bbox, const pyobject& abbox, const pyl
 		pylist pl = geomap;
 		pl.insert( 0, sbbox );
 	}
-	this->fill_model( geomap, topography, sections, feature_types, params );
+	this->fill_model( geomap, topography, sections, feature_types, params, pyunits );
 }
 
 

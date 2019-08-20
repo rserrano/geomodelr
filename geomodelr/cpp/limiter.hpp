@@ -24,13 +24,18 @@ class Model;
 class ModelPython;
 
 class Topography {
+	friend Model;
 protected:
 	point2 point;
 	point2 sample;
 	int dims[2];
 	vector<double> heights;
 public:
+	double max;
+	double min;
 	double height(const point2&) const;
+	vector<std::pair<point3, double>> intersection(const point3& pt, const point3& projection, 
+		const std::tuple<int, int, int, int>& limits );
 	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims );
 	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims, const vector<double>& heights );
 };

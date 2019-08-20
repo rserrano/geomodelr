@@ -266,13 +266,15 @@ BOOST_PYTHON_MODULE(cpp)
 							      .add_property("params", &SectionPython::get_params, &SectionPython::set_params);
 
 	// Main exported class, Model.
-	python::class_<ModelPython>("Model", python::init<const pyobject&, const pyobject&, const pyobject&, const pyobject&, const pylist&,
-					         const pyobject&, const pylist&, const pydict&, const pydict&>())
+	python::class_<ModelPython>("Model", python::init<const pyobject&, const pyobject&, const pyobject&, const pyobject&,
+		const pylist&, const pylist&, const pyobject&, const pylist&, const pydict&, const pydict&, const pylist&>())
 					    .def(python::init<const pyobject&, const pyobject&, const pylist&,
-					    	 const pyobject&, const pylist&, const pydict&, const pydict&>())
+					    	 const pyobject&, const pylist&, const pydict&, const pydict&, const pylist&>())
 					    .def("make_matches", &ModelPython::make_matches)
 					    .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
 					    .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)
+					    .def("set_projection", &ModelPython::set_projection, python::args("projection vector"))
+					    .def("set_projection_aligned", &ModelPython::set_projection_aligned, python::args("projection vector"))
 					    .def("closest", &ModelPython::closest, python::args("point"), doc_closest)
 					    .def("closest_aligned", &ModelPython::closest_aligned, python::args("point"), doc_closest_aligned)
 					    .def("closest_topo", &ModelPython::closest_topo, python::args("point"), doc_closest_topo)
@@ -295,6 +297,7 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("info", &ModelPython::info)
 					    .add_property("params", &ModelPython::get_params, &ModelPython::set_params)
 					    .add_property("soil_depths", &ModelPython::get_soil_depths, &ModelPython::set_soil_depths)
+					    .add_property("projection", &ModelPython::get_projection)
 					    .add_property("bbox", &ModelPython::pybbox)
 					    .add_property("abbox", &ModelPython::pyabbox)
 					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches)

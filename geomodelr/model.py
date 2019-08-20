@@ -170,6 +170,10 @@ class GeologicalModel(cpp.Model):
                 if not 'orientation' in base_section['transform'] or base_section['transform']['orientation'] == 'vertical': 
                     base_line = base_section['transform']['line']
                     orientation = 'vertical'
+                    if 'projection' in base_section['transform']:
+                        projection = base_section['transform']['projection']
+                    else:
+                        projection = base_section['transform']['normal']
                 elif base_section['transform']['orientation'] == 'horizontal':
                     base_line = None
                     orientation = 'horizontal'
@@ -216,15 +220,18 @@ class GeologicalModel(cpp.Model):
             abbox[4] = bbox[5]
         
         lines = self.geojson['properties']['lines']
+        # print(projection)
+
+        units = self.geojson['properties']['units'].keys()
         if orientation == 'horizontal':
-            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params)
+            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params, units)
         else:
-            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines, params)
+            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), list(projection), geomap,
+                topography, sections, lines, params, units)
         
         self.make_matches()
         
         # Add units to model before deleting geojson.
-        units = self.geojson['properties']['units'].keys()
         self.units = units
 
         colors = {k: v[u'color'] for k,v in self.geojson['properties']['units'].iteritems()}

@@ -88,7 +88,6 @@ public:
 		
 		bool new_to_check;
 		std::set<int> checked;
-
 		
 		do {
 			new_to_check = false;

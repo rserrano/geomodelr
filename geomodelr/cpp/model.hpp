@@ -39,10 +39,13 @@ protected:
 	
 	point2 base_point;
 	point2 direction;
+	point3 projection;
+	point3 projection_aligned;
 	Section * geomap;
 	vector<Section *> sections;
 	vector<Match *> match;
 	vector<double> cuts;
+	vector<wstring> units;
 	
 	map<wstring, vector<triangle_pt>> global_faults;
 	map<wstring, vector<size_t>> extended_faults;
@@ -76,11 +79,11 @@ protected:
 	void clear_matches();
 	// Returns all the possible matches of this 2d point, given the distance is unknown.
 	template<typename Predicates>
-	vector<Possible> get_candidates( size_t a_idx, const point2& pt_a, const point2& pt_b, const Predicates& predicates ) const {
+	vector<Possible> get_candidates( size_t a_idx, const point2& pt_a, const point2& pt_b, double s_dist, const Predicates& predicates ) const {
 		const Section& s_a = *(this->sections[a_idx]);
 		const Section& s_b = *(this->sections[a_idx+1]);
 		
-		double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
+		// double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
 		
 		// Given a match in section a, find a match in section b
 		double inf = std::numeric_limits<double>::infinity();
@@ -155,15 +158,29 @@ protected:
 	vector<Possible> all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const;
 	
 	template<typename Predicates>
-	std::tuple<int, int, double> closest_identified_sections( size_t a_idx, const point2& pt_a, const point2& pt_b, double cut, const Predicates& predicates ) const {
-		/* Returns the closest formation to a model. */
-		double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
-		double cut_rem = cut - this->cuts[a_idx];
-		double mult_b = cut_rem/s_dist;
-		// assert 0.0 <= mult_b <= 1.0
-		double mult_a = 1.0-mult_b;
+	std::tuple<int, int, double> closest_identified_sections( size_t a_idx, const point2& pt_a, const point2& ft, const point2& pt_b,
+		double cut, const Predicates& predicates ) const {
+
+		double dx = gx(pt_a) - gx(ft);
+		double dy = gy(pt_a) - gy(ft);
+		double dz = this->cuts[a_idx] - cut;
+		double dist_a = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+		dx = gx(pt_b) - gx(ft);
+		dy = gy(pt_b) - gy(ft);
+		dz = this->cuts[a_idx + 1] - cut;
+		double dist_b = std::sqrt(dx*dx + dy*dy + dz*dz);
 		
-		vector<Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, predicates);
+		/* Returns the closest formation to a model. */
+		// double s_dist = this->cuts[a_idx+1]-this->cuts[a_idx];
+		// double cut_rem = cut - this->cuts[a_idx];
+		// double mult_b = cut_rem/s_dist;
+		// assert 0.0 <= mult_b <= 1.0
+		// double mult_a = 1.0-mult_b;
+
+		double mult_a = 1.0 - dist_a/(dist_a + dist_b);
+		
+		vector<Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, dist_a + dist_b, predicates);
 		double mindist = std::numeric_limits<double>::infinity();
 		double minidx = -1;
 		
@@ -190,20 +207,62 @@ protected:
 		if ( this->match.size()+1 != this->sections.size() ) {
 			throw GeomodelrException("You need to call make_matches before using this function.");
 		}
-		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);
-		
+		auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);	
 		size_t a_idx = it - this->cuts.begin();
-		
+
+		auto closest_point = [&](const Section& s, const point2& pt) {
+			// double min_dis = geometry::distance( this->inverse_point(ft, sd), this->inverse_point(pt, s.cut) );
+			point2 point = pt;
+			int idx = 0;
+			
+			// auto topography_points = this->topography->intersection(this->inverse_point(ft, sd), this->projection,
+			// this->square_limits(ft, sd));
+			// // std::cerr << "size: " << topography_points.size() << std::endl;
+					
+			// for (size_t k=0; k < topography_points.size(); k++){
+			// 	const auto& pt_data = topography_points[k];
+			// 	if (pt_data.second < min_dis){
+			// 		min_dis = pt_data.second;
+			// 		point = point2( gx(pt_data.first), gy(pt_data.first));
+			// 		idx++;
+			// 	}
+			// }
+			// std::cerr << std::endl;
+			return std::make_tuple(idx, point);
+		};
+
 		// If it's behind the last or above the first, return the closest in the section.
 		auto closest_single = [&](const Section& s) {
-			std::pair<int, double> cls = s.closest(ft, predicates);
+			point2 pt = this->project_point(&s, ft, sd);
+			// point2 pt = ft;
+			auto pair = closest_point(s, pt);
+
+			std::pair<int, double> cls;
+			wstring unit;
+			if ( g0(pair) > 0){
+				// std::cerr << "Aca 3.1\n";
+				cls = this->geomap->closest(g1(pair), predicates);
+			}else{
+				// std::cerr << "Aca 3.2\n";
+				cls = s.closest(pt, predicates);
+			}
+
+			
 			if ( cls.first == -1 ) {
 				return std::make_tuple(wstring(L"NONE"), cls.second);
 			}
-			wstring unit = s.units[cls.first];
+
+			if ( g0(pair) > 0){
+				unit = this->geomap->units[cls.first];
+			}else{
+				unit = s.units[cls.first];
+			}
+
+			// wstring 
 			return std::make_tuple(unit, cls.second);
 		};
 
+		// std::cerr << "a_idx: " << a_idx << "\n";
 		// For a cut below the lowest or above the highest.
 		if ( a_idx <= 0 ) {
 			return closest_single(*this->sections.front());
@@ -212,14 +271,14 @@ protected:
 		if ( a_idx  >= this->sections.size() ) {
 			return closest_single(*this->sections.back());
 		}
-		
+
 		auto closest_middle = [&]( const point2& pt_a, const point2& pt_b ) {
 			// Finally evaluate the full transition.
-			std::tuple<int, int, double> clst = this->closest_identified_sections(a_idx, pt_a, pt_b, sd, predicates);
+			std::tuple<int, int, double> clst = this->closest_identified_sections(a_idx, pt_a, pt_b, ft, sd, predicates);
 			int a_match = std::get<0>(clst);
 			int b_match = std::get<1>(clst);
 			wstring unit;
-			
+	
 			// Get the closest unit.
 			if ( a_match == -1 and b_match == -1 ) {
 				unit = L"NONE";
@@ -233,7 +292,6 @@ protected:
 		
 		// Check if it crosses a fault and then, evaluate the cross section in the side normally, but move the point to the fault in the other.
 		a_idx--;
-		
 		if ( not this->faults_disabled ) {
 			std::tuple<int, int, int> crosses = this->match[a_idx]->crosses_triangles(ft, sd);
 			if ( g0( crosses ) < 0 ) {
@@ -245,7 +303,10 @@ protected:
 			}
 		}
 		
-		return closest_middle( ft, ft );
+		point2 pa = this->project_point(this->sections[a_idx], ft, sd);
+		point2 pb = this->project_point(this->sections[a_idx+1], ft, sd);
+
+		return closest_middle( pa, pb );
 	}
 	
 	std::tuple<wstring, double> soil( const point3& pt ) const;
@@ -268,7 +329,7 @@ protected:
 public:
 	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
               const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox,
-	      const point2& basepoint, const point2& direction); // Sections perpendicular to surface.
+	      const point2& basepoint, const point2& direction, const point3& projection); // Sections perpendicular to surface.
 	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
 	      const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox); // Horizontal sections.
 	
@@ -291,7 +352,13 @@ public:
 	std::pair<point2, double> model_point(const point3& pt) const;
 
 	point3 inverse_point(const point2& pt, double cut) const;
-	
+
+	point2 project_point(const Section * sec, const point2& pt, double z) const;
+
+	void set_projection(const point3& pt);
+	void set_projection_aligned(const point3& pt);
+	std::pair<point3, point3> get_projection() const;
+	std::tuple<int, int, int, int> square_limits(const point2& pt, double cut) const;
 	// CLOSEST FUNCTIONS.
 	// Returns the closest unit with its distance in the coordinate system of the model.
 	std::tuple<wstring, double> closest( const point3& pt ) const;
@@ -338,20 +405,24 @@ public:
 	            const pyobject& topography,
 	            const pylist& sections,
 		    const pydict& lines,
-		    const pydict& params);
+		    const pydict& params,
+		    const pylist& pyunits);
 	
 	ModelPython(const pyobject& bbox,
 		    const pyobject& abbox,
 	            const pyobject& basepoint,
 	            const pyobject& direction,
-	            const pylist& geomap, 
+	            const pylist& projection,
+	            const pylist& geomap,
 	            const pyobject& topography,
 	            const pylist& sections,
 		    const pydict& lines,
-		    const pydict& params);
+		    const pydict& params,
+		    const pylist& pyunits);
 	
 	// fill geological model.
-	void fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections, const pydict& feature_types, const pydict& params );
+	void fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections,
+		const pydict& feature_types, const pydict& params, const pylist& pyunits );
 	
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -382,6 +453,11 @@ public:
 	
 	pylist pybbox() const;
 	pylist pyabbox() const;
+
+	void set_projection(const pyobject& pypt);
+	void set_projection_aligned(const pyobject& pypt);
+
+	pylist get_projection() const;
 
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;
