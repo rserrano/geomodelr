@@ -1,3 +1,4 @@
+# coding=utf
 
 # Geomodelr query tool. Tools for using a geomodelr.com geological model.
 # Copyright (C) 2016 Geomodelr, Inc.
@@ -16,10 +17,10 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import model
-import shared
-import cpp
-import __main__
-from model import model_from_file
-from cpp import set_verbose
+from . import model
+from . import shared
+from . import cpp
+from . import __main__
+from .model import model_from_file
+from .cpp import set_verbose
 

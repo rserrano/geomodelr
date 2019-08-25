@@ -16,22 +16,27 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import print_function
+from __future__ import divison
+
 import unittest
 import os
-import model
 import json
-import shared
-import cpp
 import numpy as np
 from numpy import linalg as la
 from datetime import datetime
-import cProfile, pstats, StringIO
+import cProfile, pstats
+from io import StringIO
 import sys
 import matplotlib.pyplot as plt
 from random import shuffle
 import copy
 import math
 from shapely.geometry import Polygon, Point
+
+from . import model
+from . import shared
+from . import cpp
 
 class Tests(unittest.TestCase):
     def setUp(self):
@@ -367,7 +372,7 @@ class Tests(unittest.TestCase):
         points=[]
         for i in range(3):
             for j in range(3):
-                points.append([xy[j],xy[i]])
+                points.append([float(xy[j]),float(xy[i])])
 
         polygons_1 = [[[3,4,7,6]],[[0,1,4,3]],[[1,2,5,8,7,4]]]
         polygons_2 = [[[3,4,7,6]],[[4,5,8,7]],[[0,1,4,3]],[[1,2,5,4]]]
@@ -816,7 +821,7 @@ class Tests(unittest.TestCase):
         
         phole = lambda p: [p]
         pols = [[0, 1, 5, 4], [1, 2, 7, 6, 5], [2, 3, 9, 8, 7], [4, 5, 6, 11, 10], [6, 7, 8, 12, 11], [8, 9, 13, 12]]
-        pols = map( phole, pols )
+        pols = list(map( phole, pols ))
         units = ['A', 'B', 'C', 'A', 'B', 'C']
         faults_1 = [[4, 5, 6, 7, 8, 9]]
         faults_2 = [[4, 5, 6, 7, 8, 9]]

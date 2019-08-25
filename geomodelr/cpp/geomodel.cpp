@@ -217,7 +217,7 @@ BOOST_PYTHON_MODULE(cpp)
         				  "Returns:\n"
         				  "    (dict): a dictionary with fault names as keys, and lines, (list of points)\n"
         				  "    as values.\n";
-        const char* doc_intersect_plane = "Intersects a plane with the faults of the Geological Model.\n\n"
+  const char* doc_intersect_plane = "Intersects a plane with the faults of the Geological Model.\n\n"
         				  "Takes a plane represented with its four corners and returns the set\n"
         				  "of lines that intersect that plane with the faults.\n\n"
         				  "Args:\n"
