@@ -103,8 +103,7 @@ double BBoxAlignedLimiter::limit_signed_distance(const point3& pt, double sdist)
 
 // Polygon Limiter
 //   Non Aligned
-PolygonLimiter::PolygonLimiter(const polygon& poly, const Model * model):model(model) {
-
+PolygonLimiter::PolygonLimiter(const polygon& poly, double bottom, const Model * model):bottom(bottom), model(model) {
   ring& outer = this->limit.outer();
   for ( auto pt: poly.outer() ) {
 
@@ -137,7 +136,7 @@ PolygonLimiter::~PolygonLimiter() {
 }
 
 double PolygonLimiter::limit_signed_distance(const point3& pt, double sdist) const {
-
+  
   // Calculate the distance to the boundary.
   // Horizontal distance to the boundary.
   point2 pt2( gx(pt), gy(pt) );
@@ -145,7 +144,12 @@ double PolygonLimiter::limit_signed_distance(const point3& pt, double sdist) con
   if ( dh == 0.0 ) {
     dh = -geometry::distance(pt2, lpoly);
   }
+
   double minz = g2(g0(this->model->bbox));
+  // Check if there's a boolean there.
+  if ( std::isfinite(this->bottom) ) {
+    minz = this->bottom;
+  }
 	double maxz = this->model->height( point2( gx(pt), gy(pt) ) );
   double zdists[2] = { gz(pt)-maxz, minz-gz(pt) };
   // Vertical distance to the boundary.
@@ -267,14 +271,16 @@ double TopographyPython::height( const pyobject& pypt ) const {
 RestrictedFunction::RestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data ) {
   this->model = python::extract<const ModelPython *>(model);
   if ( restype == L"polygon" ) {
+
     polygon pbound;
-    
-    size_t nnodes = python::len(data);
+    double bottom = -std::numeric_limits<double>::infinity();
+    const pyobject& polygon = data[wstring(L"polygon")];
+    size_t nnodes = python::len(polygon);
     ring& outer = pbound.outer();
     
     // Start filling the first ring.
     for ( size_t k = 0; k < nnodes; k++ ) {
-    	pyobject pypt = data[k];
+    	pyobject pypt = polygon[k];
     	point2 aux = point2(python::extract<double>(pypt[0]), python::extract<double>(pypt[1]));
     	if ( outer.size() ) {
     		if ( geometry::distance(outer.back(), aux) < boost_tol ) {
@@ -283,8 +289,13 @@ RestrictedFunction::RestrictedFunction( const pyobject& model, const wstring& re
     	}
     	outer.push_back(aux);
     }
-    this->limit.reset( new PolygonLimiter(pbound, (Model *)this->model) );
+    const pydict& bdict = python::extract<pydict>(data);
+    if ( bdict.has_key(wstring(L"bottom")) ) {
+      bottom = python::extract<double>(bdict[wstring(L"bottom")]);
+    }
+    this->limit.reset( new PolygonLimiter(pbound, bottom, (Model *)this->model) );
   } else if ( restype == L"bbox" ) {
+    const pyobject& bbox = data[L"bbox"];
     double a = python::extract<double>(data[0]);
     double b = python::extract<double>(data[1]);
     double c = python::extract<double>(data[2]);

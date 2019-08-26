@@ -58,12 +58,14 @@ public:
 
 // Polygon limiters, the main reason I do this.
 class PolygonLimiter: public Limiter {
+
 polygon limit;
 line lpoly;
+double bottom;
 const Model * model;
 
 public:
-  PolygonLimiter(const polygon& poly, const Model * model);
+  PolygonLimiter(const polygon& poly, double bottom, const Model * model);
   virtual double limit_signed_distance(const point3& pt, double sds) const;
   virtual ~PolygonLimiter();
 };

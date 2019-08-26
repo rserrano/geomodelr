@@ -284,7 +284,6 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("signed_distance_bounded_aligned", &ModelPython::signed_distance_bounded_aligned, python::args("unit", "point"), doc_signed_distance_bounded_aligned)
 					    .def("signed_distance_unbounded_aligned", &ModelPython::signed_distance_unbounded_aligned, 
 					    					      python::args("unit", "point"), doc_signed_distance_unbounded_aligned)
-
 					    .def("signed_distance_bounded_restricted", &ModelPython::signed_distance_bounded_restricted)
 					    .def("signed_distance_bounded_aligned_restricted", &ModelPython::signed_distance_bounded_aligned_restricted)
 					    .def("geomodelr_distance", &ModelPython::geomodelr_distance, python::args("unit", "point"))
