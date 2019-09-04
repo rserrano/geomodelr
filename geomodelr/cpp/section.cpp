@@ -44,6 +44,43 @@ std::pair<int, double> Section::closest( const point2& pt ) const {
 	return this->closest(pt, always_true);
 }
 
+double Section::unit_box_distance(wstring unit, const point2& pt) const{
+
+	auto it = this->unit_polygons.find(unit);
+	if (it == this->unit_polygons.end()){
+		return std::numeric_limits<double>::infinity();
+	}
+
+	double x = std::min(std::max(gx(pt), g0(g0(this->b_square))), g0(g1(this->b_square)));
+	double y = std::max(gy(pt), g1(g0(this->b_square)));
+	point2 new_pt = point2(x, y);
+
+	double min_dist = std::numeric_limits<double>::infinity();
+	for (int i: it->second){
+		min_dist = std::min( min_dist, geometry::distance(poly_trees[i]->bbox, pt) );
+		// min_dist = std::min( min_dist, poly_trees[i]->distance_point(pt) );
+	}
+	return min_dist;
+}
+
+double Section::unit_distance(wstring unit, const point2& pt) const{
+
+	auto it = this->unit_polygons.find(unit);
+	if (it == this->unit_polygons.end()){
+		return std::numeric_limits<double>::infinity();
+	}
+	double x = std::min(std::max(gx(pt), g0(g0(this->b_square))), g0(g1(this->b_square)));
+	double y = std::max(gy(pt), g1(g0(this->b_square)));
+	point2 new_pt = point2(x, y);
+	double min_dist = std::numeric_limits<double>::infinity();
+	
+	for (int i: it->second){
+		// min_dist = std::min( min_dist, geometry::distance(poly_trees[i]->boost_poly, pt) );
+		min_dist = std::min( min_dist, this->poly_trees[i]->distance_point(pt) );
+	}
+	return min_dist;
+}
+
 void Section::set_params( const map<wstring, wstring> * params ) {
 	this->params = params;
 	auto kv = this->params->find( L"faults" );
@@ -66,7 +103,12 @@ SectionPython::SectionPython(const wstring& name, double cut,
 	size_t npols = python::len(polygons);
 	vector<value_f> envelopes;
 	vector<value_l> f_segs;
-	
+	double x_min =  std::numeric_limits<double>::infinity();
+	double x_max = -std::numeric_limits<double>::infinity();
+	double y_min =  std::numeric_limits<double>::infinity();
+	double y_max = -std::numeric_limits<double>::infinity();
+
+	size_t count_polys = 0;
 	for ( size_t i = 0; i < npols; i++ ) {
 		polygon pol;
 		wstring unit = python::extract<wstring>( units[i] );
@@ -141,12 +183,20 @@ SectionPython::SectionPython(const wstring& name, double cut,
 		box env;
 		geometry::envelope(pol, env);
 		envelopes.push_back(std::make_tuple(env, unit, this->poly_trees.size()));
+
+		x_min = std::min(x_min, gx(env.min_corner()));
+		y_min = std::min(y_min, gy(env.min_corner()));
+		x_max = std::max(x_max, gx(env.max_corner()));
+		y_max = std::max(y_max, gy(env.max_corner()));
 		
 		// Now add the actual polygon and its unit.
 		this->poly_trees.push_back(new Polygon(pol, env, this));
 		this->units.push_back(unit);
+		this->unit_polygons[unit].push_back(count_polys);
+		count_polys++;
 	}
 
+	this->b_square = std::make_tuple( std::make_tuple(x_min, y_min), std::make_tuple(x_max, y_max) );
 	// Build the rtree.
 	if ( envelopes.size() > 0 ) {
 		this->polidx = new rtree_f( envelopes );

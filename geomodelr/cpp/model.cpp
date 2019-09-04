@@ -54,6 +54,8 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 	point3 max = point3( g0(g1(bbox)) , g1(g1(bbox)) , g2(g1(bbox)));
 	geometry::subtract_point(max,min);
 	this->bbox_diag = std::sqrt(geometry::dot_product(max,max));
+
+	this->set_signed_distance(L"classic");
 }
 
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox,
@@ -127,6 +129,139 @@ void Model::set_params( const map<wstring, wstring>& params ) {
 		}
 	} else {
 		this->check_soils = false;
+	}
+}
+
+vector< std::pair<wstring, double> > Model::get_closests(const Section * s1, const Section * s2, 
+	const point2& pt1, const point2& pt2, double d1, double d2, wstring unit, bool two_sections) const{
+
+	auto aux_pair = std::make_pair(L"NONE", std::numeric_limits<double>::infinity() );
+	vector< std::pair<wstring, double> > output { aux_pair, aux_pair, aux_pair };
+	double theta = 1.0 - d1/(d1+d2);
+
+	for (wstring uni: this->units){
+
+		double dis_s1 = s1->unit_distance(uni, pt1);
+		double dis_s2;
+		if (two_sections){
+			dis_s2 = s2->unit_distance(uni, pt2);
+		} else{
+			dis_s2 = 0.0;
+			theta = 1.0;
+		}
+		// std::wcerr << std::endl << uni << std::endl;
+		// std::wcerr << L"Theta: " << theta << std::endl;
+		// std::wcerr << s1->name << L"\t" << dis_s1 << L"\t" << d1 << L"\t" << geometry::wkt(pt1) << s1->cut << std::endl;
+		// std::wcerr << s2->name << L"\t" << dis_s2 << L"\t" << d2 << L"\t" << geometry::wkt(pt2) << s2->cut << std::endl;
+
+		double distance;
+		double r = 0.2;
+		if (dis_s1 == std::numeric_limits<double>::infinity() and dis_s2 == std::numeric_limits<double>::infinity()){
+			distance = this->bbox_diag;
+		} else if(dis_s1 == std::numeric_limits<double>::infinity()){
+			if (theta<=r and two_sections){
+				distance = dis_s2 + (d1+d2)*(theta);
+			} else{
+				distance = this->bbox_diag;
+			}
+		} else if(dis_s2 == std::numeric_limits<double>::infinity()){
+			if (theta>=(1.0-r)){
+				distance = dis_s1 + (d1+d2)*(1.0 - theta);
+			} else{
+				distance = this->bbox_diag;
+			}			
+		} else{
+			distance = theta*dis_s1 + (1-theta)*dis_s2;
+		}
+		// std::wcerr << L"Distance: " << distance << std::endl;
+		// double distance = theta*std::min(this->bbox_diag, dis_s1) + (1-theta)*std::min(this->bbox_diag, dis_s2);
+		if (distance < output[1].second){
+			output[2] = output[1];
+			output[1] = std::make_pair(uni, distance);
+		} else if (distance < output[2].second){
+			output[2] = std::make_pair(uni, distance);
+		}
+		if (uni == unit){
+			output[0] = std::make_pair(unit, distance);	
+		}
+	}
+
+	return output;
+}
+
+
+vector<std::pair<wstring, double>> Model::closest_point( const point2& ft, double sd, wstring unit) const{
+	 		
+	if ( not this->sections.size() ) {
+		auto aux_pair = std::make_pair(wstring(L"NONE"), std::numeric_limits<double>::infinity());
+		return vector<std::pair<wstring, double>> {aux_pair, aux_pair, aux_pair};
+	}
+
+	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);	
+	size_t a_idx = it - this->cuts.begin();
+
+	// Distance for single section
+	auto closest_single = [&](const Section * s, double cut) {
+		point2 pt = this->project_point(s, ft, sd);
+		std::pair<point3, double> topo_point = this->topography->intersection(this->inverse_point(ft, sd), this->projection,
+			this->square_limits(ft, sd));
+
+		double dx = gx(pt) - gx(ft);
+		double dy = gy(pt) - gy(ft);
+		double dz = cut - sd;
+		double dist_pt = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+		if (topo_point.second == std::numeric_limits<double>::infinity()){
+			return this->get_closests(s, s, pt, pt, dist_pt, 1.0, unit, false);
+		}else{
+			double dx = gx(pt) - gx(ft);
+			double dy = gy(pt) - gy(ft);
+			double dz = cut - sd;
+			double dist_pt = std::sqrt(dx*dx + dy*dy + dz*dz);
+			return this->get_closests(s, this->geomap, pt, point2( gx(topo_point.first), gy(topo_point.first)),
+				dist_pt, topo_point.second, unit, true);
+		}
+	};
+
+	if ( a_idx <= 0 ) {
+		return closest_single(this->sections.front(), this->cuts.front());
+	}
+	
+	if ( a_idx  >= this->sections.size() ) {
+		return closest_single(this->sections.back(), this->cuts.back());
+	}
+
+	a_idx--;
+	// Projected points over sections A and B.
+	point2 pa = this->project_point(this->sections[a_idx], ft, sd);
+	point2 pb = this->project_point(this->sections[a_idx+1], ft, sd);
+
+	// Distance to sections A and B.
+	double dx = gx(pa) - gx(ft);
+	double dy = gy(pa) - gy(ft);
+	double dz = this->cuts[a_idx] - sd;
+	double dist_a = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+	dx = gx(pb) - gx(ft);
+	dy = gy(pb) - gy(ft);
+	dz = this->cuts[a_idx + 1] - sd;
+	double dist_b = std::sqrt(dx*dx + dy*dy + dz*dz);
+	
+	// Topography point
+	std::pair<point3, double> topo_point = this->topography->intersection(this->inverse_point(ft, sd), this->projection,
+			this->square_limits(ft, sd));
+
+	// Topography and section B
+	if (( dist_a > dist_b) and  (dist_a > topo_point.second)){
+		return this->get_closests(this->geomap, this->sections[a_idx+1], point2( gx(topo_point.first), gy(topo_point.first)),
+			pb, topo_point.second, dist_b, unit, true);
+	// Topography and section A
+	}else if (( dist_b > dist_a) and  (dist_b > topo_point.second)){
+		return this->get_closests(this->geomap, this->sections[a_idx], point2( gx(topo_point.first), gy(topo_point.first)),
+			pa, topo_point.second, dist_a, unit, true);
+	// Section A and B.
+	}else{
+		return this->get_closests(this->sections[a_idx], this->sections[a_idx+1], pa, pb, dist_a, dist_b, unit, true);
 	}
 }
 
@@ -395,6 +530,23 @@ vector<point2> Model::get_fault(const wstring sec, int fault_idx) const{
 
 }
 
+void Model::set_signed_distance(const wstring& sdf_mode){
+
+	if (sdf_mode == L"classic"){
+		this->signed_distance_model = std::bind(&Model::signed_distance, this, std::placeholders::_1,
+			std::placeholders::_2);
+
+	} else if (sdf_mode == L"vectorial"){
+		this->signed_distance_model = std::bind(&Model::signed_distance_projection, this, std::placeholders::_1,
+			std::placeholders::_2);
+
+	} else{
+		throw GeomodelrException("Signed distance mode have to be 'classic' or 'vectorial'.");
+	}
+
+	this->mode = sdf_mode;
+}
+
 double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	
 	auto all_except = [unit](const value_f& v) {
@@ -439,8 +591,25 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	return d;
 }
 
+double Model::signed_distance_projection( const wstring& unit, const point3& pt ) const {
+
+	std::pair<point2, double> mp = ((Model *)this)->model_point( pt );
+	vector<std::pair<wstring, double>> res = this->closest_point( mp.first, mp.second, unit);
+
+	for (auto a: res){
+		std::wcerr << a.first << L"\t" << a.second << std::endl;
+	}
+
+	if (res[0].first != res[1].first){
+		return res[0].second - res[1].second;
+	}else{
+		return res[0].second - res[2].second;
+	}
+}
+
 double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) const {
-	double sdist = this->signed_distance( unit, pt );
+	// double sdist = this->signed_distance( unit, pt );
+	double sdist = this->signed_distance_model(unit, pt);
 	bool outside = false;
 	double odist = 0.0;
 	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
@@ -475,9 +644,13 @@ double Model::signed_distance_bounded( const wstring& unit, const point3& pt ) c
 }
 
 double Model::signed_distance_bounded_restricted( const wstring& unit, const std::shared_ptr<Limiter> limit, const point3& pt ) const {
-	double sdist = this->signed_distance( unit, pt );
+	// double sdist = this->signed_distance( unit, pt );
+	// double sdist = this->signed_distance_projection( unit, pt );
+	double sdist = this->signed_distance_model(unit, pt);
+	
   return limit->limit_signed_distance(pt, sdist);
 }
+
 
 double Model::signed_distance_unbounded( const wstring& unit, const point3& pt ) const {
 	double sdist = this->signed_distance( unit, pt );
@@ -492,120 +665,6 @@ double Model::signed_distance_unbounded( const wstring& unit, const point3& pt )
 	if ( distz >= 0 ) {
 		return std::max(sdist, distz);
 	}
-	return std::max(sdist, distz);
-}
-
-double Model::signed_distance_aligned( const wstring& unit, const point3& pt ) const {
-	
-	auto all_except = [unit](const value_f& v) {
-		const wstring& s = g1(v);
-		return s != unit;
-	};
-	
-	auto just = [unit](const value_f& v) {
-		const wstring& s = g1(v);
-		return s == unit;
-	};
-	
-	std::tuple<wstring, double> inside = this->closest_aligned( pt, just );
-	std::tuple<wstring, double> outside = this->closest_aligned( pt, all_except );
-
-	double d;
-	if ( g0(inside) == L"NONE" ) {
-		d = g1(inside);
-	} else if ( g0(outside) == L"NONE" ) {
-		d = -g1(outside);
-	} else {
-		d = g1(inside) - g1(outside);
-	}
-	
-	// Check if d is +-infinity.
-	if (std::isinf(d)){
-		if (d > 0){
-			d = bbox_diag;
-		} else{
-			d = -bbox_diag;
-		}
-	}
-	if ( this->check_soils ) {
-		std::tuple<wstring, double> sl = this->soil( this->inverse_point(point2(gx(pt), gy(pt)), gz(pt)) );
-		if ( g0(sl) == unit ) {
-			return std::min( d, g1(sl) );
-		} else {
-			if ( g1(sl) < 0 ) {
-				return std::max( d, -g1(sl) );
-			}
-			return d;
-		}
-	}
-	return d;
-}
-
-double Model::signed_distance_bounded_aligned( const wstring& unit, const point3& pt ) const {
-	double sdist = this->signed_distance_aligned( unit, pt );
-	bool outside = false;
-	double odist = 0.0;
-	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
-	
-	
-	double minu = g0(g0(this->abbox));
-	double minv = g1(g0(this->abbox));
-	double minw = g2(g0(this->abbox));
-	
-	double maxu = g0(g1(this->abbox));
-	double maxv = g1(g1(this->abbox));
-	double maxw = g2(g1(this->abbox));
-	
-	double u = gx(pt);
-	double v = gy(pt);
-	double w = gz(pt);
-	
-	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
-	double maxh = this->height( point2( gx(in), gy(in) ) );
-	if ( this->horizontal ) {
-		maxw = maxh;
-	} else {
-		maxv = maxh;
-	}
-	
-	double dists[6] = { minu - u, minv - v, minw - w, u - maxu, v - maxv, w - maxw };
-	for ( size_t i = 0; i < 6; i++ ) {
-		if ( dists[i] >= 0 ) {
-			outside = true;
-			odist += dists[i]*dists[i];
-		} else {
-			idist = std::max(idist, dists[i]);
-		}
-	}
-	
-	if ( outside ) {
-		return std::max(sdist, std::sqrt(odist));
-	}
-	
-	return std::max(sdist, idist);
-}
-
-double Model::signed_distance_bounded_aligned_restricted( const wstring& unit, const std::shared_ptr<AlignedLimiter> limit, const point3& pt ) const {
-	double sdist = this->signed_distance_aligned( unit, pt );
-	return limit->limit_signed_distance(pt, sdist);
-}
-
-double Model::signed_distance_unbounded_aligned( const wstring& unit, const point3& pt ) const {
-	double sdist = this->signed_distance_aligned( unit, pt );
-	
-	point3 in = this->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
-	
-	double x = gx(in);
-	double y = gy(in);
-	double z = gz(in);
-	
-	double maxz = this->height( point2( x, y ) );
-	double distz = z - maxz;
-	
-	if ( distz >= 0 ) {
-		return std::max(sdist, distz);
-	}
-	
 	return std::max(sdist, distz);
 }
 
@@ -629,7 +688,7 @@ std::tuple<wstring, double> Model::soil( const point3& pt ) const {
 }
 
 vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, const point2& pt_b ) const {
-	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, 5.0, always_true);
+	vector<Model::Possible> possible = this->get_candidates(a_idx, pt_a, pt_b, always_true);
 	// First drop the non possible.
 	std::set<double> intersections;
 	vector<bool> drop(possible.size(), false);
@@ -719,6 +778,7 @@ vector<Model::Possible> Model::all_closest( size_t a_idx, const point2& pt_a, co
 }
 
 
+
 std::pair<point2, double> Model::model_point( const point3& pt ) const {
 	// If it's a horizontal cross section, just translate it.
 	if ( this->horizontal ) {
@@ -795,15 +855,6 @@ std::tuple<wstring, double> Model::closest_topo( const point3& pt ) const {
 	return this->closest(pt);
 }
 
-std::tuple<wstring, double> Model::closest_topo_aligned( const point3& pt ) const {
-	if ( this->topography != nullptr ) {
-		if ( this->height(point2(gx(pt), gy(pt))) < gz(pt) ) {
-			return std::make_tuple(wstring(L"AIR"), std::numeric_limits<double>::infinity());
-		}
-	}
-	return this->closest(pt);
-}
-
 std::tuple<wstring, double> Model::closest( const point3& pt ) const {
 	if ( this->check_soils ) {
 		std::tuple<wstring, double> sl = this->soil( pt );
@@ -812,16 +863,6 @@ std::tuple<wstring, double> Model::closest( const point3& pt ) const {
 		}
 	}
 	return this->closest(pt, always_true);
-}
-
-std::tuple<wstring, double> Model::closest_aligned( const point3& pt ) const {
-	if ( this->check_soils ) {
-		std::tuple<wstring, double> sl = this->soil( this->inverse_point(point2(gx(pt), gy(pt)), gz(pt)) );
-		if ( g1( sl ) < 0.0 ) {
-			return std::make_tuple( g0(sl), 0.0 );
-		}
-	}
-	return this->closest_aligned(pt, always_true);
 }
 
 double Model::height( const point2& pt ) const {
@@ -833,11 +874,11 @@ double Model::height( const point2& pt ) const {
 
 std::tuple<int, int, int, int> Model::square_limits(const point2& pt, double cut) const{
 	if (std::abs((gy(projection_aligned)))<epsilon){
-		if (gy(projection_aligned)>= this->topography->min  and gy(projection_aligned)<= this->topography->max){
-			return std::make_tuple(0,0, this->topography->dims[0]-2, this->topography->dims[1]-2);
-		} else{
-			return std::make_tuple(-1,-1,-1,-1);
-		}	
+		// if (gy(projection_aligned)>= this->topography->min  and gy(projection_aligned)<= this->topography->max){
+		// 	return std::make_tuple(0,0, this->topography->dims[0]-2, this->topography->dims[1]-2);
+		// } else{
+			return std::make_tuple(-1,-1,0,0);
+		// }	
 	}
 
 	const Topography* topo = this->topography;
@@ -875,6 +916,10 @@ std::tuple<int, int, int, int> Model::square_limits(const point2& pt, double cut
 	return std::make_tuple(i_min, j_min, i_max, j_max);
 }
 
+void ModelPython::set_signed_distance(const wstring& sdf_mode){
+	Model::set_signed_distance(sdf_mode);
+}
+
 void ModelPython::set_projection(const pyobject& pypt){
 	double p0 = python::extract<double>(pypt[0]);
 	double p1 = python::extract<double>(pypt[1]);
@@ -889,6 +934,17 @@ void ModelPython::set_projection_aligned(const pyobject& pypt){
 	((Model *)this)->set_projection_aligned(point3(p0, p1, p2));
 }
 
+pytuple ModelPython::closest_point(const pyobject& pypt) const {
+	// python exposed functions to search for the closest formation.
+	double p0 = python::extract<double>(pypt[0]);
+	double p1 = python::extract<double>(pypt[1]);
+	double p2 = python::extract<double>(pypt[2]);
+
+	std::pair<point2, double> mp = ((Model *)this)->model_point( point3(p0, p1, p2) );
+	vector<std::pair<wstring, double>> res = ((Model *)this)->closest_point( mp.first, mp.second, L"NONE");
+
+	return python::make_tuple(res[1].first, res[1].second);
+}
 
 pylist ModelPython::get_projection() const{
 	const std::pair<point3, point3>& projections = ((Model* )this)->get_projection();
@@ -903,14 +959,6 @@ pytuple ModelPython::closest_topo( const pyobject& pypt ) const {
 	double p1 = python::extract<double>(pypt[1]);
 	double p2 = python::extract<double>(pypt[2]);
 	std::tuple<wstring, double> ret = ((Model *)this)->closest_topo( point3( p0, p1, p2 ) );
-	return python::make_tuple(g0(ret), g1(ret));
-}
-
-pytuple ModelPython::closest_topo_aligned( const pyobject& pypt ) const {
-	double p0 = python::extract<double>(pypt[0]);
-	double p1 = python::extract<double>(pypt[1]);
-	double p2 = python::extract<double>(pypt[2]);
-	std::tuple<wstring, double> ret = ((Model *)this)->closest_topo_aligned( point3( p0, p1, p2 ) );
 	return python::make_tuple(g0(ret), g1(ret));
 }
 
@@ -957,15 +1005,6 @@ pytuple ModelPython::closest(const pyobject& pypt) const {
 	return python::make_tuple(g0(res), g1(res));
 }
 
-pytuple ModelPython::closest_aligned(const pyobject& pypt) const {
-	// python exposed functions to search for the closest formation.
-	double p0 = python::extract<double>(pypt[0]);
-	double p1 = python::extract<double>(pypt[1]);
-	double p2 = python::extract<double>(pypt[2]);
-	point3 pt(p0, p1, p2);
-	std::tuple<wstring, double> res = ((Model *)this)->closest_aligned( pt );
-	return python::make_tuple(g0(res), g1(res));
-}
 
 pydict ModelPython::intersect_planes(const pylist& planes) const{
 	
@@ -1150,6 +1189,10 @@ void ModelPython::make_matches() {
 	
 }
 
+void ModelPython::mode(){
+	std::wcerr <<  ((Model *)this)->mode << std::endl;
+}
+
 pydict ModelPython::filter_lines( bool ext, const wstring& ft ) const {
 	auto python_point = [&]( const point3& pt ) {
 		return python::make_tuple(gx(pt), gy(pt), gz(pt));
@@ -1277,28 +1320,19 @@ pylist ModelPython::pyabbox( ) const {
 }
 
 double ModelPython::signed_distance( const wstring& unit, const pyobject& pt ) const {
-	return ((Model *)this)->signed_distance(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
-}
-	
-double ModelPython::signed_distance_aligned( const wstring& unit, const pyobject& pt ) const {
-	return ((Model *)this)->signed_distance_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+	// return ((Model *)this)->signed_distance(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
+	return ((Model *)this)->signed_distance_model(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
 double ModelPython::signed_distance_bounded( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_bounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
-double ModelPython::signed_distance_bounded_aligned( const wstring& unit, const pyobject& pt ) const {
-	return ((Model *)this)->signed_distance_bounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
-}
 
 double ModelPython::signed_distance_unbounded( const wstring& unit, const pyobject& pt ) const {
 	return ((Model *)this)->signed_distance_unbounded(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
 }
 
-double ModelPython::signed_distance_unbounded_aligned( const wstring& unit, const pyobject& pt ) const {
-	return ((Model *)this)->signed_distance_unbounded_aligned(unit, point3(python::extract<double>(pt[0]), python::extract<double>(pt[1]), python::extract<double>(pt[2])));
-}
 
 double ModelPython::geomodelr_distance( const wstring& unit, const pylist& point ) const{
 

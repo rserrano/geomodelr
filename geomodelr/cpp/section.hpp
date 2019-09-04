@@ -43,6 +43,7 @@ protected:
 	wstring name;
 	double cut;
 	bbox2 bbox;
+	bbox2 b_square;
 	vector<wstring> units;
 	vector<line> lines;
 	vector<std::pair<point2, point2>> line_ends;
@@ -52,6 +53,7 @@ protected:
 	rtree_l * fault_lines;
 	vector<Polygon *> poly_trees;
 	const map<wstring, wstring> * params;
+	std::map<wstring, vector<int> > unit_polygons;
 	
 	template<typename Predicates>
 	vector<std::pair<int, double>> closer_than( const point2& pt, double distance, const Predicates& predicates ) const {
@@ -127,6 +129,8 @@ public:
 	}
 	std::pair<int, double> closest( const point2& ) const;
 	void set_params( const map<wstring, wstring> * params );
+	double unit_distance(wstring unit, const point2& pt) const;
+	double unit_box_distance(wstring unit, const point2& pt) const;
 	std::tuple<map<wstring, vector<triangle_pt>>, map<wstring, vector<size_t>>> last_lines(bool is_back, double end);
 	Section( const wstring& name, double cut, const bbox2& bbox );
 	virtual ~Section();

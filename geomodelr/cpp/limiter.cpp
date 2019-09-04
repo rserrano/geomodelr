@@ -5,9 +5,6 @@
 Limiter::~Limiter() {
 }
 
-AlignedLimiter::~AlignedLimiter() {
-}
-
 // BBox Limiter
 //   Non aligned
 BBoxLimiter::BBoxLimiter(const bbox3& bbox, const Model * model): bbox(bbox), model(model) {
@@ -36,56 +33,6 @@ double BBoxLimiter::limit_signed_distance(const point3& pt, double sdist) const 
 	
 	double dists[6] = { minx - x, miny - y, minz - z, x - maxx, y - maxy, z - maxz };
 	
-	for ( size_t i = 0; i < 6; i++ ) {
-		if ( dists[i] >= 0 ) {
-			outside = true;
-			odist += dists[i]*dists[i];
-		} else {
-			idist = std::max(idist, dists[i]);
-		}
-	}
-	
-	if ( outside ) {
-		return std::max(sdist, std::sqrt(odist));
-	}
-	return std::max(sdist, idist);
-}
-
-//   Aligned
-BBoxAlignedLimiter::BBoxAlignedLimiter(const bbox3& bbox, const Model * model): abbox(bbox), model(model) {
-}
-
-//   Aligned
-BBoxAlignedLimiter::~BBoxAlignedLimiter() {
-}
-
-double BBoxAlignedLimiter::limit_signed_distance(const point3& pt, double sdist) const {
-  bool outside = false;
-	double odist = 0.0;
-	double idist = -std::numeric_limits<double>::infinity(); // In the future, fix distance below too.
-	
-	
-	double minu = g0(g0(abbox));
-	double minv = g1(g0(abbox));
-	double minw = g2(g0(abbox));
-	
-	double maxu = g0(g1(abbox));
-	double maxv = g1(g1(abbox));
-	double maxw = g2(g1(abbox));
-	
-	double u = gx(pt);
-	double v = gy(pt);
-	double w = gz(pt);
-	
-	point3 in = this->model->inverse_point( point2( gx(pt), gy(pt) ), gz(pt) );
-	double maxh = this->model->height( point2( gx(in), gy(in) ) );
-	if ( this->model->horizontal ) {
-		maxw = maxh;
-	} else {
-		maxv = maxh;
-	}
-	
-	double dists[6] = { minu - u, minv - v, minw - w, u - maxu, v - maxv, w - maxw };
 	for ( size_t i = 0; i < 6; i++ ) {
 		if ( dists[i] >= 0 ) {
 			outside = true;
@@ -265,7 +212,7 @@ std::pair<bool, point3> projector(const point3& pt, const point3& projection, co
 	return std::make_pair(check_intersection( output, v1, v2 ), output);
 }
 
-vector<std::pair<point3, double>> Topography::intersection(const point3& pt, const point3& projection,
+std::pair<point3, double> Topography::intersection(const point3& pt, const point3& projection,
 	const std::tuple<int, int, int, int>& limits ){
 	
 	int n = this->dims[1];
@@ -273,10 +220,7 @@ vector<std::pair<point3, double>> Topography::intersection(const point3& pt, con
 	double dx = gx(this->sample);
 	double dy = gy(this->sample);
 
-	vector<std::pair<point3, double>> points;
-	// std::cerr << std::setprecision(10);
-	// std::cerr << "Limits I:" << gx(x0) + dx*std::get<0>(limits) << "\t" << gx(x0) + dx*std::get<2>(limits) << std::endl;
-	// std::cerr << "Limits J:" << gy(x0) + dy*std::get<1>(limits) << "\t" << gy(x0) + dy*std::get<3>(limits) << std::endl;
+	std::pair<point3, double> output =  std::make_pair(point3(0,0,0), std::numeric_limits<double>::infinity() );
 
 	for (int i = std::get<0>(limits); i <= std::get<2>(limits); i++){
 		double x = gx(x0) + i*dx;
@@ -292,20 +236,26 @@ vector<std::pair<point3, double>> Topography::intersection(const point3& pt, con
 			auto pair = projector(ft, projection, point3(dx,0,B-A), point3(0,dy,D-A));
 			if (pair.first){
 				geometry::add_point(pair.second, point3(x,y,A));
-				points.push_back( std::make_pair(pair.second, geometry::distance(pt, pair.second)) );
+				double distance = geometry::distance(pt, pair.second);
+				if (distance < output.second){
+					output = std::make_pair(pair.second, distance);
+				}
 			}
 
 			ft = point3(gx(pt)-x-dx, gy(pt)-y-dy, gz(pt)-C);
 			pair = projector(ft, projection, point3(-dx,0, D-C), point3(0,-dy,B-C));
 			if (pair.first){
 				geometry::add_point(pair.second, point3(x+dx, y+dy, C));
-				points.push_back( std::make_pair(pair.second, geometry::distance(pt, pair.second)) );
+				double distance = geometry::distance(pt, pair.second);
+				if (distance < output.second){
+					output = std::make_pair(pair.second, distance);
+				}
 			}
 
 		}
 	}
 
-	return points;
+	return output;
 }
 
 
@@ -379,28 +329,5 @@ double RestrictedFunction::signed_distance( const wstring& unit, const pyobject&
   double a = python::extract<double>(point[0]), b = python::extract<double>(point[1]), c = python::extract<double>(point[2]);
   point3 pt(a, b, c);
   return this->model->signed_distance_bounded_restricted( unit, this->limit, pt );
-}
-
-AlignedRestrictedFunction::AlignedRestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data ) {
-  this->model = python::extract<const ModelPython *>(model);
-  if ( restype == L"bbox" ) {
-    double a = python::extract<double>(data[0]);
-    double b = python::extract<double>(data[1]);
-    double c = python::extract<double>(data[2]);
-    auto min_bbox = std::make_tuple(a, b, c);
-    a = python::extract<double>(data[3]);
-    b = python::extract<double>(data[4]);
-    c = python::extract<double>(data[5]);
-    auto max_bbox = std::make_tuple(a, b, c);
-    this->limit.reset( new BBoxAlignedLimiter(std::make_tuple(min_bbox, max_bbox), (Model *)this->model) );
-  } else {
-    throw GeomodelrException("Restriction not implemented.");
-  }
-}
-
-double AlignedRestrictedFunction::signed_distance( const wstring& unit, const pyobject& point ) const {
-  double a = python::extract<double>(point[0]), b = python::extract<double>(point[1]), c = python::extract<double>(point[2]);
-  point3 pt(a, b, c);
-  return this->model->signed_distance_bounded_aligned_restricted( unit, this->limit, pt );
 }
 

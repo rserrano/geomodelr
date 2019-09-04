@@ -66,30 +66,9 @@ BOOST_PYTHON_MODULE(cpp)
 					"    (tuple):\n"
 					"    A tuple with the geological unit and the defined distance to that unit.";
 	
-	const char* doc_closest_aligned =       "Same as closest but in the coordinate system of the parallel cross sections model.\n\n"
-						"The basic definition of the algorithm is that, given a match between geological units,\n"
-						"the distance from the point to the unit is the sum of the in-section distance to the point\n"
-						"averaged by the distance to the cross section.\n\n"
-						"This algorithm returns the lowest value of the defined distance.\n\n"
-						"Args:\n"
-						"    (tuple) point:\n"
-						"    The three coordinates of the point in the parallel sections coordinate system.\n"
-						"Returns:\n"
-						"    (tuple):\n"
-						"    A tuple with the geological unit and the defined distance to that unit.";
-	
 	const char* doc_closest_topo =	"Same as closest but it returns (AIR, inf) if the point is above the topography.\n\n"
 					"It first looks if the point is above the topography and returns (AIR, inf) in that case.\n"
 					"Otherwise it returns the same as closest.\n\n"
-					"Args:\n"
-					"    (tuple) point:\n"
-					"    The three coordinates (easting, northing, altitude a.s.l) of the point in the given coordinate system.\n"
-					"Returns:\n"
-					"    (tuple):\n"
-					"    A tuple with the geological unit and the defined distance to that unit or AIR if it's\n"
-					"    above the topography.";
-	
-	const char* doc_closest_topo_aligned =	"Same as closest_topo, but in the coordinate system of the cross sections.\n\n"
 					"Args:\n"
 					"    (tuple) point:\n"
 					"    The three coordinates (easting, northing, altitude a.s.l) of the point in the given coordinate system.\n"
@@ -175,36 +154,6 @@ BOOST_PYTHON_MODULE(cpp)
 					          "Returns:\n"
 					          "    (double)\n"
 					          "    The signed distance from the unit to the point.\n";
-	
-	const char* doc_signed_distance_aligned = "Same as signed_distance but in the coordinate system of the cross sections.\n\n"
-					  "Args:\n"
-					  "    (string) unit:\n"
-					  "    The unit to measure the signed distance to\n\n"
-					  "    (tuple) point:\n"
-					  "    The three coordinates (esting, norting, altitute a.s.l) of the point in the given coordinate system.\n"
-					  "Returns:\n"
-					  "    (double)\n"
-					  "    The signed distance from the unit to the point.\n";
-	
-	const char* doc_signed_distance_bounded_aligned = "Same as signed_distance_bounded but in the coordinate system of the cross sections.\n\n"
-					          "Args:\n"
-					          "    (string) unit:\n"
-					          "    The unit to measure the signed distance to\n\n"
-					          "    (tuple) point:\n"
-					          "    The three coordinates (esting, norting, altitute a.s.l) of the point in the given coordinate system.\n"
-					          "Returns:\n"
-					          "    (double)\n"
-					          "    The signed distance from the unit to the point.\n";
-	
-	const char* doc_signed_distance_unbounded_aligned = "Same as signed_distance_unbounded but in the coordinate system aligned with the cross sections.\n\n"
-					          "Args:\n"
-					          "    (string) unit:\n"
-					          "    The unit to measure the signed distance to\n\n"
-					          "    (tuple) point:\n"
-					          "    The three coordinates (esting, norting, altitute a.s.l) of the point in the given coordinate system.\n"
-					          "Returns:\n"
-					          "    (double)\n"
-					          "    The signed distance from the unit to the point.\n";
 
 	const char* doc_intersect_planes = "Intersects a set of planes with the faults of the Geological Model.\n"
         				  "Takes a set of plane represented with its four corners and returns the set\n"
@@ -252,9 +201,6 @@ BOOST_PYTHON_MODULE(cpp)
   // Restricted function
 	python::class_<RestrictedFunction>("RestrictedFunction", python::init<const pyobject&, const wstring&, const pyobject&>())
 							                                             .def("signed_distance", &RestrictedFunction::signed_distance);
-
-	python::class_<AlignedRestrictedFunction>("AlignedRestrictedFunction", python::init<const pyobject&, const wstring&, const pyobject&>())
-							                                                           .def("signed_distance", &AlignedRestrictedFunction::signed_distance);
   
 	// Single section class. Mainly exported for testing purposes.
 	python::class_<SectionPython>("Section", python::init<const wstring&, double, const pytuple&,
@@ -273,22 +219,16 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("make_matches", &ModelPython::make_matches)
 					    .def("model_point", &ModelPython::model_point, python::args("point"), doc_model_point)
 					    .def("inverse_point", &ModelPython::inverse_point, python::args("internal_point"), doc_inverse_point)
+					    .def("set_signed_distance", &ModelPython::set_signed_distance, python::args("projection mode"))
 					    .def("set_projection", &ModelPython::set_projection, python::args("projection vector"))
 					    .def("set_projection_aligned", &ModelPython::set_projection_aligned, python::args("projection vector"))
 					    .def("closest", &ModelPython::closest, python::args("point"), doc_closest)
-					    .def("closest_aligned", &ModelPython::closest_aligned, python::args("point"), doc_closest_aligned)
+					    .def("closest_point", &ModelPython::closest_point, python::args("point"))
 					    .def("closest_topo", &ModelPython::closest_topo, python::args("point"), doc_closest_topo)
-					    .def("closest_topo_aligned", &ModelPython::closest_topo_aligned, python::args("point"), doc_closest_topo_aligned)
 					    .def("signed_distance", &ModelPython::signed_distance, python::args("unit", "point"), doc_signed_distance)
 					    .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
 					    .def("signed_distance_unbounded", &ModelPython::signed_distance_unbounded, python::args("unit", "point"), doc_signed_distance_unbounded)
-					    .def("signed_distance_aligned", &ModelPython::signed_distance_aligned, python::args("unit", "point"), doc_signed_distance_aligned)
-					    .def("signed_distance_bounded_aligned", &ModelPython::signed_distance_bounded_aligned, python::args("unit", "point"), doc_signed_distance_bounded_aligned)
-					    .def("signed_distance_unbounded_aligned", &ModelPython::signed_distance_unbounded_aligned, 
-					    					      python::args("unit", "point"), doc_signed_distance_unbounded_aligned)
-
 					    .def("signed_distance_bounded_restricted", &ModelPython::signed_distance_bounded_restricted)
-					    .def("signed_distance_bounded_aligned_restricted", &ModelPython::signed_distance_bounded_aligned_restricted)
 					    .def("geomodelr_distance", &ModelPython::geomodelr_distance, python::args("unit", "point"))
 					    .def("height", &ModelPython::height, python::args("point"), doc_height)
 					    .def("intersect_plane", &ModelPython::intersect_plane, doc_intersect_plane)
@@ -298,6 +238,7 @@ BOOST_PYTHON_MODULE(cpp)
 					    .add_property("params", &ModelPython::get_params, &ModelPython::set_params)
 					    .add_property("soil_depths", &ModelPython::get_soil_depths, &ModelPython::set_soil_depths)
 					    .add_property("projection", &ModelPython::get_projection)
+					    .add_property("mode", &ModelPython::mode)
 					    .add_property("bbox", &ModelPython::pybbox)
 					    .add_property("abbox", &ModelPython::pyabbox)
 					    .add_property("matches", &ModelPython::get_matches, &ModelPython::set_matches)

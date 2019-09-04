@@ -34,7 +34,7 @@ public:
 	double max;
 	double min;
 	double height(const point2&) const;
-	vector<std::pair<point3, double>> intersection(const point3& pt, const point3& projection, 
+	std::pair<point3, double> intersection(const point3& pt, const point3& projection, 
 		const std::tuple<int, int, int, int>& limits );
 	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims );
 	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims, const vector<double>& heights );
@@ -54,12 +54,6 @@ public:
   virtual ~Limiter() = 0;
 };
 
-// Specific class to pass to sd aligned.
-class AlignedLimiter {
-public:
-  virtual double limit_signed_distance(const point3& pt, double sds) const = 0;
-  virtual ~AlignedLimiter() = 0;
-};
 
 // Polygon limiters, the main reason I do this.
 class PolygonLimiter: public Limiter {
@@ -83,30 +77,11 @@ public:
   virtual double limit_signed_distance(const point3& pt, double sds) const;
 };
 
-// Class specific to aligned sdf.
-class BBoxAlignedLimiter: public AlignedLimiter {
-bbox3 abbox;
-const Model * model;
-
-public:
-  BBoxAlignedLimiter(const bbox3& abbox, const Model * model);
-  virtual ~BBoxAlignedLimiter();
-  virtual double limit_signed_distance(const point3& pt, double sds) const;
-};
-
 class RestrictedFunction {
 std::shared_ptr<Limiter> limit;
 const ModelPython * model;
 public:
   RestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data );
-  double signed_distance( const wstring& unit, const pyobject& point ) const;
-};
-
-class AlignedRestrictedFunction {
-std::shared_ptr<AlignedLimiter> limit;
-const ModelPython * model;
-public:
-  AlignedRestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data );
   double signed_distance( const wstring& unit, const pyobject& point ) const;
 };
 
