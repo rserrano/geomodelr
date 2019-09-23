@@ -21,6 +21,7 @@ from setuptools.command.install import install
 import os
 import subprocess
 import distutils
+import sys
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -62,7 +63,11 @@ class PostInstallCommand(install):
         install.run(self)
         generate_link(self)
 
-def_libraries    = ['boost_python']
+if sys.version_info < (3,0):
+    def_libraries    = ['boost_python']
+else:
+    def_libraries    = ['boost_python3']
+
 def_library_dirs = ['/usr/local/lib', '/usr/lib/x86_64-linux-gnu/']
 def_include_dirs = ['/usr/local/include']
 

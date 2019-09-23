@@ -69,6 +69,7 @@ double Section::unit_distance(wstring unit, const point2& pt) const{
 	if (it == this->unit_polygons.end()){
 		return std::numeric_limits<double>::infinity();
 	}
+	// std::wcerr << L"Aca\n";
 	double x = std::min(std::max(gx(pt), g0(g0(this->b_square))), g0(g1(this->b_square)));
 	double y = std::max(gy(pt), g1(g0(this->b_square)));
 	point2 new_pt = point2(x, y);

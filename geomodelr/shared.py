@@ -1,3 +1,4 @@
+# coding=utf
 
 # Geomodelr query tool. Tools for using a geomodelr.com geological model.
 # Copyright (C) 2016 Geomodelr, Inc.
@@ -14,6 +15,8 @@
 # 
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from __future__ import print_function, division
 
 import numpy as np
 from numpy import linalg as la
@@ -74,8 +77,8 @@ def over_point( points ):
             maxp = p
     
     p0 = np.array(maxp)
-    A = np.array( map( lambda p: [p[0], p[1], 1], points ) )
-    y = np.array( map( lambda p: p[2], points ) )
+    A = np.array( list(map( lambda p: [p[0], p[1], 1], points )) )
+    y = np.array( list(map( lambda p: p[2], points )) )
     x = la.lstsq(A, y)[0]
     d = math.sqrt( 1 + x[0]*x[0] + x[1]*x[1] )
     x /= d
@@ -133,15 +136,15 @@ def fault_points_index_repr(fault):
         return ipoint
     itris = []
     for triangle in fault:
-        itris.append( map( ipoint, triangle ) )
+        itris.append( list(map( ipoint, triangle )) )
     
-    points = [ None for i in xrange(len(pointsd)) ]
+    points = [ None for i in range(len(pointsd)) ]
     for p in pointsd:
         points[pointsd[p]] = list(p)
     return {'triangles': itris, 'points': points}    
 
 def faults_points_index_repr(faults):
-    return { k: fault_points_index_repr(v) for k, v in faults.iteritems() }
+    return { k: fault_points_index_repr(v) for k, v in faults.items() }
 
 # Returns from the geojson data a set of points with indexed lines and polygons.  
 def points_index_repr(geojson):
@@ -163,7 +166,7 @@ def points_index_repr(geojson):
             pointsd[tpoint] = ipoint
         return ipoint
     
-    ianchors = map( ipoint, geojson["properties"]["anchors"] )
+    ianchors = list(map( ipoint, geojson["properties"]["anchors"] ))
     
     for feature in geojson['features']:
         geom = feature['geometry']
@@ -190,7 +193,7 @@ def points_index_repr(geojson):
             else:
                 lnames.append("")
     
-    points = [ None for i in xrange(len(pointsd)) ]
+    points = [ None for i in range(len(pointsd)) ]
     for p in pointsd:
         points[pointsd[p]] = list(p)
     

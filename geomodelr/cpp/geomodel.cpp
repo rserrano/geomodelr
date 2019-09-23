@@ -166,7 +166,7 @@ BOOST_PYTHON_MODULE(cpp)
         				  "Returns:\n"
         				  "    (dict): a dictionary with fault names as keys, and lines, (list of points)\n"
         				  "    as values.\n";
-        const char* doc_intersect_plane = "Intersects a plane with the faults of the Geological Model.\n\n"
+  const char* doc_intersect_plane = "Intersects a plane with the faults of the Geological Model.\n\n"
         				  "Takes a plane represented with its four corners and returns the set\n"
         				  "of lines that intersect that plane with the faults.\n\n"
         				  "Args:\n"
@@ -222,8 +222,9 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("set_signed_distance", &ModelPython::set_signed_distance, python::args("projection mode"))
 					    .def("set_projection", &ModelPython::set_projection, python::args("projection vector"))
 					    .def("set_projection_aligned", &ModelPython::set_projection_aligned, python::args("projection vector"))
+					    .def("set_soil_depth", &ModelPython::set_soil_depth, python::args("depth"))
 					    .def("closest", &ModelPython::closest, python::args("point"), doc_closest)
-					    .def("closest_point", &ModelPython::closest_point, python::args("point"))
+					    .def("closest_projection", &ModelPython::closest_projection, python::args("point"))
 					    .def("closest_topo", &ModelPython::closest_topo, python::args("point"), doc_closest_topo)
 					    .def("signed_distance", &ModelPython::signed_distance, python::args("unit", "point"), doc_signed_distance)
 					    .def("signed_distance_bounded", &ModelPython::signed_distance_bounded, python::args("unit", "point"), doc_signed_distance_bounded)
@@ -237,6 +238,7 @@ BOOST_PYTHON_MODULE(cpp)
 					    .def("info", &ModelPython::info)
 					    .add_property("params", &ModelPython::get_params, &ModelPython::set_params)
 					    .add_property("soil_depths", &ModelPython::get_soil_depths, &ModelPython::set_soil_depths)
+					    .add_property("soil_depth", &ModelPython::get_soil_depth, &ModelPython::set_soil_depth)
 					    .add_property("projection", &ModelPython::get_projection)
 					    .add_property("mode", &ModelPython::mode)
 					    .add_property("bbox", &ModelPython::pybbox)

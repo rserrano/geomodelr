@@ -16,16 +16,16 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import print_function, division
 
 import argparse
 import json
 import fileinput
 import sys
-import shared
+from . import shared
 import unittest
-import cpp
-from model import GeologicalModel
-
+from . import cpp
+from .model import GeologicalModel
 class ParametersException(Exception):
     pass
 
@@ -38,7 +38,7 @@ def query_coordinates(geojson, verbose=False):
     line  = sys.stdin.readline()
     while line:
         try:
-            point = map(float, line.split())
+            point = list(map(float, line.split()))
         except ValueError:
             raise ParametersException("three numerical values are required per line")
         sys.stdout.write(shared.force_encode(model.closest_topo(point)[0]).replace(" ", "_") + "\n")
@@ -69,14 +69,14 @@ def query_grid(geojson, verbose=False):
             dy = (mxy - mny)/(ny-1) if ny > 1 else 0
             dz = (mxz - mnz)/(nz-1) if nz > 1 else 0
             
-            for i in xrange(nz):
-                for j in xrange(ny):
-                    for k in xrange(nx):
+            for i in range(nz):
+                for j in range(ny):
+                    for k in range(nx):
                         point = (mnx + dx*k, mny + dy*j, mnz + dz*i)
                         sys.stdout.write(shared.force_encode(model.closest_topo(point)[0]).replace(" ", "_") + " ")
                     sys.stdout.flush()
         except ParametersException as e:
-            print >> sys.stderr, ">>", e
+            print(">>", e, file=sys.stderr)
         except Exception as e:
             raise
         line = sys.stdin.readline()
@@ -98,9 +98,9 @@ def intersect_plane( geojson, verbose=False ):
                     plane.append(point)
             except ValueError:
                 raise ParametersException("nine numerical values are required per line")
-            print model.intersect_plane(plane)
+            print( model.intersect_plane(plane) )
         except ParametersException as e:
-            print >> sys.stderr, ">>", e
+            print(">>", e, file=sys.stderr, flush=False)
         except Exception as e:
             raise
         line = sys.stdin.readline()
@@ -125,11 +125,11 @@ def calculate_volumes( geojson, params, verbose=False ):
     vols, elems = utils.octtree_volume_calculation(query_func, model.geojson['bbox'], params[0], params[1])
     
     r = { v: k for k, v in t.iteritems() }
-    print "VOLUMES"
+    print( "VOLUMES" )
     vols = sorted( [ ( v, k ) for k, v in vols.iteritems() ] )
     for v, i in vols:
         if r[i] != "AIR":
-            print "%s: %s" % ( r[i], v )
+            print( "%s: %s" % ( r[i], v ) )
 
 def get_information(geojson, verbose):
     # Show map, cross sections, polygons, etc.
@@ -240,7 +240,7 @@ def main(args=None):
         sortby = 'cumulative'
         ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
         ps.print_stats()
-        print >> sys.stderr, s.getvalue()
+        print(s.getvalue(), file=sys.stderr)
    
 
 if __name__ == "__main__":

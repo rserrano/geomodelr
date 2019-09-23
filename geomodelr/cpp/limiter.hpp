@@ -20,6 +20,7 @@
 #define GEOMODELR_LIMITER_HPP
 
 #include "basic.hpp"
+#include <assert.h>
 class Model;
 class ModelPython;
 
@@ -34,6 +35,7 @@ public:
 	double max;
 	double min;
 	double height(const point2&) const;
+	double height_new(const point2& pt) const;
 	std::pair<point3, double> intersection(const point3& pt, const point3& projection, 
 		const std::tuple<int, int, int, int>& limits );
 	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims );
@@ -57,12 +59,14 @@ public:
 
 // Polygon limiters, the main reason I do this.
 class PolygonLimiter: public Limiter {
+
 polygon limit;
 line lpoly;
+double bottom;
 const Model * model;
 
 public:
-  PolygonLimiter(const polygon& poly, const Model * model);
+  PolygonLimiter(const polygon& poly, double bottom, const Model * model);
   virtual double limit_signed_distance(const point3& pt, double sds) const;
   virtual ~PolygonLimiter();
 };

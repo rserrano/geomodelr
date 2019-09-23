@@ -56,6 +56,7 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 	this->bbox_diag = std::sqrt(geometry::dot_product(max,max));
 
 	this->set_signed_distance(L"classic");
+	this->set_soil_depth(-std::numeric_limits<double>::infinity());
 }
 
 Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<double,double,double>>& bbox,
@@ -133,13 +134,18 @@ void Model::set_params( const map<wstring, wstring>& params ) {
 }
 
 vector< std::pair<wstring, double> > Model::get_closests(const Section * s1, const Section * s2, 
-	const point2& pt1, const point2& pt2, double d1, double d2, wstring unit, bool two_sections) const{
+	const point2& pt1, const point2& pt2, double d1, double d2, wstring unit, bool check_depth, bool two_sections,
+	const point3& real_pt) const{
 
 	auto aux_pair = std::make_pair(L"NONE", std::numeric_limits<double>::infinity() );
 	vector< std::pair<wstring, double> > output { aux_pair, aux_pair, aux_pair };
 	double theta = 1.0 - d1/(d1+d2);
 
 	for (wstring uni: this->units){
+
+		if (check_depth && (this->soils.find(uni) != this->soils.end())){
+			continue;
+		}
 
 		double dis_s1 = s1->unit_distance(uni, pt1);
 		double dis_s2;
@@ -149,10 +155,12 @@ vector< std::pair<wstring, double> > Model::get_closests(const Section * s1, con
 			dis_s2 = 0.0;
 			theta = 1.0;
 		}
-		// std::wcerr << std::endl << uni << std::endl;
-		// std::wcerr << L"Theta: " << theta << std::endl;
-		// std::wcerr << s1->name << L"\t" << dis_s1 << L"\t" << d1 << L"\t" << geometry::wkt(pt1) << s1->cut << std::endl;
-		// std::wcerr << s2->name << L"\t" << dis_s2 << L"\t" << d2 << L"\t" << geometry::wkt(pt2) << s2->cut << std::endl;
+		// if (uni == L"IIA-IIB" or uni == L"IB-IC"){
+		// 	std::wcerr << std::endl << uni << std::endl;
+		// 	std::wcerr << L"Theta: " << theta << std::endl;
+		// 	std::wcerr << s1->name << L"\t" << dis_s1 << L"\t" << d1 << L"\t" << geometry::wkt(pt1) << s1->cut << std::endl;
+		// 	std::wcerr << s2->name << L"\t" << dis_s2 << L"\t" << d2 << L"\t" << geometry::wkt(pt2) << s2->cut << std::endl;
+		// }
 
 		double distance;
 		double r = 0.2;
@@ -173,8 +181,7 @@ vector< std::pair<wstring, double> > Model::get_closests(const Section * s1, con
 		} else{
 			distance = theta*dis_s1 + (1-theta)*dis_s2;
 		}
-		// std::wcerr << L"Distance: " << distance << std::endl;
-		// double distance = theta*std::min(this->bbox_diag, dis_s1) + (1-theta)*std::min(this->bbox_diag, dis_s2);
+
 		if (distance < output[1].second){
 			output[2] = output[1];
 			output[1] = std::make_pair(uni, distance);
@@ -182,7 +189,40 @@ vector< std::pair<wstring, double> > Model::get_closests(const Section * s1, con
 			output[2] = std::make_pair(uni, distance);
 		}
 		if (uni == unit){
-			output[0] = std::make_pair(unit, distance);	
+			output[0] = std::make_pair(unit, distance);
+		}
+	}
+
+	if (output[0].first != unit){
+		output[0] = std::make_pair(unit, this->bbox_diag);
+	}
+
+
+	//Check extrusion soils
+	// std::wcerr << std::boolalpha << this->check_soils << std::endl;
+	if (this->check_soils){
+		point2 real_pt2 = point2(gx(real_pt), gy(real_pt));
+		for (auto it = this->soil_depths.begin(); it != this->soil_depths.end(); ++it){
+
+			// std::wcerr << it->first << std::endl;
+			double dis = this->geomap->unit_distance(it->first, pt1);
+			if (dis > 0.0){
+				continue;
+			}
+			double h = this->height( real_pt2 );
+			h -= (it->second + gz(real_pt));
+			if (h>0){
+				continue;
+			}
+			if (output[0].first == it->first){
+				output[0].second = 0.0;
+			}
+			if (output[2].first == it->first){
+				output[2] = output[1];
+				output[1] = std::make_pair(it->first, 0.0);
+			} else if(output[1].first == it->first){
+				output[1].second = 0.0;
+			}
 		}
 	}
 
@@ -190,8 +230,12 @@ vector< std::pair<wstring, double> > Model::get_closests(const Section * s1, con
 }
 
 
-vector<std::pair<wstring, double>> Model::closest_point( const point2& ft, double sd, wstring unit) const{
-	 		
+vector<std::pair<wstring, double>> Model::closest_projection_vector( const point3& real_pt, wstring unit) const{
+	
+	std::pair<point2, double> mp = ((Model *)this)->model_point( real_pt );
+	const point2& ft = mp.first;
+	double sd = mp.second;
+
 	if ( not this->sections.size() ) {
 		auto aux_pair = std::make_pair(wstring(L"NONE"), std::numeric_limits<double>::infinity());
 		return vector<std::pair<wstring, double>> {aux_pair, aux_pair, aux_pair};
@@ -199,11 +243,13 @@ vector<std::pair<wstring, double>> Model::closest_point( const point2& ft, doubl
 
 	auto it = std::upper_bound(this->cuts.begin(), this->cuts.end(), sd);	
 	size_t a_idx = it - this->cuts.begin();
+	double height = this->height( point2(gx(real_pt), gy(real_pt)));
+	bool check_depth = (height - gz(real_pt)) > this->soil_depth;
 
 	// Distance for single section
 	auto closest_single = [&](const Section * s, double cut) {
-		point2 pt = this->project_point(s, ft, sd);
-		std::pair<point3, double> topo_point = this->topography->intersection(this->inverse_point(ft, sd), this->projection,
+		point2 pt = this->project_point(s, ft, sd, height);
+		std::pair<point3, double> topo_point = this->topography->intersection(real_pt, this->projection,
 			this->square_limits(ft, sd));
 
 		double dx = gx(pt) - gx(ft);
@@ -212,14 +258,14 @@ vector<std::pair<wstring, double>> Model::closest_point( const point2& ft, doubl
 		double dist_pt = std::sqrt(dx*dx + dy*dy + dz*dz);
 
 		if (topo_point.second == std::numeric_limits<double>::infinity()){
-			return this->get_closests(s, s, pt, pt, dist_pt, 1.0, unit, false);
+			return this->get_closests(s, s, pt, pt, dist_pt, 1.0, unit, check_depth, false, real_pt);
 		}else{
 			double dx = gx(pt) - gx(ft);
 			double dy = gy(pt) - gy(ft);
 			double dz = cut - sd;
 			double dist_pt = std::sqrt(dx*dx + dy*dy + dz*dz);
 			return this->get_closests(s, this->geomap, pt, point2( gx(topo_point.first), gy(topo_point.first)),
-				dist_pt, topo_point.second, unit, true);
+				dist_pt, topo_point.second, unit, check_depth, true, real_pt);
 		}
 	};
 
@@ -233,8 +279,8 @@ vector<std::pair<wstring, double>> Model::closest_point( const point2& ft, doubl
 
 	a_idx--;
 	// Projected points over sections A and B.
-	point2 pa = this->project_point(this->sections[a_idx], ft, sd);
-	point2 pb = this->project_point(this->sections[a_idx+1], ft, sd);
+	point2 pa = this->project_point(this->sections[a_idx], ft, sd, height);
+	point2 pb = this->project_point(this->sections[a_idx+1], ft, sd, height);
 
 	// Distance to sections A and B.
 	double dx = gx(pa) - gx(ft);
@@ -248,21 +294,26 @@ vector<std::pair<wstring, double>> Model::closest_point( const point2& ft, doubl
 	double dist_b = std::sqrt(dx*dx + dy*dy + dz*dz);
 	
 	// Topography point
-	std::pair<point3, double> topo_point = this->topography->intersection(this->inverse_point(ft, sd), this->projection,
+	std::pair<point3, double> topo_point = this->topography->intersection(real_pt, this->projection,
 			this->square_limits(ft, sd));
 
 	// Topography and section B
 	if (( dist_a > dist_b) and  (dist_a > topo_point.second)){
 		return this->get_closests(this->geomap, this->sections[a_idx+1], point2( gx(topo_point.first), gy(topo_point.first)),
-			pb, topo_point.second, dist_b, unit, true);
+			pb, topo_point.second, dist_b, unit, check_depth, true, real_pt);
 	// Topography and section A
 	}else if (( dist_b > dist_a) and  (dist_b > topo_point.second)){
 		return this->get_closests(this->geomap, this->sections[a_idx], point2( gx(topo_point.first), gy(topo_point.first)),
-			pa, topo_point.second, dist_a, unit, true);
+			pa, topo_point.second, dist_a, unit, check_depth, true, real_pt);
 	// Section A and B.
 	}else{
-		return this->get_closests(this->sections[a_idx], this->sections[a_idx+1], pa, pb, dist_a, dist_b, unit, true);
+		return this->get_closests(this->sections[a_idx], this->sections[a_idx+1], pa, pb, dist_a, dist_b, unit, check_depth, true,
+			real_pt);
 	}
+}
+
+std::pair<wstring, double> Model::closest_projection( const point3& real_pt, wstring unit) const{
+	return this->closest_projection_vector(real_pt, unit)[1];
 }
 
 void Model::set_projection(const point3& pt){
@@ -299,13 +350,22 @@ std::pair<point3, point3> Model::get_projection() const{
 	return std::make_pair(this->projection, this->projection_aligned);
 }
 
-point2 Model::project_point(const Section * sec, const point2& pt, double z) const{
+point2 Model::project_point(const Section * sec, const point2& pt, double z, double height) const{
 	
 	double cut = sec->cut;
 	const point3& projection = this->projection_aligned;
 	double t = (cut - z)/gz(projection);
 
-	return point2( gx(pt) + t*gx(projection), gy(pt) + t*gy(projection) );
+	double x = gx(pt) + t*gx(projection);
+	double delta = height - gy(pt);
+
+	if (this->soils.empty() or delta > this->soil_depth){
+		return point2(x , gy(pt) + t*gy(projection) );
+	} else{
+		point3 aux_pt = this->inverse_point(point2(x, 0), cut);
+		return point2(x , this->height( point2(gx(aux_pt), gy(aux_pt)) ) - delta );
+	}
+	
 }
 
 // Model--------------------------- ModelPthon
@@ -335,13 +395,31 @@ pydict ModelPython::get_soil_depths() const {
 	return ret;
 }
 
+pylist ModelPython::get_soils() const {
+	pylist ret;
+	for ( auto p: this->soils ) {
+		ret.append(p);
+	}
+	return ret;
+}
+
 void ModelPython::set_soil_depths( const pydict& depths ) {
 	pylist keys = depths.keys();
 	map<wstring, double> out;
+	std::set<wstring> out_soils;
+
 	for ( int i = 0; i < python::len( keys ); i++ ) {
-		out[python::extract<wstring>(keys[i])] = python::extract<double>(depths[keys[i]]);
+		python::extract<double> value(depths[keys[i]]);
+		if (value.check()){
+			out[python::extract<wstring>(keys[i])] = python::extract<double>(depths[keys[i]]);	
+		} else{
+			out_soils.insert(python::extract<wstring>(keys[i]));
+		}		
 	}
+
 	this->soil_depths = out;
+	this->soils = out_soils;
+
 }
 
 void Model::make_matches() {
@@ -483,7 +561,7 @@ double Model::geomodelr_distance( const wstring& unit, const point3& pt ) const{
 		return s == unit;
 	};
 
-	std::tuple<wstring, double> inside = this->closest( pt, just );
+	std::tuple<wstring, double> inside = this->closest_predicates( pt, just );
 	return g1(inside);
 }
 vector<point2>  Model::get_polygon(const wstring sec, int poly_idx) const{
@@ -530,22 +608,6 @@ vector<point2> Model::get_fault(const wstring sec, int fault_idx) const{
 
 }
 
-void Model::set_signed_distance(const wstring& sdf_mode){
-
-	if (sdf_mode == L"classic"){
-		this->signed_distance_model = std::bind(&Model::signed_distance, this, std::placeholders::_1,
-			std::placeholders::_2);
-
-	} else if (sdf_mode == L"vectorial"){
-		this->signed_distance_model = std::bind(&Model::signed_distance_projection, this, std::placeholders::_1,
-			std::placeholders::_2);
-
-	} else{
-		throw GeomodelrException("Signed distance mode have to be 'classic' or 'vectorial'.");
-	}
-
-	this->mode = sdf_mode;
-}
 
 double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 	
@@ -559,8 +621,8 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 		return s == unit;
 	};
 	
-	std::tuple<wstring, double> inside = this->closest( pt, just );
-	std::tuple<wstring, double> outside = this->closest( pt, all_except );
+	std::tuple<wstring, double> inside = this->closest_predicates( pt, just );
+	std::tuple<wstring, double> outside = this->closest_predicates( pt, all_except );
 
 	double d;
 	if ( g0(inside) == L"NONE" ) {
@@ -593,17 +655,16 @@ double Model::signed_distance( const wstring& unit, const point3& pt ) const{
 
 double Model::signed_distance_projection( const wstring& unit, const point3& pt ) const {
 
-	std::pair<point2, double> mp = ((Model *)this)->model_point( pt );
-	vector<std::pair<wstring, double>> res = this->closest_point( mp.first, mp.second, unit);
+	auto res = this->closest_projection_vector( pt, unit);
 
-	for (auto a: res){
-		std::wcerr << a.first << L"\t" << a.second << std::endl;
-	}
+	// for (auto a: res){
+	// 	std::wcerr << a.first << L"\t" << a.second << std::endl;
+	// }
 
 	if (res[0].first != res[1].first){
-		return res[0].second - res[1].second;
+		return (res[0].second - res[1].second);
 	}else{
-		return res[0].second - res[2].second;
+		return (res[0].second - res[2].second);
 	}
 }
 
@@ -666,6 +727,11 @@ double Model::signed_distance_unbounded( const wstring& unit, const point3& pt )
 		return std::max(sdist, distz);
 	}
 	return std::max(sdist, distz);
+}
+
+
+void Model::set_soil_depth(double depth){
+	this->soil_depth = depth;
 }
 
 std::tuple<wstring, double> Model::soil( const point3& pt ) const {
@@ -862,12 +928,34 @@ std::tuple<wstring, double> Model::closest( const point3& pt ) const {
 			return std::make_tuple( g0(sl), 0.0 );
 		}
 	}
-	return this->closest(pt, always_true);
+	return this->closest_predicates(pt, always_true);
 }
+
+void Model::set_signed_distance(const wstring& sdf_mode){
+
+	if (sdf_mode == L"classic"){
+		this->signed_distance_model = std::bind(&Model::signed_distance, this, std::placeholders::_1,
+			std::placeholders::_2);
+
+		this->closest_model = std::bind(&Model::closest, this, std::placeholders::_1);
+
+	} else if (sdf_mode == L"vectorial"){
+		this->signed_distance_model = std::bind(&Model::signed_distance_projection, this, std::placeholders::_1,
+			std::placeholders::_2);
+
+		this->closest_model = std::bind(&Model::closest_projection, this, std::placeholders::_1, L"NONE");
+
+	} else{
+		throw GeomodelrException("Signed distance mode have to be 'classic' or 'vectorial'.");
+	}
+
+	this->mode = sdf_mode;
+}
+
 
 double Model::height( const point2& pt ) const {
 	if ( this->topography != nullptr ) {
-		return this->topography->height(pt);
+		return this->topography->height_new(pt);
 	}
 	return std::numeric_limits<double>::infinity();
 }
@@ -934,16 +1022,21 @@ void ModelPython::set_projection_aligned(const pyobject& pypt){
 	((Model *)this)->set_projection_aligned(point3(p0, p1, p2));
 }
 
-pytuple ModelPython::closest_point(const pyobject& pypt) const {
+pytuple ModelPython::closest_projection(const pyobject& pypt) const {
 	// python exposed functions to search for the closest formation.
 	double p0 = python::extract<double>(pypt[0]);
 	double p1 = python::extract<double>(pypt[1]);
 	double p2 = python::extract<double>(pypt[2]);
+	auto res = ((Model *)this)->closest_projection( point3(p0, p1, p2), L"NONE");
+	return python::make_tuple(res.first, res.second);
+}
 
-	std::pair<point2, double> mp = ((Model *)this)->model_point( point3(p0, p1, p2) );
-	vector<std::pair<wstring, double>> res = ((Model *)this)->closest_point( mp.first, mp.second, L"NONE");
+void ModelPython::set_soil_depth(double depth){
+	this->soil_depth = depth;
+}
 
-	return python::make_tuple(res[1].first, res[1].second);
+double ModelPython::get_soil_depth() const{
+	return this->soil_depth;
 }
 
 pylist ModelPython::get_projection() const{
@@ -1001,7 +1094,7 @@ pytuple ModelPython::closest(const pyobject& pypt) const {
 	double p1 = python::extract<double>(pypt[1]);
 	double p2 = python::extract<double>(pypt[2]);
 	point3 pt(p0, p1, p2);
-	std::tuple<wstring, double> res = ((Model *)this)->closest( pt );
+	std::tuple<wstring, double> res = ((Model *)this)->closest_model( pt );
 	return python::make_tuple(g0(res), g1(res));
 }
 

@@ -1,3 +1,4 @@
+# coding=utf
 
 # Geomodelr query tool. Tools for using a geomodelr.com geological model.
 # Copyright (C) 2016 Geomodelr, Inc.
@@ -15,13 +16,15 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import shared
+from __future__ import print_function, division
+
+from . import shared
 import json
 import datetime
 import numpy as np
 import sys
-import cpp
-from versions import upgrade_model
+from . import cpp
+from .versions import upgrade_model
 
 from numpy import linalg as la
 
@@ -157,6 +160,10 @@ class GeologicalModel(cpp.Model):
         else:
             geomap = []
         
+        # print(topography.keys())
+        with open('/media/sf_CompartidaVB/CTA/Sections/JSON/new_topography.json') as json_file:
+            topography = json.load(json_file)
+
         # First get the base section, which will locate all other sections.
         base_section = None
         for feature in self.geojson['features']:
@@ -203,8 +210,11 @@ class GeologicalModel(cpp.Model):
                     abbox[3] = max( bds[1], abbox[3] )
                     abbox[2] = min( cut, abbox[2] )
                     abbox[5] = max( cut, abbox[5] )
+                    # with open("/media/sf_CompartidaVB/CTA/Sections/JSON/" + feature['name'] +  ".json") as json_file:
+                    #     data = json.load(json_file)
 
                     sect = [feature['name'], cut, cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
+                    # sect = [feature['name'], cut, data, cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
                     sections.append(sect)
                 else:
                     cs = shared.points_index_repr(feature)
@@ -224,17 +234,17 @@ class GeologicalModel(cpp.Model):
 
         units = self.geojson['properties']['units'].keys()
         if orientation == 'horizontal':
-            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params, units)
+            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params, list(units))
         else:
             super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), list(projection), geomap,
-                topography, sections, lines, params, units)
+                topography, sections, lines, params, list(units))
         
         self.make_matches()
         
         # Add units to model before deleting geojson.
-        self.units = units
+        self.units = list(units)
 
-        colors = {k: v[u'color'] for k,v in self.geojson['properties']['units'].iteritems()}
+        colors = {k: v[u'color'] for k,v in self.geojson['properties']['units'].items()}
         self.colors = colors
         
         # Save space.
@@ -259,31 +269,31 @@ class GeologicalModel(cpp.Model):
         that the geological model takes.
         
         Args:
-            (boolean) verbose: You can print more information with verbose=True.
+            (boolean) verbose: You can print(more information with verbose=True.)
         """
         # Get name of the study.
         if 'name' in self.geojson:
-            print "Geological Model Name:", self.geojson['name']
+            print("Geological Model Name:", self.geojson['name'])
         
         else:
-            print "No name"
+            print("No name")
         
         # Get the version of the study.
         if 'version' in self.geojson['properties']:
             version = self.geojson['properties']['version']
             timestamp = datetime.datetime.strptime(self.geojson['properties']['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ").isoformat()
-            print "\tVersion %(version)s created at %(created)s" % {'version': version, 'created': timestamp} 
+            print("\tVersion %(version)s created at %(created)s" % {'version': version, 'created': timestamp} )
         
         # Bounding box.
         if 'crs' in self.geojson:
             crs = self.geojson['crs']
-            print "Coordinate System:\n\t%s" % crs['properties']['name']
+            print("Coordinate System:\n\t%s" % crs['properties']['name'])
         
         
         # Bounding box.
         if 'bbox' in self.geojson:
             bbox = self.geojson['bbox']
-            print "Bounding Box:\n\tMin. X: %s Min. Y: %s Min. Z: %s Max. X: %s Max. Y: %s Max. Z: %s" % tuple(bbox)
+            print("Bounding Box:\n\tMin. X: %s Min. Y: %s Min. Z: %s Max. X: %s Max. Y: %s Max. Z: %s" % tuple(bbox))
         
         units  = set()
         pprops = set()
@@ -307,36 +317,36 @@ class GeologicalModel(cpp.Model):
         
         maps = filter(lambda f: f['geology_type'] == 'map', self.geojson['features'])
         
-        print "Content:"
+        print("Content:")
         # Has map.
         if len(maps) == 0:
-            print "\tGeological map not present"
+            print("\tGeological map not present")
         elif len(maps) == 1:
-            print "\tGeological map present"
+            print("\tGeological map present")
             if verbose:
-                print "\t\tpolygons: %(polygons)s, faults: %(faults)s" % verbose_info(maps[0])
+                print("\t\tpolygons: %(polygons)s, faults: %(faults)s" % verbose_info(maps[0]))
         else:
-            print "\tMore than one map"
+            print("\tMore than one map")
         
         # Has sections.
         sections = filter(lambda f: f['geology_type'] == 'section', self.geojson['features'])
-        snames = map( lambda s: s['name'], sections )
+        snames = list(map( lambda s: s['name'], sections ))
         if len(sections) > 0:
             # Number of sections and names of sections.
-            print "\tNumber of geological cross sections present: %s" % len(sections)
-            print "\tNames of the cross sections: %s" % ", ".join(snames)
+            print("\tNumber of geological cross sections present: %s" % len(sections))
+            print("\tNames of the cross sections: %s" % ", ".join(snames))
             if verbose:
                 for s in sections:
-                    print "\tSection %s" % s['name']
-                    print "\t\tpolygons: %(polygons)s, faults: %(faults)s" % verbose_info(s)
+                    print("\tSection %s" % s['name'])
+                    print("\t\tpolygons: %(polygons)s, faults: %(faults)s" % verbose_info(s))
         
         if verbose:
             # Polygons
-            print "\tPolygon units present: %s" % ", ".join(units)
-            print "\tPolygon properties present: %s" % ", ".join(pprops)
+            print("\tPolygon units present: %s" % ", ".join(units))
+            print("\tPolygon properties present: %s" % ", ".join(pprops))
             # Fault names.
-            print "\tFault names present: %s" % ", ".join(lnames)
-            print "\tFault properties present: %s" % ", ".join(lprops)
+            print("\tFault names present: %s" % ", ".join(lnames))
+            print("\tFault properties present: %s" % ", ".join(lprops))
     
     def validate( self ):
         """

@@ -50,7 +50,6 @@ protected:
 	map<wstring, vector<size_t>> extended_faults;
 	map<wstring, wstring> feature_types;
 	map<wstring, wstring> params;
-	map<wstring, double> soil_depths;
 	
 	Topography * topography;
 	bool horizontal;
@@ -254,10 +253,11 @@ protected:
 	
 	// Returns the closest unit in the coordinate system defined for the model (x, y, z).
 	template<typename Predicates>
-	std::tuple<wstring, double> closest( const point3& pt, const Predicates& predicates ) const {
+	std::tuple<wstring, double> closest_predicates( const point3& pt, const Predicates& predicates ) const {
 		std::pair<point2, double> mp = this->model_point(pt);
 		return this->closest_basic( mp.first, mp.second, predicates );
 	}
+
 
 public:
 	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
@@ -267,7 +267,11 @@ public:
 	      const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox); // Horizontal sections.
 	
 	wstring mode;
+	map<wstring, double> soil_depths;
+	std::set<wstring> soils;
+	double soil_depth;
 	std::function<double (const wstring&, const point3&)> signed_distance_model;
+	std::function<std::tuple<wstring, double> (const point3&)> closest_model;
 
 	void set_params( const map<wstring, wstring>& params );
 	virtual ~Model();
@@ -289,18 +293,21 @@ public:
 
 	point3 inverse_point(const point2& pt, double cut) const;
 
-	point2 project_point(const Section * sec, const point2& pt, double z) const;
+	point2 project_point(const Section * sec, const point2& pt, double z, double height) const;
 
 	vector< std::pair<wstring, double> > get_closests(const Section * s1, const Section * s2, 
-	const point2& pt1, const point2& pt2, double d1, double d2, wstring unit, bool two_sections) const;
+	const point2& pt1, const point2& pt2, double d1, double d2, wstring unit, bool check_depth, bool two_sections,
+	const point3& real_pt) const;
 	void set_projection(const point3& pt);
 	void set_projection_aligned(const point3& pt);
 	std::pair<point3, point3> get_projection() const;
 	std::tuple<int, int, int, int> square_limits(const point2& pt, double cut) const;
-	vector<std::pair<wstring, double>> closest_point( const point2& ft, double sd, wstring unit) const;
+	vector<std::pair<wstring, double>> closest_projection_vector( const point3& real_pt, wstring unit) const;
+	std::pair<wstring, double> closest_projection( const point3& real_pt, wstring unit) const;
 
 	double signed_distance_projection( const wstring& unit, const point3& pt ) const;
 	void set_signed_distance(const wstring& sdf_mode);
+	void set_soil_depth(double depth);
 
 	// CLOSEST FUNCTIONS.
 	// Returns the closest unit with its distance in the coordinate system of the model.
@@ -388,11 +395,14 @@ public:
 	void set_projection(const pyobject& pypt);
 	void set_projection_aligned(const pyobject& pypt);
 	void set_signed_distance(const wstring& sdf_mode);
+	pylist get_soils() const;
 
-	pytuple closest_point(const pyobject& pypt) const;
+	pytuple closest_projection(const pyobject& pypt) const;
 	void mode();
 
 	pylist get_projection() const;
+	void set_soil_depth(double depth);
+	double get_soil_depth() const;
 
 	pytuple model_point(const pyobject& pt) const;
 	pytuple inverse_point(const pyobject& pt) const;

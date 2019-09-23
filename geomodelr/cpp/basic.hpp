@@ -80,6 +80,7 @@ typedef geometry::index::rtree<line_segment, geometry::index::quadratic<16>> rtr
 
 typedef std::tuple<int, int, int> triangle;
 typedef std::tuple<int, int> edge;
+typedef std::tuple<wstring, double> closest_pair;
 
 template<class Point>
 inline typename geometry::coordinate_type<Point>::type gx(const Point& p){
