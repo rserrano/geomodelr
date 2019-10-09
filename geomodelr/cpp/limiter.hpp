@@ -24,6 +24,19 @@
 class Model;
 class ModelPython;
 
+// Nodes of the binary tree of the topography
+struct node {
+	int i_min;
+	int i_max;
+	int j_min;
+	int j_max;
+	double z_min;
+	double z_max;
+
+	node *left;
+	node *right;
+};
+
 class Topography {
 	friend Model;
 protected:
@@ -31,21 +44,38 @@ protected:
 	point2 sample;
 	int dims[2];
 	vector<double> heights;
+	node * topography_tree;
 public:
 	double max;
 	double min;
 	double height(const point2&) const;
 	double height_new(const point2& pt) const;
-	std::pair<point3, double> intersection(const point3& pt, const point3& projection, 
-		const std::tuple<int, int, int, int>& limits );
+	std::map<double, point2> get_points_section(const point2& p0, const point2& pf);
+	std::pair<point3, double> intersection(const point3& pt, const point3& projection);
+
+	void destroy_tree(node * tree);
+	void set_tree(int i_min, int i_max, int j_min, int j_max, node * leaf);
+	void print_level(int k, const node * leaf, int level);
+	std::tuple<int, int, int, int> square_limits(const point3& pt, const point3& projection) const;
+	std::pair<point3, double> intersects(const point3& pt, const point3& projection);
+	void tree_intersection(std::pair<point3, double>& output, const point3& pt, const point3& vec,
+		const point3& abs_vec, const node * leaf);
+
 	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims );
 	Topography( const point2& point, const point2& sample, const std::array<int, 2>& dims, const vector<double>& heights );
+	~Topography();
 };
 
 class TopographyPython : public Topography {
 public:
 	double height(const pyobject&) const;
+	pylist get_points_section(const pyobject& p0_py, const pyobject& pf_py) const;
+	void info();
+	void print_level(int level);
 	TopographyPython( const pyobject& point, const pyobject& sample, const pyobject& dims, const pylist& heights );
+
+	pytuple inter_1(const pyobject& pt, const pyobject& pro);
+	pytuple inter_2(const pyobject& pt, const pyobject& pro);
 };
 
 // Abstract limiters to send to signed distance function.

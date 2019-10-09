@@ -398,7 +398,7 @@ public:
 	pylist get_soils() const;
 
 	pytuple closest_projection(const pyobject& pypt) const;
-	void mode();
+	wstring mode();
 
 	pylist get_projection() const;
 	void set_soil_depth(double depth);

@@ -76,8 +76,8 @@ double Section::unit_distance(wstring unit, const point2& pt) const{
 	double min_dist = std::numeric_limits<double>::infinity();
 	
 	for (int i: it->second){
-		// min_dist = std::min( min_dist, geometry::distance(poly_trees[i]->boost_poly, pt) );
-		min_dist = std::min( min_dist, this->poly_trees[i]->distance_point(pt) );
+		min_dist = std::min( min_dist, geometry::distance(poly_trees[i]->boost_poly, pt) );
+		// min_dist = std::min( min_dist, this->poly_trees[i]->distance_point(pt) );
 	}
 	return min_dist;
 }

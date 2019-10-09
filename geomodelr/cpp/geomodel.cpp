@@ -211,6 +211,17 @@ BOOST_PYTHON_MODULE(cpp)
 							      .def("distance", &SectionPython::distance_poly)
 							      .add_property("params", &SectionPython::get_params, &SectionPython::set_params);
 
+	// Single section class. Mainly exported for testing purposes.
+	python::class_<TopographyPython>("Topography", python::init<const pyobject&, const pyobject&, const pyobject&,
+																const pylist&>())
+							      .def("height", &TopographyPython::height)
+							      .def("get_sections_pts", &TopographyPython::get_points_section)
+							      .def("print_level", &TopographyPython::print_level)
+							      .def("pro_1", &TopographyPython::inter_1)
+							      .def("pro_2", &TopographyPython::inter_2)
+							      .add_property("info", &TopographyPython::info);
+
+
 	// Main exported class, Model.
 	python::class_<ModelPython>("Model", python::init<const pyobject&, const pyobject&, const pyobject&, const pyobject&,
 		const pylist&, const pylist&, const pyobject&, const pylist&, const pydict&, const pydict&, const pylist&>())

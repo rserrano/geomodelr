@@ -70,7 +70,7 @@ void Match::match_polygons() {
 	// Generate fault hiding.
 	// Check if any of the polygons is covered by a fault.
 	// std:: cerr << "Match: " << std::boolalpha << this->faults_disabled << "\n";
-	this->faults_disabled = true;
+	// this->faults_disabled = true;
 	auto covered_by_fault = [&] ( const multi_polygon& intersect ) -> bool {
 		for ( const multi_polygon& flt: this->excluded_area | boost::adaptors::map_values ) {
 			// std::cerr << "fault" << geometry::wkt(flt) << " \n";
@@ -105,12 +105,12 @@ void Match::match_polygons() {
 					multi_polygon output;
 					if ( this->faults_disabled )
 					{
-						// if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
-						// 			   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
-						// {
-						// 	m.push_back(std::make_pair(pols_a[i], pols_b[j]));
-						// }
-						m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						if ( geometry::intersects( this->a->poly_trees[pols_a[i]]->boost_poly, 
+									   this->b->poly_trees[pols_b[j]]->boost_poly ) ) 
+						{
+							m.push_back(std::make_pair(pols_a[i], pols_b[j]));
+						}
+						// m.push_back(std::make_pair(pols_a[i], pols_b[j]));
 					} else {
 						try {
 							geometry::intersection(this->a->poly_trees[pols_a[i]]->boost_poly, 

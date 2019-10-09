@@ -160,8 +160,9 @@ class GeologicalModel(cpp.Model):
         else:
             geomap = []
         
-        # print(topography.keys())
-        with open('/media/sf_CompartidaVB/CTA/Sections/JSON/new_topography.json') as json_file:
+        # with open('/media/sf_CompartidaVB/CTA/Sections/JSON/new_topography.json') as json_file:
+        #     topography = json.load(json_file)
+        with open('/media/sf_CompartidaVB/CTA/C4/Sections/JSON/new_topography.json') as json_file:
             topography = json.load(json_file)
 
         # First get the base section, which will locate all other sections.

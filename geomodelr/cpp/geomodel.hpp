@@ -23,5 +23,6 @@
 #include "match.hpp"
 #include "model.hpp"
 #include "faults.hpp"
+#include "limiter.hpp"
 
 #endif

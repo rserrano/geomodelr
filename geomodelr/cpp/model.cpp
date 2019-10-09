@@ -68,7 +68,8 @@ Model::Model( const std::tuple<std::tuple<double,double,double>, std::tuple<doub
 	point3 min = point3( g0(g0(bbox)) , g1(g0(bbox)) , g2(g0(bbox)));
 	point3 max = point3( g0(g1(bbox)) , g1(g1(bbox)) , g2(g1(bbox)));
 	geometry::subtract_point(max,min);
-	this->bbox_diag = std::sqrt(geometry::dot_product(max,max));	
+	this->bbox_diag = std::sqrt(geometry::dot_product(max,max));
+	this->set_signed_distance(L"classic");
 }
 
 Model::~Model() {
@@ -249,8 +250,7 @@ vector<std::pair<wstring, double>> Model::closest_projection_vector( const point
 	// Distance for single section
 	auto closest_single = [&](const Section * s, double cut) {
 		point2 pt = this->project_point(s, ft, sd, height);
-		std::pair<point3, double> topo_point = this->topography->intersection(real_pt, this->projection,
-			this->square_limits(ft, sd));
+		std::pair<point3, double> topo_point = this->topography->intersection(real_pt, this->projection);
 
 		double dx = gx(pt) - gx(ft);
 		double dy = gy(pt) - gy(ft);
@@ -294,8 +294,8 @@ vector<std::pair<wstring, double>> Model::closest_projection_vector( const point
 	double dist_b = std::sqrt(dx*dx + dy*dy + dz*dz);
 	
 	// Topography point
-	std::pair<point3, double> topo_point = this->topography->intersection(real_pt, this->projection,
-			this->square_limits(ft, sd));
+	// std::pair<point3, double> topo_point = this->topography->intersection(real_pt, this->projection);
+	std::pair<point3, double> topo_point = this->topography->intersects(real_pt, this->projection);
 
 	// Topography and section B
 	if (( dist_a > dist_b) and  (dist_a > topo_point.second)){
@@ -322,10 +322,12 @@ void Model::set_projection(const point3& pt){
 	double x = gx(this->direction)*gx(pt) + gy(this->direction)*gy(pt);
 	double y = gz(pt);
 	double z = gx(this->direction)*gy(pt) - gy(this->direction)*gx(pt);
-	if (std::abs(z) < epsilon){
+
+	double norm = std::sqrt(x*x + y*y + z*z);
+
+	if (std::abs(z/norm) < epsilon){
 		throw GeomodelrException("Th projection vector is parallel to the cross sections.");
 	}
-	double norm = std::sqrt(x*x + y*y + z*z);
 	this->projection_aligned = point3(x/norm, y/norm, z/norm);
 	x = gx(pt),y = gy(pt), z = gz(pt);
 	norm = std::sqrt(x*x + y*y + z*z);
@@ -337,6 +339,9 @@ void Model::set_projection_aligned(const point3& pt){
 	double y = gy(pt);
 	double z = gz(pt);
 	double norm = std::sqrt(x*x + y*y + z*z);
+	if (std::abs(z/norm) < epsilon){
+		throw GeomodelrException("Th projection vector is parallel to the cross sections.");
+	}
 	this->projection_aligned = point3(x/norm, y/norm, z/norm);
 	point3 aux = this->inverse_point( point2(x, y), z );
 	x = gx(aux) - gx(this->base_point);
@@ -392,6 +397,11 @@ pydict ModelPython::get_soil_depths() const {
 	for ( auto p: this->soil_depths ) {
 		ret[p.first] = p.second;
 	}
+
+	for (auto p: this->soils){
+		ret[p] = pyobject();
+	}
+	
 	return ret;
 }
 
@@ -944,7 +954,7 @@ void Model::set_signed_distance(const wstring& sdf_mode){
 			std::placeholders::_2);
 
 		this->closest_model = std::bind(&Model::closest_projection, this, std::placeholders::_1, L"NONE");
-
+		
 	} else{
 		throw GeomodelrException("Signed distance mode have to be 'classic' or 'vectorial'.");
 	}
@@ -966,7 +976,6 @@ std::tuple<int, int, int, int> Model::square_limits(const point2& pt, double cut
 		// 	return std::make_tuple(0,0, this->topography->dims[0]-2, this->topography->dims[1]-2);
 		// } else{
 			return std::make_tuple(-1,-1,0,0);
-		// }	
 	}
 
 	const Topography* topo = this->topography;
@@ -1282,8 +1291,8 @@ void ModelPython::make_matches() {
 	
 }
 
-void ModelPython::mode(){
-	std::wcerr <<  ((Model *)this)->mode << std::endl;
+wstring ModelPython::mode(){
+	return ((Model *)this)->mode;
 }
 
 pydict ModelPython::filter_lines( bool ext, const wstring& ft ) const {
