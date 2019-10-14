@@ -44,35 +44,16 @@ std::pair<int, double> Section::closest( const point2& pt ) const {
 	return this->closest(pt, always_true);
 }
 
-double Section::unit_box_distance(wstring unit, const point2& pt) const{
-
-	auto it = this->unit_polygons.find(unit);
-	if (it == this->unit_polygons.end()){
-		return std::numeric_limits<double>::infinity();
-	}
-
-	double x = std::min(std::max(gx(pt), g0(g0(this->b_square))), g0(g1(this->b_square)));
-	double y = std::max(gy(pt), g1(g0(this->b_square)));
-	point2 new_pt = point2(x, y);
-
-	double min_dist = std::numeric_limits<double>::infinity();
-	for (int i: it->second){
-		min_dist = std::min( min_dist, geometry::distance(poly_trees[i]->bbox, pt) );
-		// min_dist = std::min( min_dist, poly_trees[i]->distance_point(pt) );
-	}
-	return min_dist;
-}
-
 double Section::unit_distance(wstring unit, const point2& pt) const{
 
 	auto it = this->unit_polygons.find(unit);
 	if (it == this->unit_polygons.end()){
 		return std::numeric_limits<double>::infinity();
 	}
-	// std::wcerr << L"Aca\n";
-	double x = std::min(std::max(gx(pt), g0(g0(this->b_square))), g0(g1(this->b_square)));
-	double y = std::max(gy(pt), g1(g0(this->b_square)));
-	point2 new_pt = point2(x, y);
+
+	// double x = std::min(std::max(gx(pt), g0(g0(this->b_square))), g0(g1(this->b_square)));
+	// double y = std::max(gy(pt), g1(g0(this->b_square)));
+	// point2 new_pt = point2(x, y);
 	double min_dist = std::numeric_limits<double>::infinity();
 	
 	for (int i: it->second){

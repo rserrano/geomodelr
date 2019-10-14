@@ -718,8 +718,8 @@ pytuple TopographyPython::inter_2(const pyobject& pt, const pyobject& pro){
 
 RestrictedFunction::RestrictedFunction( const pyobject& model, const wstring& restype, const pyobject& data ) {
   this->model = python::extract<const ModelPython *>(model);
-  if ( restype == L"polygon" ) {
 
+  if ( restype == L"polygon" ) {
     polygon pbound;
     double bottom = -std::numeric_limits<double>::infinity();
     const pyobject& polygon = data[wstring(L"polygon")];
