@@ -30,7 +30,6 @@ protected:
   	friend BBoxLimiter;
   	friend PolygonLimiter;
 
-
 	std::pair<double, double> cuts_range;
 	bbox3 bbox;
 	bbox3 abbox;
@@ -39,7 +38,6 @@ protected:
 	point2 base_point;
 	point2 direction;
 	point3 projection;
-	point3 projection_aligned;
 	Section * geomap;
 	vector<Section *> sections;
 	vector<Match *> match;
@@ -262,7 +260,7 @@ protected:
 public:
 	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
               const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox,
-	      const point2& basepoint, const point2& direction, const point3& projection); // Sections perpendicular to surface.
+	      const point2& basepoint, const point2& direction); // Sections perpendicular to surface.
 	Model(const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& bbox,
 	      const std::tuple<std::tuple<double, double, double>, std::tuple<double, double, double>>& abbox); // Horizontal sections.
 	
@@ -300,7 +298,7 @@ public:
 	const point3& real_pt) const;
 	void set_projection(const point3& pt);
 	void set_projection_aligned(const point3& pt);
-	std::pair<point3, point3> get_projection() const;
+	point3 get_projection() const;
 	std::tuple<int, int, int, int> square_limits(const point2& pt, double cut) const;
 	vector<std::pair<wstring, double>> closest_projection_vector( const point3& real_pt, wstring unit) const;
 	std::pair<wstring, double> closest_projection( const point3& real_pt, wstring unit) const;
@@ -344,23 +342,22 @@ public:
 	            const pylist& sections,
 		    const pydict& lines,
 		    const pydict& params,
-		    const pylist& pyunits);
+		    const pydict& pyunits);
 	
 	ModelPython(const pyobject& bbox,
 		    const pyobject& abbox,
 	            const pyobject& basepoint,
 	            const pyobject& direction,
-	            const pylist& projection,
 	            const pylist& geomap,
 	            const pyobject& topography,
 	            const pylist& sections,
 		    const pydict& lines,
 		    const pydict& params,
-		    const pylist& pyunits);
+		    const pydict& pyunits);
 	
 	// fill geological model.
 	void fill_model( const pylist& geomap, const pyobject& topography, const pylist& sections,
-		const pydict& feature_types, const pydict& params, const pylist& pyunits );
+		const pydict& feature_types, const pydict& params, const pydict& pyunits );
 	
 	// Methods to create matches or load them from files.
 	void make_matches(); // Returns the faults in global coordinates, (at least until moving plane-fault intersection to C++).
@@ -400,7 +397,7 @@ public:
 	pytuple closest_projection(const pyobject& pypt) const;
 	wstring mode();
 
-	pylist get_projection() const;
+	pytuple get_projection() const;
 	void set_soil_depth(double depth);
 	double get_soil_depth() const;
 

@@ -121,7 +121,7 @@ class GeologicalModel(cpp.Model):
     with a transformation. Go to Geomodelr.com, create a new model and use it with this 
     tool.
     """
-    def __init__( self, geolojson, delete=True, params={'faults': 'basic', 'map': 'disabled'} ):
+    def __init__( self, geolojson, delete=True):
         """ 
         Initializes the geological model from a Geological JSON 
         file created in www.geomodelr.com.
@@ -142,8 +142,7 @@ class GeologicalModel(cpp.Model):
                                                            'map': 'disabled'|'soils' }
         """
         
-        self.geojson = geolojson
-        
+        self.geojson = geolojson        
         upgrade_model( self.geojson )
 
         sections = []
@@ -159,11 +158,6 @@ class GeologicalModel(cpp.Model):
                 break
         else:
             geomap = []
-        
-        # with open('/media/sf_CompartidaVB/CTA/Sections/JSON/new_topography.json') as json_file:
-        #     topography = json.load(json_file)
-        with open('/media/sf_CompartidaVB/CTA/C4/Sections/JSON/new_topography.json') as json_file:
-            topography = json.load(json_file)
 
         # First get the base section, which will locate all other sections.
         base_section = None
@@ -178,10 +172,6 @@ class GeologicalModel(cpp.Model):
                 if not 'orientation' in base_section['transform'] or base_section['transform']['orientation'] == 'vertical': 
                     base_line = base_section['transform']['line']
                     orientation = 'vertical'
-                    if 'projection' in base_section['transform']:
-                        projection = base_section['transform']['projection']
-                    else:
-                        projection = base_section['transform']['normal']
                 elif base_section['transform']['orientation'] == 'horizontal':
                     base_line = None
                     orientation = 'horizontal'
@@ -211,11 +201,8 @@ class GeologicalModel(cpp.Model):
                     abbox[3] = max( bds[1], abbox[3] )
                     abbox[2] = min( cut, abbox[2] )
                     abbox[5] = max( cut, abbox[5] )
-                    # with open("/media/sf_CompartidaVB/CTA/Sections/JSON/" + feature['name'] +  ".json") as json_file:
-                    #     data = json.load(json_file)
 
                     sect = [feature['name'], cut, cs['points'], cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
-                    # sect = [feature['name'], cut, data, cs['polygons'], cs['units'], cs['lines'], cs['lnames'], cs['anchored_lines']]
                     sections.append(sect)
                 else:
                     cs = shared.points_index_repr(feature)
@@ -233,16 +220,28 @@ class GeologicalModel(cpp.Model):
         lines = self.geojson['properties']['lines']
         # print(projection)
 
-        units = self.geojson['properties']['units'].keys()
-        if orientation == 'horizontal':
-            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params, list(units))
+        units_info = self.geojson['properties']['units']
+        for u, data in units_info.iteritems():
+            if not(data.has_key(u'soil')):
+                data[u'soil'] = False
+            if not(data.has_key(u'depth')):
+                data[u'depth'] = None
+
+        if not(self.geojson['properties'].has_key(u'params')):
+            params =  {'faults': 'basic', 'map': 'disabled'}
         else:
-            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), list(projection), geomap,
-                topography, sections, lines, params, list(units))
+            params = self.geojson['properties'][u'params']
+
+        if orientation == 'horizontal':
+            super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params, units_info)
+        else:
+            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap,
+                topography, sections, lines, params, units_info)
         
         self.make_matches()
         
         # Add units to model before deleting geojson.
+        units = units_info.keys()
         self.units = list(units)
 
         colors = {k: v[u'color'] for k,v in self.geojson['properties']['units'].items()}
