@@ -221,13 +221,13 @@ class GeologicalModel(cpp.Model):
         # print(projection)
 
         units_info = self.geojson['properties']['units']
-        for u, data in units_info.iteritems():
-            if not(data.has_key(u'soil')):
+        for u, data in units_info.items():
+            if not( u'soil' in data ):
                 data[u'soil'] = False
-            if not(data.has_key(u'depth')):
+            if not( u'depth' in data ):
                 data[u'depth'] = None
 
-        if not(self.geojson['properties'].has_key(u'params')):
+        if not( 'params' in self.geojson['properties'] ):
             params =  {'faults': 'basic', 'map': 'disabled'}
         else:
             params = self.geojson['properties'][u'params']
