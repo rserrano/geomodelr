@@ -49,7 +49,20 @@ def to_version_0_1_13( model ):
     for unit in units:
         units[unit] = { 'color': units[unit], 'pattern': None }
 
-UPGRADES = [ ( (0, 1, 6), to_version_0_1_6 ), ( ( 0, 1, 13), to_version_0_1_13 ) ]
+def to_version_0_1_14( model ):
+    """
+    This version adds a params dict and also adds information about being or not a soil to the properties dict.
+    """
+    params = model['properties']['params'] =  {'faults': 'basic', 'map': 'disabled'}
+    
+    units_info = model['properties']['units']
+    for u, data in units_info.items():
+        if not( u'soil' in data ):
+            data[u'soil'] = False
+        if not( u'depth' in data ):
+            data[u'depth'] = None
+
+UPGRADES = [ ( (0, 1, 6), to_version_0_1_6 ), ( ( 0, 1, 13), to_version_0_1_13 ), ( ( 0, 1, 14), to_version_0_1_14 ) ]
 
 def upgrade_model( model ):
     if not 'geomodelr' in model['properties']:

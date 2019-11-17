@@ -138,8 +138,6 @@ class GeologicalModel(cpp.Model):
         Args:
             (dict) geolojson: The Geological JSON.
             delete: Delete the geojson after creating the cpp model to free memory.
-            params: Parameters to interpolate the model: { 'faults': 'disabled'|'basic'|'cover',
-                                                           'map': 'disabled'|'soils' }
         """
         
         self.geojson = geolojson        
@@ -219,31 +217,21 @@ class GeologicalModel(cpp.Model):
         
         lines = self.geojson['properties']['lines']
         # print(projection)
-
+        
         units_info = self.geojson['properties']['units']
-        for u, data in units_info.items():
-            if not( u'soil' in data ):
-                data[u'soil'] = False
-            if not( u'depth' in data ):
-                data[u'depth'] = None
-
-        if not( 'params' in self.geojson['properties'] ):
-            params =  {'faults': 'basic', 'map': 'disabled'}
-        else:
-            params = self.geojson['properties'][u'params']
+        params = self.geojson['properties']['params']
 
         if orientation == 'horizontal':
             super(GeologicalModel, self).__init__(bbox, abbox, geomap, topography, sections, lines, params, units_info)
         else:
-            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap,
-                topography, sections, lines, params, units_info)
+            super(GeologicalModel, self).__init__(bbox, abbox, list(base_point), list(direction), geomap, topography, sections, lines, params, units_info)
         
         self.make_matches()
         
         # Add units to model before deleting geojson.
         units = units_info.keys()
         self.units = list(units)
-
+        
         colors = {k: v[u'color'] for k,v in self.geojson['properties']['units'].items()}
         self.colors = colors
         
